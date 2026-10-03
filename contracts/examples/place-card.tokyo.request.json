@@ -1,0 +1,65 @@
+{
+  "profile": {
+    "version": "98591c7f262f993cd4302bfea86f424c3f7e9a3b2c1ebefff7a6384f391f37ed",
+    "nationality": "CA",
+    "homeLanguage": "en",
+    "spokenLanguages": [
+      "en"
+    ],
+    "diet": [],
+    "dietNotes": "",
+    "allergies": [
+      {
+        "id": "peanut",
+        "severity": "serious"
+      }
+    ],
+    "favourites": {
+      "foods": [],
+      "drinks": [
+        "fruit tea"
+      ]
+    },
+    "taste": {
+      "sweetness": 1,
+      "spice": 2
+    },
+    "personality": {
+      "rhythm": null,
+      "food": "local_favourite",
+      "budget": "save",
+      "vibe": "quiet"
+    },
+    "homeBase": {
+      "name": "Jing'an Garden Hotel (placeholder)",
+      "localName": "静安花园酒店",
+      "address": "1250 West Nanjing Road, Jing'an District, Shanghai",
+      "addressLocal": "上海市静安区南京西路1250号",
+      "coordinate": {
+        "lat": 31.229,
+        "lon": 121.452
+      }
+    }
+  },
+  "situation": {
+    "mode": "preview",
+    "localTime": "2026-10-06T20:00:00+09:00",
+    "timeZone": "Asia/Tokyo",
+    "hourBucket": "2026-10-06T20",
+    "place": {
+      "id": "fixture-tokyo-menya-kaze",
+      "name": "Menya Kaze",
+      "localName": "麺屋 風",
+      "category": "ramen",
+      "address": "1-12-5 Nishi-Shinjuku, Shinjuku City, Tokyo",
+      "coordinate": {
+        "lat": 35.6912,
+        "lon": 139.6978
+      }
+    },
+    "city": "Tokyo",
+    "district": "Shinjuku",
+    "countryCode": "JP",
+    "localLanguage": "ja"
+  }
+}

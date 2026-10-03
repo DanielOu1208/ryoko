@@ -1,0 +1,28 @@
+: ........................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+
+data: {"type":"start","sessionId":"7d3e9a10-2f4b-4c6a-8e1d-5b9c0a7f3e21","runId":"run_01"}
+
+data: {"type":"text","delta":"Pick your bowl"}
+
+data: {"type":"text","delta":" at the ticket machine by the door,"}
+
+data: {"type":"text","delta":" pay in cash, then hand the ticket to the staff at the counter."}
+
+data: {"type":"text","delta":" Tantanmen and some dipping sauces can contain peanut, so ask before you order:\n\n"}
+
+data: {"type":"phrase","phrase":{"id":"mimo-run_01-1","lang":"ja","local":"ピーナッツアレルギーがあります。これに入っていますか？","romanization":"Pīnattsu arerugī ga arimasu. Kore ni haitte imasu ka?","gloss":"I have a peanut allergy. Is there any in this?"}}
+
+data: {"type":"tool_start","id":"call_show_places_1","name":"show_places","label":"Finding places…"}
+
+: ping
+
+data: {"type":"tool_end","id":"call_show_places_1","name":"show_places","ok":true,"details":{"places":[{"name":"Tajimaya Coffee","localName":"珈琲 但馬屋","why":"Tiny old kissaten by the tracks, calm after dinner"},{"name":"Tsubakiya Coffee Shinjuku","localName":"椿屋珈琲 新宿本館","why":"Deep chairs and slow service, good for a quiet hour"},{"name":"Coffee Seibu","localName":"珈琲西武","why":"Classic Shinjuku coffee house, a local favourite"}]}}
+
+data: {"type":"text","delta":"\n\n"}
+
+data: {"type":"text","delta":"All three are a short walk from here"}
+
+data: {"type":"text","delta":" and stay quiet in the evening."}
+
+data: {"type":"done","stopReason":"stop"}
+

@@ -1,0 +1,45 @@
+{
+  "language": "zh-Hans",
+  "phrases": [
+    {
+      "id": "pc-sh-1",
+      "lang": "zh-Hans",
+      "local": "一杯招牌拿铁，少糖。",
+      "romanization": "Yì bēi zhāopái nátiě, shǎo táng.",
+      "gloss": "One house latte, less sugar.",
+      "because": "You like it less sweet; this is their speciality",
+      "basis": ["taste", "personality"]
+    },
+    {
+      "id": "pc-sh-2",
+      "lang": "zh-Hans",
+      "local": "我对花生过敏。这个里面有花生吗？",
+      "romanization": "Wǒ duì huāshēng guòmǐn. Zhège lǐmiàn yǒu huāshēng ma?",
+      "gloss": "I'm allergic to peanuts. Is there any peanut in this?",
+      "because": "Your peanut allergy is serious",
+      "basis": ["allergy"]
+    },
+    {
+      "id": "pc-sh-3",
+      "lang": "zh-Hans",
+      "local": "可以用外国银行卡付款吗？",
+      "romanization": "Kěyǐ yòng wàiguó yínháng kǎ fùkuǎn ma?",
+      "gloss": "Can I pay with a foreign bank card?",
+      "because": "Most cafés here expect QR payment, unlike Canada",
+      "basis": ["nationality"]
+    }
+  ],
+  "tips": [
+    {
+      "text": "No tipping here, unlike Canada. The price on the menu is what you pay.",
+      "basis": ["nationality"]
+    },
+    {
+      "text": "Mid-afternoon is the calm stretch before the after-work crowd, so the window seats are usually free.",
+      "basis": ["localTime", "personality"]
+    }
+  ],
+  "placeNameLocal": "梧桐咖啡",
+  "addressLocal": "上海市静安区愚园路118号",
+  "generatedAt": "2026-10-03T21:14:05Z"
+}

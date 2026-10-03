@@ -1,0 +1,389 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/SseEvent.schema.json",
+  "title": "SseEvent",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "sessionId",
+        "runId"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "start"
+          ]
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "delta"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "text"
+          ]
+        },
+        "delta": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "phrase"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "phrase"
+          ]
+        },
+        "phrase": {
+          "type": "object",
+          "required": [
+            "id",
+            "lang",
+            "local",
+            "romanization",
+            "gloss"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "lang": {
+              "type": "string",
+              "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+              "description": "BCP-47 language tag, e.g. en, ja, zh-Hans"
+            },
+            "local": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "The phrase in local script"
+            },
+            "romanization": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300,
+                  "description": "Pinyin or romaji; null for Latin-script languages"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "gloss": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Meaning in the home language"
+            },
+            "because": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "description": "About 8–10 words, in the home language"
+            },
+            "basis": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "place",
+                  "localTime",
+                  "personality",
+                  "nationality",
+                  "diet",
+                  "allergy",
+                  "favourites",
+                  "taste",
+                  "memory"
+                ]
+              },
+              "minItems": 1,
+              "maxItems": 2,
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "name",
+        "label"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "tool_start"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "enum": [
+            "show_places",
+            "web_search"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "Quiet status line, e.g. \"Finding places…\""
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "name",
+        "ok",
+        "details"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "tool_end"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "enum": [
+            "show_places"
+          ]
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "details": {
+          "type": "object",
+          "required": [
+            "places"
+          ],
+          "properties": {
+            "places": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "why"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "localName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "why": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80,
+                    "description": "One line, home language"
+                  },
+                  "order": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5,
+                    "description": "Stop number when this is a plan"
+                  },
+                  "when": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "description": "24-hour local time, HH:mm"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "maxItems": 5
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "name",
+        "ok",
+        "details"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "tool_end"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "enum": [
+            "web_search"
+          ]
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "details": {
+          "type": "object",
+          "required": [
+            "sources"
+          ],
+          "properties": {
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "url"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https?://"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "maxItems": 8
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "stopReason"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "done"
+          ]
+        },
+        "stopReason": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "length",
+            "turn_limit",
+            "tool_limit",
+            "aborted"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "code",
+        "message",
+        "retryable"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "error"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "unauthorized",
+            "rate_limited",
+            "session_busy",
+            "invalid_request",
+            "invalid_model_output",
+            "model_error",
+            "timeout",
+            "budget_exceeded"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

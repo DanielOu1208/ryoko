@@ -1,0 +1,16 @@
+{
+  "language": "ja",
+  "title": "アレルギーについて",
+  "items": [
+    {
+      "allergenId": "custom",
+      "local": "ごく微量のそば（蕎麦粉）でも命に関わります。すべての材料を確認し、清潔な調理器具を使ってください。",
+      "home": "Even a trace of buckwheat can be life-threatening; please check every ingredient and use clean utensils.",
+      "severity": "life_threatening"
+    }
+  ],
+  "requestLocal": "この料理にそばは入っていますか？",
+  "requestHome": "Does this dish contain buckwheat?",
+  "romanization": "Kono ryōri ni soba wa haitte imasu ka?",
+  "reviewed": false
+}

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/Phrase.schema.json",
+  "title": "Phrase",
+  "type": "object",
+  "required": [
+    "id",
+    "lang",
+    "local",
+    "romanization",
+    "gloss"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "lang": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+      "description": "BCP-47 language tag, e.g. en, ja, zh-Hans"
+    },
+    "local": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "The phrase in local script"
+    },
+    "romanization": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "Pinyin or romaji; null for Latin-script languages"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "gloss": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Meaning in the home language"
+    },
+    "because": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "description": "About 8–10 words, in the home language"
+    },
+    "basis": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "place",
+          "localTime",
+          "personality",
+          "nationality",
+          "diet",
+          "allergy",
+          "favourites",
+          "taste",
+          "memory"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 2,
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

@@ -153,7 +153,7 @@ For all of them:
 ### 4.5 Allergy card
 
 - A Show-mode card in the local language that states each allergy and how serious it is, and asks whether the dish contains it, with your language underneath.
-- **Chip allergens use reviewed templates** for `zh-Hans` and `ja` at each severity. They live in `contracts/allergy-templates.json`, are bundled in the app and work offline. Wording:
+- **Chip allergens use reviewed templates** for `zh-Hans` and `ja` at each severity. They live in `contracts/tables/allergy-templates.json`, are bundled in the app and work offline. Wording:
   - Mild: "Please avoid X if possible."
   - Serious: "I must not eat X, including X oil or sauces containing X."
   - Life-threatening: "Even a trace of X can be life-threatening; please check every ingredient and use clean utensils."
@@ -354,7 +354,7 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
   | `POST /v1/soniox-key` | mints a short-lived Soniox key | 2 |
 
 - **Mimo's tools:**
-  - `show_places` returns `{places: [{name, localName?, why, order?, when?}]}`, at most 5 places (or stops).
+  - `show_places` returns `{places: [{name, localName?, why, order?, when?}]}`, at most 5 places (or stops). `order` is 1–5. `when` is a local 24-hour `HH:mm`.
   - `web_search` is backed by Tavily and returns `details.sources [{title, url}]`.
 - **Guardrails** (pi's Agent has none built in):
   - at most 4 model turns and 3 tool calls per run, via `finishTurn` and `beforeToolCall`
@@ -436,7 +436,7 @@ Swift `Codable` types in `ios/Shared/` mirror the schemas by hand. Changes go th
 }
 ```
 
-- `mode` is `live` or `preview`. `place` is `null` in city-only mode.
+- `mode` is `live` or `preview`. `place` is `null` in city-only mode. `place.id` is optional: MapKit gives none for some places and for long-press pins.
 - The server works out the weekday and part of day from `localTime` only.
 - `category` is a short slug from the shared category table, which also holds display names, SF Symbols and Mimo's starter suggestions.
 
@@ -458,7 +458,7 @@ Swift `Codable` types in `ios/Shared/` mirror the schemas by hand. Changes go th
 }
 ```
 
-- **Codes:** `nationality` is ISO 3166-1. Languages are BCP-47.
+- **Codes:** `nationality` is ISO 3166-1. Languages are free BCP-47 strings (validated by pattern), so unsupported languages still work best-effort. `homeLanguage` is never null; if that page is skipped, it falls back to the device language.
 - **Skipped vs none:** `null` means skipped and `[]` means none.
 - **Diet:** `vegetarian | vegan | halal | kosher | no_pork | no_beef | gluten_free | lactose_free`.
 - **Allergens:** `egg | milk | mustard | peanut | crustacean_mollusc | fish | sesame | soy | sulphite | tree_nut | wheat | custom`. A custom allergen also has a `label`.
@@ -488,12 +488,12 @@ Swift `Codable` types in `ios/Shared/` mirror the schemas by hand. Changes go th
 ### 7.5 Discover
 
 - **Request:** `{ area: { center, radiusMeters: 1500, city, district? }, profile, situation }`.
-- **Response:** `{ places: [{ name, localName, why, category, bestTime? }] }` (5–8 places).
+- **Response:** `{ places: [{ name, localName, why, category, bestTime? }] }` (5–8 places). `bestTime` is a short label in the home language (at most 24 characters, e.g. "Afternoons").
 - **Cache key:** (geohash-6, hour bucket, profile version).
 
 ### 7.6 Allergy card
 
-- **Request:** `{ language, allergies }` (free-text allergens only).
+- **Request:** `{ language, homeLanguage, allergies: [{ id: "custom", label, severity }] }` (free-text allergens only).
 - **Response:** `{ language, title, items: [{ allergenId, local, home, severity }], requestLocal, requestHome, romanization?, reviewed: false }`.
 - **Templated chip allergens** never call the server.
 
@@ -512,8 +512,8 @@ Swift `Codable` types in `ios/Shared/` mirror the schemas by hand. Changes go th
 | `text` | `delta` |
 | `phrase` | `phrase` (a `Phrase`) |
 | `tool_start` | `id, name, label` |
-| `tool_end` | `id, name, ok, details` (`show_places`: `{places}`; `web_search`: `{sources}`) |
-| `done` | `stopReason` |
+| `tool_end` | `id, name, ok, details` (`show_places`: `{places}`; `web_search`: `{sources}`; empty details when `ok` is false) |
+| `done` | `stopReason`: `stop` \| `length` \| `turn_limit` \| `tool_limit` \| `aborted` |
 | `error` | `code, message, retryable` |
 
 Clients ignore event types they don't know.

@@ -1,0 +1,30 @@
+{
+  "name": "@ryoko/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ryoko API contracts: TypeBox schemas, emitted JSON Schema, examples and shared tables (design §7).",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./examples/*": "./examples/*",
+    "./tables/*": "./tables/*",
+    "./json-schema/*": "./json-schema/*",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "emit": "node scripts/emit.ts",
+    "test": "node --test 'test/*.test.ts'",
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm run typecheck && pnpm run emit && pnpm run test"
+  },
+  "dependencies": {
+    "typebox": "1.3.27"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "typescript": "7.0.2"
+  }
+}

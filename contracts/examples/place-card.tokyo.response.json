@@ -1,0 +1,45 @@
+{
+  "language": "ja",
+  "phrases": [
+    {
+      "id": "pc-tk-1",
+      "lang": "ja",
+      "local": "すみません、食券の買い方を教えてください。",
+      "romanization": "Sumimasen, shokken no kaikata o oshiete kudasai.",
+      "gloss": "Excuse me, could you show me how to buy a meal ticket?",
+      "because": "You order from a ticket machine here",
+      "basis": ["place"]
+    },
+    {
+      "id": "pc-tk-2",
+      "lang": "ja",
+      "local": "ピーナッツアレルギーがあります。これに入っていますか？",
+      "romanization": "Pīnattsu arerugī ga arimasu. Kore ni haitte imasu ka?",
+      "gloss": "I have a peanut allergy. Is there any in this?",
+      "because": "Your peanut allergy is serious",
+      "basis": ["allergy"]
+    },
+    {
+      "id": "pc-tk-3",
+      "lang": "ja",
+      "local": "一番人気はどれですか？",
+      "romanization": "Ichiban ninki wa dore desu ka?",
+      "gloss": "Which one is the most popular?",
+      "because": "You'd rather have the local favourite",
+      "basis": ["personality"]
+    }
+  ],
+  "tips": [
+    {
+      "text": "Buy a ticket at the machine by the door and hand it to the staff. Many machines take cash only, so keep a few ¥1,000 notes.",
+      "basis": ["place"]
+    },
+    {
+      "text": "No tipping, unlike Canada, and slurping your noodles is perfectly normal.",
+      "basis": ["nationality"]
+    }
+  ],
+  "placeNameLocal": "麺屋 風",
+  "addressLocal": "東京都新宿区西新宿1-12-5",
+  "generatedAt": "2026-10-03T21:16:40Z"
+}

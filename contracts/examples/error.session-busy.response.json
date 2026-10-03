@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "session_busy",
+    "message": "Mimo is still answering your last message. Try again in a moment.",
+    "retryable": true
+  }
+}

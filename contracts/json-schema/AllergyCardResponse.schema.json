@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/AllergyCardResponse.schema.json",
+  "title": "AllergyCardResponse",
+  "type": "object",
+  "required": [
+    "language",
+    "title",
+    "items",
+    "requestLocal",
+    "requestHome",
+    "reviewed"
+  ],
+  "properties": {
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+      "description": "BCP-47 language tag, e.g. en, ja, zh-Hans"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60,
+      "description": "Card title in the local language"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "allergenId",
+          "local",
+          "home",
+          "severity"
+        ],
+        "properties": {
+          "allergenId": {
+            "type": "string",
+            "enum": [
+              "egg",
+              "milk",
+              "mustard",
+              "peanut",
+              "crustacean_mollusc",
+              "fish",
+              "sesame",
+              "soy",
+              "sulphite",
+              "tree_nut",
+              "wheat",
+              "custom"
+            ]
+          },
+          "local": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "home": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "mild",
+              "serious",
+              "life_threatening"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 10
+    },
+    "requestLocal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Asks whether the dish contains these, local language"
+    },
+    "requestHome": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "romanization": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "description": "Romanization of requestLocal"
+    },
+    "reviewed": {
+      "type": "boolean",
+      "description": "Always false for generated cards"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/Place.schema.json",
+  "title": "Place",
+  "type": "object",
+  "required": [
+    "name",
+    "category",
+    "coordinate"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "MKMapItem.Identifier raw value; absent when MapKit has none"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "localName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "cafe",
+        "tea",
+        "restaurant",
+        "ramen",
+        "bar",
+        "bakery",
+        "convenience_store",
+        "museum",
+        "park",
+        "temple_shrine",
+        "shopping",
+        "transit",
+        "hotel",
+        "other"
+      ],
+      "description": "Category slug from contracts/tables/categories.json"
+    },
+    "address": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "coordinate": {
+      "type": "object",
+      "required": [
+        "lat",
+        "lon"
+      ],
+      "properties": {
+        "lat": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "lon": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

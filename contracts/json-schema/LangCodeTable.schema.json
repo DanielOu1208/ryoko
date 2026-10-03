@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/LangCodeTable.schema.json",
+  "title": "LangCodeTable",
+  "type": "object",
+  "required": [
+    "languages"
+  ],
+  "properties": {
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "tag",
+          "status",
+          "displayName",
+          "nativeName",
+          "soniox",
+          "locale",
+          "romanization",
+          "romanizationSource",
+          "voice",
+          "regions"
+        ],
+        "properties": {
+          "tag": {
+            "type": "string",
+            "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+            "description": "BCP-47 language tag, e.g. en, ja, zh-Hans"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "supported",
+              "best_effort"
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "description": "English name"
+          },
+          "nativeName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "soniox": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Soniox language code"
+          },
+          "locale": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Locale identifier for geocoding, e.g. zh_Hans_CN"
+          },
+          "romanization": {
+            "type": "string",
+            "enum": [
+              "pinyin",
+              "romaji",
+              "none"
+            ]
+          },
+          "romanizationSource": {
+            "type": "string",
+            "enum": [
+              "pinyin-pro",
+              "model",
+              "none"
+            ],
+            "description": "pinyin-pro runs on the server"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "Tier 2 voice id"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "regions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            },
+            "description": "Region codes that map to this language (CLDR likely subtags)"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false
+}

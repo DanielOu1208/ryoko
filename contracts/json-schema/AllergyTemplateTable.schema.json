@@ -1,0 +1,2180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/AllergyTemplateTable.schema.json",
+  "title": "AllergyTemplateTable",
+  "type": "object",
+  "required": [
+    "homeLanguage",
+    "note",
+    "languages",
+    "taxiPhrases"
+  ],
+  "properties": {
+    "homeLanguage": {
+      "type": "string",
+      "enum": [
+        "en"
+      ]
+    },
+    "note": {
+      "type": "string"
+    },
+    "languages": {
+      "type": "object",
+      "required": [
+        "zh-Hans",
+        "ja"
+      ],
+      "properties": {
+        "zh-Hans": {
+          "type": "object",
+          "required": [
+            "reviewed",
+            "reviewedBy",
+            "title",
+            "request",
+            "requestRomanization",
+            "severityLabels",
+            "allergens"
+          ],
+          "properties": {
+            "reviewed": {
+              "type": "boolean",
+              "description": "False until a native speaker has checked every line"
+            },
+            "reviewedBy": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": {
+              "type": "object",
+              "required": [
+                "local",
+                "home"
+              ],
+              "properties": {
+                "local": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "home": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The same line in the home language (en)"
+                }
+              },
+              "additionalProperties": false
+            },
+            "request": {
+              "type": "object",
+              "required": [
+                "local",
+                "home"
+              ],
+              "properties": {
+                "local": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "home": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The same line in the home language (en)"
+                }
+              },
+              "additionalProperties": false
+            },
+            "requestRomanization": {
+              "type": "string",
+              "minLength": 1
+            },
+            "severityLabels": {
+              "type": "object",
+              "required": [
+                "mild",
+                "serious",
+                "life_threatening"
+              ],
+              "properties": {
+                "mild": {
+                  "type": "object",
+                  "required": [
+                    "local",
+                    "home"
+                  ],
+                  "properties": {
+                    "local": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "home": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The same line in the home language (en)"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "serious": {
+                  "type": "object",
+                  "required": [
+                    "local",
+                    "home"
+                  ],
+                  "properties": {
+                    "local": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "home": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The same line in the home language (en)"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "life_threatening": {
+                  "type": "object",
+                  "required": [
+                    "local",
+                    "home"
+                  ],
+                  "properties": {
+                    "local": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "home": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The same line in the home language (en)"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "allergens": {
+              "type": "object",
+              "required": [
+                "egg",
+                "milk",
+                "mustard",
+                "peanut",
+                "crustacean_mollusc",
+                "fish",
+                "sesame",
+                "soy",
+                "sulphite",
+                "tree_nut",
+                "wheat"
+              ],
+              "properties": {
+                "egg": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "milk": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "mustard": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "peanut": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "crustacean_mollusc": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "fish": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "sesame": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "soy": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "sulphite": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "tree_nut": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "wheat": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "ja": {
+          "type": "object",
+          "required": [
+            "reviewed",
+            "reviewedBy",
+            "title",
+            "request",
+            "requestRomanization",
+            "severityLabels",
+            "allergens"
+          ],
+          "properties": {
+            "reviewed": {
+              "type": "boolean",
+              "description": "False until a native speaker has checked every line"
+            },
+            "reviewedBy": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": {
+              "type": "object",
+              "required": [
+                "local",
+                "home"
+              ],
+              "properties": {
+                "local": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "home": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The same line in the home language (en)"
+                }
+              },
+              "additionalProperties": false
+            },
+            "request": {
+              "type": "object",
+              "required": [
+                "local",
+                "home"
+              ],
+              "properties": {
+                "local": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "home": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The same line in the home language (en)"
+                }
+              },
+              "additionalProperties": false
+            },
+            "requestRomanization": {
+              "type": "string",
+              "minLength": 1
+            },
+            "severityLabels": {
+              "type": "object",
+              "required": [
+                "mild",
+                "serious",
+                "life_threatening"
+              ],
+              "properties": {
+                "mild": {
+                  "type": "object",
+                  "required": [
+                    "local",
+                    "home"
+                  ],
+                  "properties": {
+                    "local": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "home": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The same line in the home language (en)"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "serious": {
+                  "type": "object",
+                  "required": [
+                    "local",
+                    "home"
+                  ],
+                  "properties": {
+                    "local": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "home": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The same line in the home language (en)"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "life_threatening": {
+                  "type": "object",
+                  "required": [
+                    "local",
+                    "home"
+                  ],
+                  "properties": {
+                    "local": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "home": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The same line in the home language (en)"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "allergens": {
+              "type": "object",
+              "required": [
+                "egg",
+                "milk",
+                "mustard",
+                "peanut",
+                "crustacean_mollusc",
+                "fish",
+                "sesame",
+                "soy",
+                "sulphite",
+                "tree_nut",
+                "wheat"
+              ],
+              "properties": {
+                "egg": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "milk": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "mustard": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "peanut": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "crustacean_mollusc": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "fish": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "sesame": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "soy": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "sulphite": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "tree_nut": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "wheat": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "nameHome",
+                    "mild",
+                    "serious",
+                    "life_threatening"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Allergen name, local language"
+                    },
+                    "nameHome": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mild": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "serious": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "life_threatening": {
+                      "type": "object",
+                      "required": [
+                        "local",
+                        "home"
+                      ],
+                      "properties": {
+                        "local": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "home": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "The same line in the home language (en)"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "taxiPhrases": {
+      "type": "object",
+      "required": [
+        "zh-Hans",
+        "ja",
+        "zh-Hant"
+      ],
+      "properties": {
+        "zh-Hans": {
+          "type": "object",
+          "required": [
+            "local",
+            "romanization",
+            "gloss",
+            "reviewed"
+          ],
+          "properties": {
+            "local": {
+              "type": "string",
+              "minLength": 1
+            },
+            "romanization": {
+              "type": "string",
+              "minLength": 1
+            },
+            "gloss": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reviewed": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "ja": {
+          "type": "object",
+          "required": [
+            "local",
+            "romanization",
+            "gloss",
+            "reviewed"
+          ],
+          "properties": {
+            "local": {
+              "type": "string",
+              "minLength": 1
+            },
+            "romanization": {
+              "type": "string",
+              "minLength": 1
+            },
+            "gloss": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reviewed": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "zh-Hant": {
+          "type": "object",
+          "required": [
+            "local",
+            "romanization",
+            "gloss",
+            "reviewed"
+          ],
+          "properties": {
+            "local": {
+              "type": "string",
+              "minLength": 1
+            },
+            "romanization": {
+              "type": "string",
+              "minLength": 1
+            },
+            "gloss": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reviewed": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

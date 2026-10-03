@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/AllergyCardRequest.schema.json",
+  "title": "AllergyCardRequest",
+  "type": "object",
+  "required": [
+    "language",
+    "homeLanguage",
+    "allergies"
+  ],
+  "properties": {
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+      "description": "BCP-47 language tag, e.g. en, ja, zh-Hans"
+    },
+    "homeLanguage": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+      "description": "BCP-47 language tag, e.g. en, ja, zh-Hans"
+    },
+    "allergies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "severity"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "custom"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Free-text allergen in the home language"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "mild",
+              "serious",
+              "life_threatening"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 10
+    }
+  },
+  "additionalProperties": false
+}

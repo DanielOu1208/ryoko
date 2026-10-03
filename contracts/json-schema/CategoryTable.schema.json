@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/CategoryTable.schema.json",
+  "title": "CategoryTable",
+  "type": "object",
+  "required": [
+    "categories"
+  ],
+  "properties": {
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "slug",
+          "displayName",
+          "sfSymbol",
+          "starters"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string",
+            "enum": [
+              "cafe",
+              "tea",
+              "restaurant",
+              "ramen",
+              "bar",
+              "bakery",
+              "convenience_store",
+              "museum",
+              "park",
+              "temple_shrine",
+              "shopping",
+              "transit",
+              "hotel",
+              "other"
+            ],
+            "description": "Category slug from contracts/tables/categories.json"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "sfSymbol": {
+            "type": "string",
+            "minLength": 1
+          },
+          "starters": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "minItems": 2,
+            "maxItems": 3
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false
+}

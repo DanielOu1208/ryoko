@@ -1,0 +1,53 @@
+{
+  "languages": [
+    {
+      "tag": "zh-Hans",
+      "status": "supported",
+      "displayName": "Chinese (Simplified)",
+      "nativeName": "简体中文",
+      "soniox": "zh",
+      "locale": "zh_Hans_CN",
+      "romanization": "pinyin",
+      "romanizationSource": "pinyin-pro",
+      "voice": null,
+      "regions": ["CN"]
+    },
+    {
+      "tag": "ja",
+      "status": "supported",
+      "displayName": "Japanese",
+      "nativeName": "日本語",
+      "soniox": "ja",
+      "locale": "ja_JP",
+      "romanization": "romaji",
+      "romanizationSource": "model",
+      "voice": null,
+      "regions": ["JP"]
+    },
+    {
+      "tag": "en",
+      "status": "supported",
+      "displayName": "English",
+      "nativeName": "English",
+      "soniox": "en",
+      "locale": "en",
+      "romanization": "none",
+      "romanizationSource": "none",
+      "voice": null,
+      "regions": ["CA", "US", "GB", "AU", "NZ", "IE"]
+    },
+    {
+      "tag": "zh-Hant",
+      "status": "best_effort",
+      "displayName": "Chinese (Traditional)",
+      "nativeName": "繁體中文",
+      "soniox": "zh",
+      "locale": "zh_Hant_TW",
+      "romanization": "pinyin",
+      "romanizationSource": "pinyin-pro",
+      "voice": null,
+      "regions": ["TW", "HK"],
+      "notes": "Best-effort, pending a decision on a Taipei stop. Taiwan Mandarin only: Hong Kong speech is Cantonese and unsupported. No allergy templates yet; the taxi phrase is in allergy-templates.json."
+    }
+  ]
+}

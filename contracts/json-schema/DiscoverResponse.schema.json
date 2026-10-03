@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/DiscoverResponse.schema.json",
+  "title": "DiscoverResponse",
+  "type": "object",
+  "required": [
+    "places"
+  ],
+  "properties": {
+    "places": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "localName",
+          "why",
+          "category"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "localName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "why": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "One line, home language"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "cafe",
+              "tea",
+              "restaurant",
+              "ramen",
+              "bar",
+              "bakery",
+              "convenience_store",
+              "museum",
+              "park",
+              "temple_shrine",
+              "shopping",
+              "transit",
+              "hotel",
+              "other"
+            ],
+            "description": "Category slug from contracts/tables/categories.json"
+          },
+          "bestTime": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "description": "Short display text in the home language, e.g. \"Mornings\""
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 5,
+      "maxItems": 8
+    }
+  },
+  "additionalProperties": false
+}

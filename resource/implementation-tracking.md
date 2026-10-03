@@ -15,7 +15,7 @@ A living tracker for the build. **Update it as you work.** When you start a task
 | --- | --- | --- |
 | Setup (§12.2) | doing | S1, S2, S3, S5 done; S4 waiting on keys |
 | Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 waiting on Soniox key |
-| Tier 1: working core | todo | |
+| Tier 1: working core | doing | W1 contracts done; W1 server and W2 iOS in progress (workflow) |
 | Tier 2 | todo | |
 | After core | todo | |
 | Submission | todo | |
@@ -47,9 +47,9 @@ Write down what you find. The results may change the spec.
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| W1.1 | TypeBox schemas + emitted JSON Schema for §7.1–7.8 | | todo | | |
-| W1.2 | Example request and response JSON per endpoint, plus `mimo.sse.txt` | | todo | | |
-| W1.3 | `LangCode` table, category table (display names, SF Symbols, starters), allergy templates (zh-Hans, ja × chip allergens × 3 severities) | | todo | | Templates need a Chinese reader and a Japanese reader |
+| W1.1 | TypeBox schemas + emitted JSON Schema for §7.1–7.8 | wf:contracts | done |  | `@ryoko/contracts`: TypeBox 1.3.27, local StringEnum, `additionalProperties:false`; 21 JSON Schema files via `pnpm contracts:emit` |
+| W1.2 | Example request and response JSON per endpoint, plus `mimo.sse.txt` | wf:contracts | done |  | Hand-written examples (fictional Shanghai café, Tokyo ramen ticket-machine shop), `profile.seed.json`, `mimo.sse.txt`; 25 tests pass (`pnpm contracts:test`) |
+| W1.3 | `LangCode` table, category table (display names, SF Symbols, starters), allergy templates (zh-Hans, ja × chip allergens × 3 severities) | wf:contracts | review |  | Tables done (langcodes incl. best-effort zh-Hant, 14 categories, allergy templates). **Allergy and taxi text has had no native review (`reviewed:false`)**: needs a Chinese reader and a Japanese reader |
 | W1.4 | Hono skeleton: `/healthz`, bearer auth, error envelope, rate limit, body limit, SSE helper (512-byte padding, pings) | | todo | | |
 | W1.5 | `MODEL=faux` fixture mode serving the examples, including a scripted Mimo stream | | todo | | |
 
@@ -160,3 +160,4 @@ Write down what you find. The results may change the spec.
 | 2026-10-03 | Server port 8790 → **8792** (8790/8791 are used by another local dev server); Funnel `:10000` → 8792 | D4 spike | yes |
 | 2026-10-03 | §4.7: cache-key fallback when there's no identifier, a name-similarity check, sort POIs by distance | D1 follow-up (Taipei/HK) | yes |
 | 2026-10-03 | §6.3 model fixed to DeepSeek V4.1 Flash, thinking off; §6.2 the allergen filter allows safety mentions, plus a separator between text around tool calls; §6.4 prompt rules | D3 spike | yes |
+| 2026-10-03 | §7: allergy-card request adds `homeLanguage`; templates at `contracts/tables/`; `done.stopReason` values; `when` = HH:mm; `bestTime` label; free BCP-47 language strings; optional `place.id` | W1 contracts | yes |
