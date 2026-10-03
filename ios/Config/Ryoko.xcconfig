@@ -1,0 +1,11 @@
+// Base configuration for both Ryoko targets, Debug and Release.
+// Real values live in the gitignored Local.xcconfig and Secrets.xcconfig.
+// Copy Local.example.xcconfig and Secrets.example.xcconfig to create them.
+
+DEVELOPMENT_TEAM =
+APP_TOKEN =
+AGENT_BASE_URL =
+SONIOX_API_KEY =
+
+#include? "Local.xcconfig"
+#include? "Secrets.xcconfig"

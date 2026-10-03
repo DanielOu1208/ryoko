@@ -13,8 +13,8 @@ A living tracker for the build. **Update it as you work.** When you start a task
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Setup (§12.2) | doing | S1, S3 done; S2, S5 in progress; S4 waiting on keys |
-| Device spikes (§11) | doing | D1, D3, D4 running; D2 waiting on Soniox key |
+| Setup (§12.2) | doing | S1, S2, S3 done; S5 in progress; S4 waiting on keys |
+| Device spikes (§11) | doing | D1 done (desk); D3, D4 running; D2 waiting on Soniox key |
 | Tier 1: working core | todo | |
 | Tier 2 | todo | |
 | After core | todo | |
@@ -25,7 +25,7 @@ A living tracker for the build. **Update it as you work.** When you start a task
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
 | S1 | Root `.gitignore`, `server/.env.example`, `Secrets.example.xcconfig` | lead | done |  | `.gitignore`, `server/.env.example`; local `server/.env` has a random `APP_TOKEN` |
-| S2 | Xcode project in the GUI: Ryoko app, RyokoLiveActivity extension, synced folders, `Shared/` in both targets, team, iOS 26.1, iPhone and portrait only, Info.plist keys, xcconfigs. Builds on simulator and phone | agent:xcode | doing |  | Generating the project from the CLI instead of the GUI (synced folders, widget extension), verifying with xcodebuild |
+| S2 | Xcode project in the GUI: Ryoko app, RyokoLiveActivity extension, synced folders, `Shared/` in both targets, team, iOS 26.1, iPhone and portrait only, Info.plist keys, xcconfigs. Builds on simulator and phone | agent:xcode | done |  | Generated from the CLI: synced folders (`Ryoko/`, `Shared/` in both targets, `RyokoLiveActivity/`), xcconfigs, shared scheme. Simulator build OK, launches with the 5-tab Liquid Glass bar; signed generic-device build OK. Still to do: run it on the physical phone; add Assets.xcassets (app icon) later |
 | S3 | `AGENTS.md` (+ `CLAUDE.md` → `AGENTS.md`): ownership, build command, Swift rules, networking, key rules | lead | done |  | `AGENTS.md` and `CLAUDE.md` (imports AGENTS.md) |
 | S4 | Keys in place: `server/.env` (GMI key + model id, Tavily key, `APP_TOKEN`), `Secrets.xcconfig` (Soniox key, app token, base URL) | daniel | blocked |  | GMI key is in the shell env. Still needed in `server/.env`: SONIOX_API_KEY, TAVILY_API_KEY, GMI_MODEL (from D3) |
 | S5 | Tailscale Funnel `:10000` → `127.0.0.1:8790` (`:443`/`:8443` belong to other services), reachable from the phone over cellular | agent:sse | doing |  | User approved repointing the stale `:10000` Funnel (its backend on 8788 was down) |
@@ -36,7 +36,7 @@ Write down what you find. The results may change the spec.
 
 | # | Question | Owner | Status | Result |
 | --- | --- | --- | --- | --- |
-| D1 | MapKit from Canada: Shanghai and Tokyo search, POIs, reverse geocoding in `zh_Hans_CN` / `ja_JP`, time zones, `.restroom` coverage. Simulator first (Jing'an `.gpx`), then the phone | agent:mapkit | doing | Running from this Mac (Canada) through MapKit on macOS/simulator; phone check still to do |
+| D1 | MapKit from Canada: Shanghai and Tokyo search, POIs, reverse geocoding in `zh_Hans_CN` / `ja_JP`, time zones, `.restroom` coverage. Simulator first (Jing'an `.gpx`), then the phone | agent:mapkit | done (desk) | MapKit works from a plain CLI on the Mac. **Shanghai:** 26 POIs at 300 m, all `Asia/Shanghai`; reverse geocoding with `zh_Hans_CN` gives Chinese, but only to road level; restrooms sparse (0 at 300 m, 2 at 1.5 km); **Heytea Jing'an isn't in Apple's data**; `.default` priority leaks to Canadian results. **Tokyo:** 49 POIs, full `ja_JP` addresses, plenty of restrooms. **Names follow the app's language, not `preferredLocale`** (an English UI gives romanized or English names, and the language is fixed per process), so local names come from `placeNameLocal`. `timeZone` and `identifier` are always present. Phone check still to do: English iPhone on venue Wi-Fi, Heytea on iOS, restroom layer, `.required` from Vancouver. Code: `spikes/mapkit/` |
 | D2 | Soniox zh⇄en and ja⇄en: accuracy, script, latency, false language switches in a noisy hall. Tune the turn rule (§4.8) |  | blocked | Needs SONIOX_API_KEY in `server/.env` |
 | D3 | GMI: place-card latency (target < 3 s), and how reliably the model calls `show_places` / `web_search` | agent:gmi | doing | Model list, place-card JSON, tool calls, phrase tags |
 | D4 | SSE through Funnel: no buffering? Round-trip time on venue Wi-Fi and on cellular | agent:sse | doing | Spike server on 8790 through the public Funnel path |
@@ -156,3 +156,4 @@ Write down what you find. The results may change the spec.
 | Date | Change | Why | design.md updated? |
 | --- | --- | --- | --- |
 | 2026-10-03 | Initial tracker created from design.md §12 | | yes |
+| 2026-10-03 | §4.2: live POIs within 100–150 m. §4.6: use the map item's name only if its script matches the local language, otherwise `placeNameLocal`. §4.7: always `regionPriority .required`, treat `placemarkNotFound` as no results. §10: Heytea Jing'an isn't in Apple Maps | D1 spike | yes |

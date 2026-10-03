@@ -34,6 +34,9 @@ Ryoko is an iOS travel app. **Mimo** is its agent, served by a Node server. Befo
 
 - The project uses **synchronized folders**: a `.swift` file dropped into a folder is compiled automatically. Don't edit `project.pbxproj`. If you need a new target, capability, package or Info.plist key, ask the integrator.
 - `ios/Shared/` is built into the widget extension too, so use only APIs available in app extensions there. No `UIApplication.shared`.
+- The app target defaults to MainActor isolation but the extension doesn't, so types in `ios/Shared/` should be `nonisolated` and `Sendable` (see `RyokoActivityAttributes`).
+- Keep non-source files such as plists out of the synced folders: anything in them gets copied as a resource. Config lives in `ios/Config/`.
+- `DEVELOPMENT_TEAM` comes from the gitignored `ios/Config/Local.xcconfig` (copy `Local.example.xcconfig`); never set it in `project.pbxproj`.
 - **Build:** use your own DerivedData per worktree so agents don't collide.
   ```
   xcodebuild -project ios/Ryoko.xcodeproj -scheme Ryoko \

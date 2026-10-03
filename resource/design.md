@@ -103,7 +103,7 @@ Built from native parts: a paged `NavigationStack` with large titles, bordered/p
   - The place's region code maps to a language through CLDR likely subtags: CN → `zh-Hans`, JP → `ja`, TW and HK → `zh-Hant`.
   - A small override table handles exceptions: Quebec → `fr`; Hong Kong speech (Cantonese) is flagged as unsupported.
 - **Live:**
-  - CoreLocation plus `MKLocalPointsOfInterestRequest` within about 50 m.
+  - CoreLocation plus `MKLocalPointsOfInterestRequest` within about 100–150 m (POIs are sparse in Shanghai at 50 m).
   - Now shows the three nearest places to pick from, with a one-tap confirm, because indoor GPS is fuzzy. A refresh control re-checks.
   - No automatic "clearly closest" detection and no movement re-checks (cut).
 - **Look-ahead:**
@@ -167,7 +167,7 @@ For all of them:
 - A Show-mode card for the home base or any place (from its place sheet). **There's no LLM in the display path.**
 - It shows:
   - **Address:** `MKReverseGeocodingRequest` with `preferredLocale` set from the situation's language (e.g. `zh_Hans_CN`). It falls back to the device-language address. (`CLGeocoder` is deprecated in iOS 26.)
-  - **Place name:** the map item's name if it's already in local script. Otherwise `placeNameLocal` from that place's place card (§7.4). The home base stores its own `localName` and `addressLocal`.
+  - **Place name:** the map item's name only if its script matches the local language. MapKit names follow the app's UI language, not `preferredLocale`, and Chinese renderings of Tokyo places are CJK but not Japanese. Otherwise `placeNameLocal` from that place's place card (§7.4). The home base stores its own `localName` and `addressLocal`.
   - **Fixed phrase:** `zh-Hans` 请带我去这里, `ja` こちらまでお願いします ("Please take me here").
   - A small `MKMapSnapshotter` image, with its map attribution left visible.
 
@@ -183,7 +183,7 @@ For all of them:
   - **Hidden gems:** Mimo's `discover` picks for the area, resolved with MapKit and cached per area.
   - **From Mimo:** places and plans from the Mimo tab. Plans show numbered pins. The layer stays until it's cleared or a new chat starts.
 - **Resolving names Mimo gives:**
-  - Resolve one name at a time with `MKLocalSearch` (`regionPriority .required`, a 1.5–3 km region). In China, try the local name first.
+  - Resolve one name at a time with `MKLocalSearch`, always with `regionPriority .required` (a 1.5–3 km region); `.default` returns results near the device in Canada. Treat `placemarkNotFound` as "no results". In China, try the local name first, then English, then a category query. Key the cache on `identifier.rawValue`.
   - Take the nearest POI within 5 km and silently drop misses.
   - Cache by (normalized name, area). Keep under MapKit's throttle (about 50 requests a minute).
 - Every Shanghai coordinate comes from MapKit. Never mix in coordinates from other sources: China's offset coordinate systems put them hundreds of metres off.
@@ -651,7 +651,7 @@ The demo script and format are still being worked out and don't drive build deci
 
 - **Seed profile** (bundled; also the demo profile): Canadian, English. A serious peanut allergy and a liking for less sweet things (sweetness 1). Picks "local favourite" over "my usual", "save" and "quiet". Home base is a hotel in Jing'an, with its Chinese name and address filled in by hand.
 - **Ideas so far, not final:**
-  - Preview a Heytea in Jing'an at 3 PM.
+  - Preview a tea shop in Jing'an at 3 PM. Heytea Jing'an isn't in Apple Maps (D1), so pick a place that resolves, or enter it manually.
   - A Mandarin-speaking friend plays the staff member for face-to-face Translate.
   - Mimo answers a question with tappable phrases and places.
   - A second stop previews a Tokyo ramen shop with a ticket machine, where the card regenerates in Japanese.
