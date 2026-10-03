@@ -172,6 +172,7 @@ Write down what you find. The results may change the spec.
 | X3 | Write-up, screenshots (no keys or URLs visible), "built with", **AI tools disclosed** | | todo | |
 | X4 | Opt into tracks: ElevenLabs, Gemini API, Tiger Data, Snowflake API, Best Solo, Best Design, .Tech | | todo | Each track needs its own opt-in |
 | X5 | Repo stays public; rotate all keys after the event | | todo | |
+| X6 | Basic project README | agent:docs | done | `ws/docs-basic-readme`; [88e1033](https://github.com/DanielOu1208/stormhack26/commit/88e1033): concise overview, local setup and doc links; humanizer pass, links and commands checked |
 
 ## Blockers
 
