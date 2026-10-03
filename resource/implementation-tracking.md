@@ -50,8 +50,9 @@ Write down what you find. The results may change the spec.
 | W1.1 | TypeBox schemas + emitted JSON Schema for §7.1–7.8 | wf:contracts | done |  | `@ryoko/contracts`: TypeBox 1.3.27, local StringEnum, `additionalProperties:false`; 21 JSON Schema files via `pnpm contracts:emit` |
 | W1.2 | Example request and response JSON per endpoint, plus `mimo.sse.txt` | wf:contracts | done |  | Hand-written examples (fictional Shanghai café, Tokyo ramen ticket-machine shop), `profile.seed.json`, `mimo.sse.txt`; 25 tests pass (`pnpm contracts:test`) |
 | W1.3 | `LangCode` table, category table (display names, SF Symbols, starters), allergy templates (zh-Hans, ja × chip allergens × 3 severities) | wf:contracts | review |  | Tables done (langcodes incl. best-effort zh-Hant, 14 categories, allergy templates). **Allergy and taxi text has had no native review (`reviewed:false`)**: needs a Chinese reader and a Japanese reader |
-| W1.4 | Hono skeleton: `/healthz`, bearer auth, error envelope, rate limit, body limit, SSE helper (512-byte padding, pings) | | todo | | |
-| W1.5 | `MODEL=faux` fixture mode serving the examples, including a scripted Mimo stream | | todo | | |
+| W1.4 | Hono skeleton: `/healthz`, bearer auth, error envelope, rate limit, body limit, SSE helper (512-byte padding, pings) | wf:server | done |  | Hono 4.13 on Node 24 type stripping. Bearer auth (constant time), install-id/IP rate limit, 64 KB limit, schema validation in and out, §7.8 errors everywhere, SSE helper (padding, pings, abort on close), per-session busy lock. 32 tests pass (`pnpm --filter ./server test`) |
+| W1.5 | `MODEL=faux` fixture mode serving the examples, including a scripted Mimo stream | wf:server | done |  | `MODEL=faux` serves the examples by `localLanguage` and replays `mimo.sse.txt` with realistic pacing. Follow-up: add a Tokyo discover example, a zh-Hans allergy card and a zh-Hans Mimo transcript (W1.6) |
+| W1.6 | Fixture gaps: `discover.tokyo.*`, zh-Hans `allergy-card.*`, zh-Hans `mimo.*.sse.txt` (+ server picks the transcript by language) | | todo | | Without these, faux Tokyo previews show Shanghai picks and faux Shanghai chat shows Japanese phrases |
 
 ### W2. App shell and shared pieces
 
@@ -161,3 +162,4 @@ Write down what you find. The results may change the spec.
 | 2026-10-03 | §4.7: cache-key fallback when there's no identifier, a name-similarity check, sort POIs by distance | D1 follow-up (Taipei/HK) | yes |
 | 2026-10-03 | §6.3 model fixed to DeepSeek V4.1 Flash, thinking off; §6.2 the allergen filter allows safety mentions, plus a separator between text around tool calls; §6.4 prompt rules | D3 spike | yes |
 | 2026-10-03 | §7: allergy-card request adds `homeLanguage`; templates at `contracts/tables/`; `done.stopReason` values; `when` = HH:mm; `bestTime` label; free BCP-47 language strings; optional `place.id` | W1 contracts | yes |
+| 2026-10-03 | §7.8 mapping: >64 KB → 413 `invalid_request`, unknown route → 404 `invalid_request`, unhandled → 500 `model_error`. A failed Mimo run ends with one `error` event (terminal, no `done`) | W1 server | no (implementation detail) |
