@@ -34,10 +34,12 @@ private struct NowSituationView: View {
     @Environment(APIStore.self) private var apiStore
     @Environment(\.ryokoAPI) private var api
     @AppStorage(AppSettings.showsRomanizationKey) private var showsRomanization = true
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var load: CardLoad = .loading
     @State private var loadedKey: CardKey?
     @State private var attempt = 0
+    @State private var isPickingTime = false
 
     var body: some View {
         let key = CardKey(
@@ -45,12 +47,23 @@ private struct NowSituationView: View {
             apiGeneration: apiStore.apiGeneration,
             attempt: attempt
         )
+        // At accessibility sizes the one-line navigation subtitle would truncate
+        // the local time, so the city and time move into the page, one per line.
+        let clockInPage = dynamicTypeSize.isAccessibilitySize
         // The header's clock ticks by the minute; `situation` itself only by the hour.
         TimelineView(.everyMinute) { context in
+            let clocked = situation.stamped(at: context.date)
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.cardSpacing) {
+                    if clockInPage {
+                        AreaClockLines(situation: clocked)
+                    }
                     if situation.mode == .preview {
-                        PreviewBanner(situation: situation) { situationStore.endPreview() }
+                        PreviewBanner(
+                            situation: situation,
+                            onChangeTime: { isPickingTime = true },
+                            onBack: { situationStore.endPreview() }
+                        )
                     }
                     header
                     if situation.mode == .live, situation.place == nil || situationStore.candidates.count > 1 {
@@ -67,7 +80,7 @@ private struct NowSituationView: View {
                 TimeOfDayGradient(date: situation.date ?? .now, timeZone: situation.zone ?? .current)
             }
             .navigationTitle(situation.place?.name ?? "Where are you?")
-            .navigationSubtitle(Self.subtitle(for: situation.stamped(at: context.date)))
+            .navigationSubtitle(ifPresent: clockInPage ? nil : Self.subtitle(for: clocked))
         }
         .toolbar {
             if situation.mode == .live {
@@ -77,24 +90,35 @@ private struct NowSituationView: View {
                 }
             }
         }
+        .sheet(isPresented: $isPickingTime) {
+            PreviewTimeSheet(situation: situation)
+        }
         .task(id: key) { await loadCard(key) }
     }
 
     // MARK: Header
 
+    /// The local name and category side by side, or stacked when they don't fit
+    /// on one line (large text, long names), so neither breaks mid-word.
     @ViewBuilder
     private var header: some View {
         if let place = situation.place {
-            HStack(spacing: Theme.grid) {
-                if let localName = place.localName {
-                    LocalText(localName, languageTag: situation.localLanguage)
-                        .font(.title3.weight(.semibold))
-                }
-                Label(place.category.displayName, systemImage: place.category.sfSymbol)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Theme.grid) { headerLines(place) }
+                VStack(alignment: .leading, spacing: Theme.grid / 2) { headerLines(place) }
             }
         }
+    }
+
+    @ViewBuilder
+    private func headerLines(_ place: Place) -> some View {
+        if let localName = place.localName {
+            LocalText(localName, languageTag: situation.localLanguage)
+                .font(.title3.weight(.semibold))
+        }
+        Label(place.category.displayName, systemImage: place.category.sfSymbol)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
     }
 
     // MARK: Card
@@ -140,11 +164,39 @@ private struct NowSituationView: View {
 
     /// `Shinjuku, Tokyo · Tue 7:00 PM`, in the place's time zone.
     static func subtitle(for situation: Situation) -> String {
-        let area = [situation.district, situation.city].compactMap(\.self).joined(separator: ", ")
-        guard let date = situation.date, let zone = situation.zone else { return area }
-        var style = Date.FormatStyle.dateTime.weekday(.abbreviated).hour().minute()
-        style.timeZone = zone
-        return "\(area) · \(date.formatted(style))"
+        let area = situation.nearbyAreaText
+        guard let clock = situation.nearbyClockText else { return area }
+        return "\(area) · \(clock)"
+    }
+}
+
+/// The city and local time in the page, one per line, for accessibility text
+/// sizes (where the navigation subtitle truncates). Each line wraps between words.
+private struct AreaClockLines: View {
+    let situation: Situation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.grid / 2) {
+            Text(situation.nearbyAreaText)
+            if let clock = situation.nearbyClockText {
+                Text(clock)
+            }
+        }
+        .font(.title3)
+        .foregroundStyle(.secondary)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private extension View {
+    /// The navigation subtitle, or none when `subtitle` is nil.
+    @ViewBuilder
+    func navigationSubtitle(ifPresent subtitle: String?) -> some View {
+        if let subtitle {
+            navigationSubtitle(subtitle)
+        } else {
+            self
+        }
     }
 }
 
@@ -204,41 +256,13 @@ private extension PlaceCardResponse {
     )
 }
 
-// MARK: - Preview banner
-
-/// "Previewing · Tue 7:00 PM" with "Back to here" (design §4.2).
-private struct PreviewBanner: View {
-    let situation: Situation
-    let onBack: () -> Void
-
-    var body: some View {
-        HStack(spacing: Theme.grid * 1.5) {
-            Image(systemName: "clock")
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            Text("Previewing · \(timeText)")
-                .font(.subheadline.weight(.medium))
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Button("Back to here", action: onBack)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-        }
-        .cardSurface(padding: Theme.grid * 1.5)
-    }
-
-    private var timeText: String {
-        guard let date = situation.date, let zone = situation.zone else { return situation.localTime }
-        var style = Date.FormatStyle.dateTime.weekday(.abbreviated).hour().minute()
-        style.timeZone = zone
-        return date.formatted(style)
-    }
-}
-
 // MARK: - Nearby places (live)
 
 /// The nearest places to confirm, closest first (design §4.2: one-tap confirm).
 private struct NearbyPicker: View {
     @Environment(AppSituationStore.self) private var situationStore
+    /// The icon column grows with the text.
+    @ScaledMetric(relativeTo: .body) private var iconWidth: CGFloat = 28
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.grid) {
@@ -258,7 +282,7 @@ private struct NearbyPicker: View {
                     HStack(spacing: Theme.grid * 1.5) {
                         Image(systemName: candidate.place.category.sfSymbol)
                             .foregroundStyle(.secondary)
-                            .frame(width: 28)
+                            .frame(width: iconWidth)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(candidate.place.name)
                             Text("\(candidate.place.category.displayName) · \(Int(candidate.distanceMeters.rounded())) m")

@@ -27,7 +27,7 @@ Updated 2026-10-03 15:30. Update this section whenever a screen changes state.
 | Screen | State | What you can do |
 | --- | --- | --- |
 | Tab bar | **Working** | Native Liquid Glass bar: Translate · Nearby · **Map (opens first)** · Mimo · Me |
-| Nearby (was Now) | **Partly working** (minimal W2 version) | "Find places near me" (location permission, then the nearest 3 to confirm) or "Preview a sample place" (Tokyo ramen). Shows the header, local time, the preview banner with Back to here, 2–3 phrase cards (local script, romanization, gloss, because…) and tips over the time-of-day gradient. Loading, error and retry states. **Not yet:** quick cards (Allergy, Taxi), Mimo picks, mini map, the Show button (W3) |
+| Nearby (was Now) | **Partly working** (minimal W2 version, plus large-text fix, banner with the place name and tap-to-change-time) | "Find places near me" (location permission, then the nearest 3 to confirm) or "Preview a sample place" (Tokyo ramen). Shows the header, local time, the preview banner with Back to here, 2–3 phrase cards (local script, romanization, gloss, because…) and tips over the time-of-day gradient. Loading, error and retry states. **Not yet:** quick cards (Allergy, Taxi), Mimo picks, mini map, the Show button (W3) |
 | Map | **Placeholder** (but it's the launch tab) | Nothing yet: W4 (bottom sheet of Mimo picks + nearby places, search, place details, Preview, layers) hasn't started |
 | Translate | **Placeholder** | Nothing yet: W5 hasn't started (it also needs `SONIOX_API_KEY`) |
 | Mimo | **Placeholder** | Nothing yet: W6 (the chat UI) and W7 (the real Mimo skill) haven't started |
@@ -97,7 +97,7 @@ Write down what you find. The results may change the spec.
 | --- | --- | --- | --- | --- | --- |
 | W3.1 | Nearby (renamed from Now): header, phrase cards with "because…", **Show button**, tips, quick cards, mini map; preview banner with the place name that reopens the picker |  | todo |  |  |
 | W3.2 | ~~Mimo picks row on Now~~: moved to the Map's bottom sheet (W4.5) |  | cut |  | Design change #43 |
-| W3.3 | Nearby special cases: no place ("Where are you?" opens the Map list), local language = home language, loading/error/offline; **fix the largest-text layout bug** (see UI test findings) | agent:large-text | doing |  | Fixing the largest-text layout now, plus banner place name and tap-to-reopen picker (§4.2); the rest of W3.3 comes in the W3 pass |
+| W3.3 | Nearby special cases: no place ("Where are you?" opens the Map list), local language = home language, loading/error/offline; **fix the largest-text layout bug** (see UI test findings) | agent:large-text | doing |  | **Largest-text bug fixed**: city and time on their own lines at accessibility sizes, no mid-word breaks, "7:00 PM" kept together. Banner shows the place name, and tapping it opens `PreviewTimeSheet` (date and time in the place zone, now to +7 days, Morning/Afternoon/Evening chips). Still to do in the W3 pass: the other special cases, and real taps on the banner and sheet |
 | W3.4 | Show mode (`ShowContent` .phrase / .allergy / .taxi): max brightness, idle timer, Flip, Done |  | todo |  |  |
 | W3.5 | Allergy card: templates offline + `/v1/allergy-card` for free text ("not reviewed") | | todo | | |
 | W3.6 | Taxi card: `MKReverseGeocodingRequest` in the local locale, local name, fixed phrase, snapshot | | todo | | |
