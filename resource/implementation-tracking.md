@@ -13,8 +13,8 @@ A living tracker for the build. **Update it as you work.** When you start a task
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Setup (§12.2) | doing | S1, S2, S3, S5 done; S4 waiting on keys |
-| Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 waiting on Soniox key |
+| Setup (§12.2) | done | S1–S5 done |
+| Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 running |
 | Tier 1: working core | doing | **W1 contracts + server and W2 shell: done.** W3 Nearby/cards, W4 Map, W5 Translate, W6 Mimo tab and W7 Mimo skills: **not started** |
 | Tier 2 | todo | |
 | After core | todo | |
@@ -52,7 +52,7 @@ Updated 2026-10-03 15:30. Update this section whenever a screen changes state.
 | S1 | Root `.gitignore`, `server/.env.example`, `Secrets.example.xcconfig` | lead | done |  | `.gitignore`, `server/.env.example`; local `server/.env` has a random `APP_TOKEN` |
 | S2 | Xcode project in the GUI: Ryoko app, RyokoLiveActivity extension, synced folders, `Shared/` in both targets, team, iOS 26.1, iPhone and portrait only, Info.plist keys, xcconfigs. Builds on simulator and phone | agent:xcode | done |  | Generated from the CLI: synced folders (`Ryoko/`, `Shared/` in both targets, `RyokoLiveActivity/`), xcconfigs, shared scheme. Simulator build OK, launches with the 5-tab Liquid Glass bar; signed generic-device build OK. Still to do: run it on the physical phone; add Assets.xcassets (app icon) later |
 | S3 | `AGENTS.md` (+ `CLAUDE.md` → `AGENTS.md`): ownership, build command, Swift rules, networking, key rules | lead | done |  | `AGENTS.md` and `CLAUDE.md` (imports AGENTS.md) |
-| S4 | Keys in place: `server/.env` (GMI key + model id, Exa key, `APP_TOKEN`), `Secrets.xcconfig` (Soniox key, app token, base URL) | daniel | blocked |  | GMI key and `GMI_MODEL` are in `server/.env`. Still needed: SONIOX_API_KEY (server/.env + Secrets.xcconfig) and EXA_API_KEY; the user pastes them in (reading keys out of other apps' files is blocked) |
+| S4 | Keys in place: `server/.env` (GMI key + model id, Exa key, `APP_TOKEN`), `Secrets.xcconfig` (Soniox key, app token, base URL) | daniel | done |  | All keys in place (checked by length only): APP_TOKEN, GMI_API_KEY + GMI_MODEL, SONIOX_API_KEY (server/.env + Secrets.xcconfig), EXA_API_KEY (a live Exa search returned 200). Enter keys with `bash scripts/set-keys.sh` |
 | S5 | Tailscale Funnel `:10000` → `127.0.0.1:8792` (`:443`/`:8443` belong to other services), reachable from the phone over cellular | agent:sse | done |  | `:10000` Funnel → `127.0.0.1:8792` (8790/8791 are taken by aerivoiceweb `wrangler dev`); `:443`/`:8443` untouched. Phone check over cellular still to do |
 
 ## 1. Device spikes (§11)
@@ -62,7 +62,7 @@ Write down what you find. The results may change the spec.
 | # | Question | Owner | Status | Result |
 | --- | --- | --- | --- | --- |
 | D1 | MapKit from Canada: Shanghai and Tokyo search, POIs, reverse geocoding in `zh_Hans_CN` / `ja_JP`, time zones, `.restroom` coverage. Simulator first (Jing'an `.gpx`), then the phone | agent:mapkit | done (desk) | MapKit works from a plain CLI on the Mac. **Shanghai:** 26 POIs at 300 m, all `Asia/Shanghai`; reverse geocoding with `zh_Hans_CN` gives Chinese, but only to road level; restrooms sparse (0 at 300 m, 2 at 1.5 km); **Heytea Jing'an isn't in Apple's data**; `.default` priority leaks to Canadian results. **Tokyo:** 49 POIs, full `ja_JP` addresses, plenty of restrooms. **Names follow the app's language, not `preferredLocale`** (an English UI gives romanized or English names, and the language is fixed per process), so local names come from `placeNameLocal`. `timeZone` and `identifier` are always present. Phone check still to do: English iPhone on venue Wi-Fi, Heytea on iOS, restroom layer, `.required` from Vancouver. Code: `spikes/mapkit/` **Follow-up:** **Taipei** has rich data: 50嵐 9 hits, CoCo, 春水堂; house-number addresses in `zh_Hant_TW`; Traditional names under a zh-Hant UI; restrooms 38–50. It's the best Mandarin stand-in. **Hong Kong** has Heytea and rich data, but is Cantonese and matches short brand queries loosely. About 40% of TW/HK POIs have no identifier. |
-| D2 | Soniox zh⇄en and ja⇄en: accuracy, script, latency, false language switches in a noisy hall. Tune the turn rule (§4.8) |  | blocked | Needs SONIOX_API_KEY in `server/.env` |
+| D2 | Soniox zh⇄en and ja⇄en: accuracy, script, latency, false language switches in a noisy hall. Tune the turn rule (§4.8) | agent:soniox | doing | Unblocked. Desk test with TTS audio (zh/ja/en), two_way config, turn-rule simulation, temporary keys |
 | D3 | GMI: place-card latency (target < 3 s), and how reliably the model calls `show_places` / `web_search` | agent:gmi | done | **`deepseek-ai/DeepSeek-V4.1-Flash`, thinking off** (fallback `Qwen/Qwen3.8-Flash`). Place card p50 2.9 s / max 3.7 s; JSON 100% valid; show_places 10/10 in 2 turns; Mimo turn p50 4.4 s; phrase tags 5/5. Qwen and GLM are 2–3× slower. `json_object` mode works but doesn't help. Provider snippet and prompt rules are in design §6.2–6.4. Code: `spikes/gmi/src/` |
 | D4 | SSE through Funnel: no buffering? Round-trip time on venue Wi-Fi and on cellular | agent:sse | done (desk) | Public Funnel path exercised (relay IPs, `Tailscale-Funnel-Request` header). **No buffering**: events arrive ~300 ms apart; lag 58–162 ms on average, max 497 ms; first byte 0.4–1.5 s (mostly TLS). /healthz RTT p50 ~0.5 s (reused connection) / ~0.8 s (new connection) on jittery Wi-Fi. Keep the 512-byte padding for URLSession. Phone check: URLSession `bytes(for:)` on `/sse` over cellular. Code: `spikes/sse/` |
 
@@ -77,7 +77,7 @@ Write down what you find. The results may change the spec.
 | W1.3 | `LangCode` table, category table (display names, SF Symbols, starters), allergy templates (zh-Hans, ja × chip allergens × 3 severities) | wf:contracts | review |  | Tables done (langcodes incl. best-effort zh-Hant, 14 categories, allergy templates). **Allergy and taxi text has had no native review (`reviewed:false`)**: needs a Chinese reader and a Japanese reader |
 | W1.4 | Hono skeleton: `/healthz`, bearer auth, error envelope, rate limit, body limit, SSE helper (512-byte padding, pings) | wf:server | done |  | Hono 4.13 on Node 24 type stripping. Bearer auth (constant time), install-id/IP rate limit, 64 KB limit, schema validation in and out, §7.8 errors everywhere, SSE helper (padding, pings, abort on close), per-session busy lock. 32 tests pass (`pnpm --filter ./server test`) |
 | W1.5 | `MODEL=faux` fixture mode serving the examples, including a scripted Mimo stream | wf:server | done |  | `MODEL=faux` serves the examples by `localLanguage` and replays `mimo.sse.txt` with realistic pacing. Follow-up: add a Tokyo discover example, a zh-Hans allergy card and a zh-Hans Mimo transcript (W1.6) |
-| W1.6 | Fixture gaps: `discover.tokyo.*`, zh-Hans `allergy-card.*`, zh-Hans `mimo.*.sse.txt` (+ server picks the transcript by language) | | todo | | Without these, faux Tokyo previews show Shanghai picks and faux Shanghai chat shows Japanese phrases |
+| W1.6 | Fixture gaps: `discover.tokyo.*`, zh-Hans `allergy-card.*`, zh-Hans `mimo.*.sse.txt` (+ server picks the transcript by language) | agent:fixtures | doing |  | Without these, faux Tokyo previews show Shanghai picks and faux Shanghai chat shows Japanese phrases |
 
 ### W2. App shell and shared pieces
 
@@ -97,7 +97,7 @@ Write down what you find. The results may change the spec.
 | --- | --- | --- | --- | --- | --- |
 | W3.1 | Nearby (renamed from Now): header, phrase cards with "because…", **Show button**, tips, quick cards, mini map; preview banner with the place name that reopens the picker |  | todo |  |  |
 | W3.2 | ~~Mimo picks row on Now~~: moved to the Map's bottom sheet (W4.5) |  | cut |  | Design change #43 |
-| W3.3 | Nearby special cases: no place ("Where are you?" opens the Map list), local language = home language, loading/error/offline; **fix the largest-text layout bug** (see UI test findings) |  | todo |  |  |
+| W3.3 | Nearby special cases: no place ("Where are you?" opens the Map list), local language = home language, loading/error/offline; **fix the largest-text layout bug** (see UI test findings) | agent:large-text | doing |  | Fixing the largest-text layout now, plus banner place name and tap-to-reopen picker (§4.2); the rest of W3.3 comes in the W3 pass |
 | W3.4 | Show mode (`ShowContent` .phrase / .allergy / .taxi): max brightness, idle timer, Flip, Done |  | todo |  |  |
 | W3.5 | Allergy card: templates offline + `/v1/allergy-card` for free text ("not reviewed") | | todo | | |
 | W3.6 | Taxi card: `MKReverseGeocodingRequest` in the local locale, local name, fixed phrase, snapshot | | todo | | |
