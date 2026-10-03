@@ -59,12 +59,12 @@ Ryoko is an iOS travel app. **Mimo** is its agent, served by a Node server. Befo
 - Node 24 and pnpm. Hono 4 with `@hono/node-server`. `@earendil-works/pi-agent-core` and `@earendil-works/pi-ai` are pinned at exactly `1.0.1`; don't upgrade.
 - Import `Type`, `Static` and `StringEnum` from `@earendil-works/pi-ai`. Use `StringEnum`, never `Type.Enum`.
 - Config comes from `server/.env` (gitignored; copy `server/.env.example`). `MODEL=faux` serves fixtures from `contracts/` with no model calls. Use it for iOS work and tests.
-- The server listens on `127.0.0.1:8790` only. Every `/v1` route needs `Authorization: Bearer <APP_TOKEN>`.
+- The server listens on `127.0.0.1:8792` only. Every `/v1` route needs `Authorization: Bearer <APP_TOKEN>`.
 - Typed model output is provider-agnostic: schema in the prompt, parse the JSON, TypeBox `Value.Check`, retry once. Never rely on provider-specific JSON modes.
 
 ## Networking
 
-- **Simulator:** `http://127.0.0.1:8790`. The app allows local networking through ATS.
+- **Simulator:** `http://127.0.0.1:8792`. The app allows local networking through ATS.
 - **Phone:** the public HTTPS URL of the Tailscale Funnel on port `:10000`. Never write the hostname into the repo.
 - Never set `NSAllowsArbitraryLoads`. Never change or reset the other Tailscale Serve/Funnel entries on the dev Mac (`:443` and `:8443` belong to other services).
 
