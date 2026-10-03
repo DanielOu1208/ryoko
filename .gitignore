@@ -1,0 +1,24 @@
+# Secrets: never commit real keys (the repo is public)
+.env
+.env.*
+!.env.example
+**/Secrets.xcconfig
+**/Local.xcconfig
+*.p8
+
+# Node
+node_modules/
+server/.cache/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+.build/
+build/
+
+# Spike output: never commit MapKit or vendor response dumps
+spikes/**/out/
+
+# macOS
+.DS_Store

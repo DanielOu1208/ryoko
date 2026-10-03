@@ -13,8 +13,8 @@ A living tracker for the build. **Update it as you work.** When you start a task
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Setup (§12.2) | todo | |
-| Device spikes (§11) | todo | |
+| Setup (§12.2) | doing | S1, S3 done; S2, S5 in progress; S4 waiting on keys |
+| Device spikes (§11) | doing | D1, D3, D4 running; D2 waiting on Soniox key |
 | Tier 1: working core | todo | |
 | Tier 2 | todo | |
 | After core | todo | |
@@ -24,11 +24,11 @@ A living tracker for the build. **Update it as you work.** When you start a task
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| S1 | Root `.gitignore`, `server/.env.example`, `Secrets.example.xcconfig` | | todo | | |
-| S2 | Xcode project in the GUI: Ryoko app, RyokoLiveActivity extension, synced folders, `Shared/` in both targets, team, iOS 26.1, iPhone and portrait only, Info.plist keys, xcconfigs. Builds on simulator and phone | daniel | todo | | |
-| S3 | `AGENTS.md` (+ `CLAUDE.md` → `AGENTS.md`): ownership, build command, Swift rules, networking, key rules | | todo | | |
-| S4 | Keys in place: `server/.env` (GMI key + model id, Tavily key, `APP_TOKEN`), `Secrets.xcconfig` (Soniox key, app token, base URL) | daniel | todo | | |
-| S5 | Tailscale Funnel `:8443` → `127.0.0.1:8790`, reachable from the phone over cellular | | todo | | |
+| S1 | Root `.gitignore`, `server/.env.example`, `Secrets.example.xcconfig` | lead | done |  | `.gitignore`, `server/.env.example`; local `server/.env` has a random `APP_TOKEN` |
+| S2 | Xcode project in the GUI: Ryoko app, RyokoLiveActivity extension, synced folders, `Shared/` in both targets, team, iOS 26.1, iPhone and portrait only, Info.plist keys, xcconfigs. Builds on simulator and phone | agent:xcode | doing |  | Generating the project from the CLI instead of the GUI (synced folders, widget extension), verifying with xcodebuild |
+| S3 | `AGENTS.md` (+ `CLAUDE.md` → `AGENTS.md`): ownership, build command, Swift rules, networking, key rules | lead | done |  | `AGENTS.md` and `CLAUDE.md` (imports AGENTS.md) |
+| S4 | Keys in place: `server/.env` (GMI key + model id, Tavily key, `APP_TOKEN`), `Secrets.xcconfig` (Soniox key, app token, base URL) | daniel | blocked |  | GMI key is in the shell env. Still needed in `server/.env`: SONIOX_API_KEY, TAVILY_API_KEY, GMI_MODEL (from D3) |
+| S5 | Tailscale Funnel `:10000` → `127.0.0.1:8790` (`:443`/`:8443` belong to other services), reachable from the phone over cellular | agent:sse | doing |  | User approved repointing the stale `:10000` Funnel (its backend on 8788 was down) |
 
 ## 1. Device spikes (§11)
 
@@ -36,10 +36,10 @@ Write down what you find. The results may change the spec.
 
 | # | Question | Owner | Status | Result |
 | --- | --- | --- | --- | --- |
-| D1 | MapKit from Canada: Shanghai and Tokyo search, POIs, reverse geocoding in `zh_Hans_CN` / `ja_JP`, time zones, `.restroom` coverage. Simulator first (Jing'an `.gpx`), then the phone | | todo | |
-| D2 | Soniox zh⇄en and ja⇄en: accuracy, script, latency, false language switches in a noisy hall. Tune the turn rule (§4.8) | | todo | |
-| D3 | GMI: place-card latency (target < 3 s), and how reliably the model calls `show_places` / `web_search` | | todo | |
-| D4 | SSE through Funnel: no buffering? Round-trip time on venue Wi-Fi and on cellular | | todo | |
+| D1 | MapKit from Canada: Shanghai and Tokyo search, POIs, reverse geocoding in `zh_Hans_CN` / `ja_JP`, time zones, `.restroom` coverage. Simulator first (Jing'an `.gpx`), then the phone | agent:mapkit | doing | Running from this Mac (Canada) through MapKit on macOS/simulator; phone check still to do |
+| D2 | Soniox zh⇄en and ja⇄en: accuracy, script, latency, false language switches in a noisy hall. Tune the turn rule (§4.8) |  | blocked | Needs SONIOX_API_KEY in `server/.env` |
+| D3 | GMI: place-card latency (target < 3 s), and how reliably the model calls `show_places` / `web_search` | agent:gmi | doing | Model list, place-card JSON, tool calls, phrase tags |
+| D4 | SSE through Funnel: no buffering? Round-trip time on venue Wi-Fi and on cellular | agent:sse | doing | Spike server on 8790 through the public Funnel path |
 
 ## 2. Tier 1: working core (§2, §12.3)
 

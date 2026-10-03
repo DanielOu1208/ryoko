@@ -375,7 +375,7 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
   - A daily cost kill switch: `503 budget_exceeded`.
   - The server listens on `127.0.0.1` only.
 - **Hosting:**
-  - The server runs on the dev Mac at `127.0.0.1:8790` and is exposed with `tailscale funnel --bg --https=8443 http://127.0.0.1:8790`. Don't touch any other Serve or Funnel ports already in use on that Mac.
+  - The server runs on the dev Mac at `127.0.0.1:8790` and is exposed with `tailscale funnel --bg --https=10000 http://127.0.0.1:8790` (Funnel only allows ports 443, 8443 and 10000, and 443 and 8443 are used by other services on that Mac). Never change or reset the other Serve/Funnel entries.
   - The phone uses the public HTTPS URL, so there are no ATS exceptions and no Local Network prompt. The app can override the base URL at runtime (Me).
   - Never use Cloudflare quick tunnels (they don't support SSE) or serverless hosts (they lose in-memory sessions).
 - **Fixture mode:** `MODEL=faux` serves canned responses built from the example JSON in `contracts/`, including a scripted Mimo stream, so iOS work never waits on the model.
@@ -778,7 +778,7 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 9 | Discovery in tier 1: Hidden gems layer, Mimo picks on Now, asking Mimo for places, planning a few hours | user |
 | 10 | Mimo has Tavily web search with sources in tier 1 | user |
 | 11 | Mimo's suggested phrases are tappable phrase blocks that open Show mode. They're implemented as phrase tags turned into `phrase` events on the server | user + default |
-| 12 | The server runs on the dev Mac behind Tailscale Funnel (`:8443` → `127.0.0.1:8790`) | user |
+| 12 | The server runs on the dev Mac behind Tailscale Funnel (`:10000` → `127.0.0.1:8790`; `:443` and `:8443` belong to other services) | user |
 | 13 | After core: Tiger Data, then Snowflake | user |
 | 14 | The Soniox key has a funded balance (Soniox no longer gives free credits) | user + research |
 | 15 | The demo is still open and doesn't drive decisions | user |
