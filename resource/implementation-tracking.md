@@ -27,12 +27,12 @@ Updated 2026-10-03 15:30. Update this section whenever a screen changes state.
 | Screen | State | What you can do |
 | --- | --- | --- |
 | Tab bar | **Working** | Native Liquid Glass bar: Translate · Nearby · **Map (opens first)** · Mimo · Me |
-| Nearby (was Now) | **Partly working** (minimal W2 version, plus large-text fix, banner with the place name and tap-to-change-time) | "Find places near me" (location permission, then the nearest 3 to confirm) or "Preview a sample place" (Tokyo ramen). Shows the header, local time, the preview banner with Back to here, 2–3 phrase cards (local script, romanization, gloss, because…) and tips over the time-of-day gradient. Loading, error and retry states. **Not yet:** quick cards (Allergy, Taxi), Mimo picks, mini map, the Show button (W3) |
+| Nearby (was Now) | **Working** (W3) | Phrase cards with Show, tips, Allergy and Taxi quick cards, mini map (opens Map), preview banner with tap-to-change-time, special cases with a way to the Map, saved card when offline. Large-text layout fixed |
 | Map | **Placeholder** (but it's the launch tab) | Nothing yet: W4 (bottom sheet of Mimo picks + nearby places, search, place details, Preview, layers) hasn't started |
 | Translate | **Placeholder** | Nothing yet: W5 hasn't started (it also needs `SONIOX_API_KEY`) |
 | Mimo | **Working on fixtures** (W6) | Ask Mimo or tap a starter: streamed reply with tappable phrase blocks (open Show), place chips (open Map), Show on map, source links; Stop, New chat, Ask Mimo about this place; transcript kept on device. Real model answers once W7 lands |
 | Me | **Working** (minimal) | Read-only seed profile, home base (placeholder hotel), romanization toggle, developer section (Fixtures or Live server, base URL, profile hash, reset, sample preview) |
-| Show mode | **Placeholder** | `ShowModeView` stub; nothing opens it yet (W3) |
+| Show mode | **Working** (W3) | Full screen for phrases, the allergy card and the taxi card: Flip, Done, max brightness, screen stays awake |
 | Server | **Fixture mode only** | `MODEL=faux pnpm server:dev` serves the canned place-card, discover, allergy-card and Mimo stream. The real model skills come in W7 (`MODEL=gmi` returns `model_error` until then) |
 
 **How to see it:** run `MODEL=faux pnpm server:dev`, build the `Ryoko` scheme on an iPhone simulator, then use Me → Developer → Preview a sample place and open the Nearby tab.
@@ -95,12 +95,12 @@ Write down what you find. The results may change the spec.
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| W3.1 | Nearby (renamed from Now): header, phrase cards with "because…", **Show button**, tips, quick cards, mini map; preview banner with the place name that reopens the picker |  | todo |  |  |
+| W3.1 | Nearby (renamed from Now): header, phrase cards with "because…", **Show button**, tips, quick cards, mini map; preview banner with the place name that reopens the picker | wf:W3 | done |  | Phrase cards with Show (router.show), 1–2 tips, quick cards (Allergy, Taxi), live non-interactive mini map → openMap(centeredOn:) |
 | W3.2 | ~~Mimo picks row on Now~~: moved to the Map's bottom sheet (W4.5) |  | cut |  | Design change #43 |
-| W3.3 | Nearby special cases: no place ("Where are you?" opens the Map list), local language = home language, loading/error/offline; **fix the largest-text layout bug** (see UI test findings) | agent:large-text | doing |  | **Largest-text bug fixed**: city and time on their own lines at accessibility sizes, no mid-word breaks, "7:00 PM" kept together. Banner shows the place name, and tapping it opens `PreviewTimeSheet` (date and time in the place zone, now to +7 days, Morning/Afternoon/Evening chips). Still to do in the W3 pass: the other special cases, and real taps on the banner and sheet |
-| W3.4 | Show mode (`ShowContent` .phrase / .allergy / .taxi): max brightness, idle timer, Flip, Done |  | todo |  |  |
-| W3.5 | Allergy card: templates offline + `/v1/allergy-card` for free text ("not reviewed") | | todo | | |
-| W3.6 | Taxi card: `MKReverseGeocodingRequest` in the local locale, local name, fixed phrase, snapshot | | todo | | |
+| W3.3 | Nearby special cases: no place ("Where are you?" opens the Map list), local language = home language, loading/error/offline; **fix the largest-text layout bug** (see UI test findings) | wf:W3 | done |  | Special cases: no place (Open the map / Use my location), city-only (tips, picker, taxi to home base), you speak the language (no phrases, Preview a place); offline shows the saved card, marked. Large-text fixes kept |
+| W3.4 | Show mode (`ShowContent` .phrase / .allergy / .taxi): max brightness, idle timer, Flip, Done | wf:W3 | done |  | Show mode for phrase/allergy/taxi: plain background, Flip rotates the content only, Done, brightness via windowScene.screen + idle timer off (restored), @ScaledMetric sizing |
+| W3.5 | Allergy card: templates offline + `/v1/allergy-card` for free text ("not reviewed") | wf:W3 | done |  | Allergy card from bundled templates (zh-Hans, ja) plus /v1/allergy-card for typed-in allergens ('Not reviewed'); stricter severity wins; disabled with a note for languages without templates; Me row opens it |
+| W3.6 | Taxi card: `MKReverseGeocodingRequest` in the local locale, local name, fixed phrase, snapshot | wf:W3 | done |  | TaxiCardFactory: name rule via ScriptMatch, MKReverseGeocodingRequest in the local locale (CJK lines joined natively), template phrase, MKMapSnapshotter; card(forHomeBase:) added; cached per session |
 
 ### W4. Map
 

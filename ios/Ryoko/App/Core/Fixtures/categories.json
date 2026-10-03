@@ -1,0 +1,18 @@
+{
+  "categories": [
+    { "slug": "cafe", "displayName": "Café", "sfSymbol": "cup.and.saucer.fill", "starters": ["What's good here?", "How do I order it less sweet?", "Plan my afternoon"] },
+    { "slug": "tea", "displayName": "Tea shop", "sfSymbol": "cup.and.heat.waves.fill", "starters": ["What's popular here?", "How do I ask for less sugar and ice?", "How do I pay?"] },
+    { "slug": "restaurant", "displayName": "Restaurant", "sfSymbol": "fork.knife", "starters": ["What should I order?", "Is there anything I should avoid?", "How do I pay?"] },
+    { "slug": "ramen", "displayName": "Ramen", "sfSymbol": "fork.knife.circle.fill", "starters": ["How does the ticket machine work?", "What should I order?", "How do I ask for firmer noodles?"] },
+    { "slug": "bar", "displayName": "Bar", "sfSymbol": "wineglass.fill", "starters": ["What do locals drink here?", "Is there a cover charge?", "Somewhere quieter nearby?"] },
+    { "slug": "bakery", "displayName": "Bakery", "sfSymbol": "birthday.cake.fill", "starters": ["What's popular here?", "Which ones have nuts?", "How do I pay?"] },
+    { "slug": "convenience_store", "displayName": "Convenience store", "sfSymbol": "storefront.fill", "starters": ["What's worth trying here?", "Can I top up a transit card here?", "How do I pay?"] },
+    { "slug": "museum", "displayName": "Museum", "sfSymbol": "building.columns.fill", "starters": ["What shouldn't I miss?", "How long do I need here?", "Plan my afternoon"] },
+    { "slug": "park", "displayName": "Park", "sfSymbol": "tree.fill", "starters": ["What's nice to see here?", "Somewhere to eat nearby?", "Plan my afternoon"] },
+    { "slug": "temple_shrine", "displayName": "Temple or shrine", "sfSymbol": "bell.fill", "starters": ["How should I behave here?", "Can I take photos?", "Plan my afternoon"] },
+    { "slug": "shopping", "displayName": "Shopping", "sfSymbol": "bag.fill", "starters": ["What's worth buying here?", "Can I get a tax refund?", "How do I pay?"] },
+    { "slug": "transit", "displayName": "Transit", "sfSymbol": "tram.fill", "starters": ["How do I buy a ticket?", "Which exit should I take?", "How do I get back to my hotel?"] },
+    { "slug": "hotel", "displayName": "Hotel", "sfSymbol": "bed.double.fill", "starters": ["Where should I eat tonight?", "Plan my morning", "How do I ask for a late checkout?"] },
+    { "slug": "other", "displayName": "Place", "sfSymbol": "mappin.and.ellipse", "starters": ["What's around here?", "Plan my afternoon", "How do I pay?"] }
+  ]
+}

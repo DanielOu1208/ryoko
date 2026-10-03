@@ -73,6 +73,7 @@ Ryoko is an iOS travel app. **Mimo** is its agent, served by a Node server. Befo
 
 - **Simulator:** `http://127.0.0.1:8792`. The app allows local networking through ATS.
 - **Phone:** the public HTTPS URL of the Tailscale Funnel on port `:10000`. Never write the hostname into the repo.
+- **Stopping processes:** stop only what you started, by PID (save `$!` when you start it). Never `pkill -f` a pattern: every agent's fixture server has the same command line.
 - Never set `NSAllowsArbitraryLoads`. Never change or reset the other Tailscale Serve/Funnel entries on the dev Mac (`:443` and `:8443` belong to other services).
 
 ## Contracts

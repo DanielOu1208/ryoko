@@ -1,0 +1,436 @@
+{
+  "homeLanguage": "en",
+  "note": "Safety text. Wording follows design §4.5. Not trusted until a native Chinese reader and a native Japanese reader have checked every line and set reviewed to true. Lines are hand-written; never generate them with a model.",
+  "languages": {
+    "zh-Hans": {
+      "reviewed": false,
+      "reviewedBy": null,
+      "title": {
+        "local": "过敏提示",
+        "home": "Allergy information"
+      },
+      "request": {
+        "local": "请问这道菜里有以上任何一种食材吗？",
+        "home": "Does this dish contain any of these?"
+      },
+      "requestRomanization": "Qǐngwèn zhè dào cài lǐ yǒu yǐshàng rènhé yì zhǒng shícái ma?",
+      "severityLabels": {
+        "mild": {
+          "local": "轻度过敏",
+          "home": "Mild"
+        },
+        "serious": {
+          "local": "严重过敏",
+          "home": "Serious"
+        },
+        "life_threatening": {
+          "local": "可危及生命",
+          "home": "Life-threatening"
+        }
+      },
+      "allergens": {
+        "egg": {
+          "name": "鸡蛋",
+          "nameHome": "egg",
+          "mild": {
+            "local": "如果可以，请不要放鸡蛋。",
+            "home": "Please avoid egg if possible."
+          },
+          "serious": {
+            "local": "我不能吃鸡蛋，包括含有鸡蛋的酱料和面糊。",
+            "home": "I must not eat egg, including sauces or batters containing egg."
+          },
+          "life_threatening": {
+            "local": "哪怕一点点鸡蛋都可能危及我的生命。请检查所有配料，并使用干净的厨具和餐具。",
+            "home": "Even a trace of egg can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "milk": {
+          "name": "牛奶和乳制品",
+          "nameHome": "milk and dairy",
+          "mild": {
+            "local": "如果可以，请不要放牛奶和乳制品。",
+            "home": "Please avoid milk and dairy if possible."
+          },
+          "serious": {
+            "local": "我不能吃牛奶和乳制品，包括黄油、奶油和含有牛奶的酱料。",
+            "home": "I must not eat milk or dairy, including butter, cream or sauces containing milk."
+          },
+          "life_threatening": {
+            "local": "哪怕一点点牛奶或乳制品都可能危及我的生命。请检查所有配料，并使用干净的厨具和餐具。",
+            "home": "Even a trace of milk or dairy can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "mustard": {
+          "name": "芥末（芥菜籽）",
+          "nameHome": "mustard",
+          "mild": {
+            "local": "如果可以，请不要放芥末。",
+            "home": "Please avoid mustard if possible."
+          },
+          "serious": {
+            "local": "我不能吃芥末，包括芥末油和含有芥末的酱料。",
+            "home": "I must not eat mustard, including mustard oil or sauces containing mustard."
+          },
+          "life_threatening": {
+            "local": "哪怕一点点芥末都可能危及我的生命。请检查所有配料，并使用干净的厨具和餐具。",
+            "home": "Even a trace of mustard can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "peanut": {
+          "name": "花生",
+          "nameHome": "peanuts",
+          "mild": {
+            "local": "如果可以，请不要放花生。",
+            "home": "Please avoid peanuts if possible."
+          },
+          "serious": {
+            "local": "我不能吃花生，包括花生油和含有花生的酱料。",
+            "home": "I must not eat peanuts, including peanut oil or sauces containing peanuts."
+          },
+          "life_threatening": {
+            "local": "哪怕一点点花生都可能危及我的生命。请检查所有配料，并使用干净的厨具和餐具。",
+            "home": "Even a trace of peanut can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "crustacean_mollusc": {
+          "name": "虾、蟹、贝类和鱿鱼",
+          "nameHome": "shellfish (shrimp, crab, clams, squid)",
+          "mild": {
+            "local": "如果可以，请不要放虾、蟹、贝类和鱿鱼。",
+            "home": "Please avoid shellfish if possible."
+          },
+          "serious": {
+            "local": "我不能吃虾、蟹、贝类和鱿鱼，包括用它们做的高汤和酱料。",
+            "home": "I must not eat shellfish (shrimp, crab, clams, squid), including stock or sauces containing them."
+          },
+          "life_threatening": {
+            "local": "哪怕一点点虾、蟹、贝类或鱿鱼都可能危及我的生命。请检查所有配料，并使用干净的厨具和餐具。",
+            "home": "Even a trace of shellfish can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "fish": {
+          "name": "鱼",
+          "nameHome": "fish",
+          "mild": {
+            "local": "如果可以，请不要放鱼。",
+            "home": "Please avoid fish if possible."
+          },
+          "serious": {
+            "local": "我不能吃鱼，包括鱼汤、鱼露和含有鱼的酱料。",
+            "home": "I must not eat fish, including fish stock or sauces containing fish."
+          },
+          "life_threatening": {
+            "local": "哪怕一点点鱼都可能危及我的生命。请检查所有配料，并使用干净的厨具和餐具。",
+            "home": "Even a trace of fish can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "sesame": {
+          "name": "芝麻",
+          "nameHome": "sesame",
+          "mild": {
+            "local": "如果可以，请不要放芝麻。",
+            "home": "Please avoid sesame if possible."
+          },
+          "serious": {
+            "local": "我不能吃芝麻，包括芝麻油（香油）和含有芝麻的酱料。",
+            "home": "I must not eat sesame, including sesame oil or sauces containing sesame."
+          },
+          "life_threatening": {
+            "local": "哪怕一点点芝麻都可能危及我的生命。请检查所有配料，并使用干净的厨具和餐具。",
+            "home": "Even a trace of sesame can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "soy": {
+          "name": "大豆（黄豆）",
+          "nameHome": "soy",
+          "mild": {
+            "local": "如果可以，请不要放大豆和豆制品。",
+            "home": "Please avoid soy if possible."
+          },
+          "serious": {
+            "local": "我不能吃大豆，包括大豆油和含有大豆的酱料，比如酱油。",
+            "home": "I must not eat soy, including soybean oil or sauces containing soy, such as soy sauce."
+          },
+          "life_threatening": {
+            "local": "哪怕一点点大豆都可能危及我的生命。请检查所有配料，并使用干净的厨具和餐具。",
+            "home": "Even a trace of soy can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "sulphite": {
+          "name": "亚硫酸盐",
+          "nameHome": "sulphites",
+          "mild": {
+            "local": "如果可以，请不要放含亚硫酸盐的东西。",
+            "home": "Please avoid sulphites if possible."
+          },
+          "serious": {
+            "local": "我不能吃亚硫酸盐，包括葡萄酒、果干和含有亚硫酸盐的酱料。",
+            "home": "I must not eat sulphites, including wine, dried fruit or sauces containing sulphites."
+          },
+          "life_threatening": {
+            "local": "哪怕一点点亚硫酸盐都可能危及我的生命。请检查所有配料，并使用干净的厨具和餐具。",
+            "home": "Even a trace of sulphites can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "tree_nut": {
+          "name": "坚果（核桃、腰果、杏仁等）",
+          "nameHome": "tree nuts (walnuts, cashews, almonds)",
+          "mild": {
+            "local": "如果可以，请不要放坚果。",
+            "home": "Please avoid tree nuts if possible."
+          },
+          "serious": {
+            "local": "我不能吃坚果（核桃、腰果、杏仁等），包括坚果油和含有坚果的酱料。",
+            "home": "I must not eat tree nuts (walnuts, cashews, almonds), including nut oil or sauces containing nuts."
+          },
+          "life_threatening": {
+            "local": "哪怕一点点坚果都可能危及我的生命。请检查所有配料，并使用干净的厨具和餐具。",
+            "home": "Even a trace of tree nuts can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "wheat": {
+          "name": "小麦",
+          "nameHome": "wheat",
+          "mild": {
+            "local": "如果可以，请不要放小麦。",
+            "home": "Please avoid wheat if possible."
+          },
+          "serious": {
+            "local": "我不能吃小麦，包括面粉、面糊和含有小麦的酱料，比如酱油。",
+            "home": "I must not eat wheat, including flour, batter or sauces containing wheat, such as soy sauce."
+          },
+          "life_threatening": {
+            "local": "哪怕一点点小麦都可能危及我的生命。请检查所有配料，并使用干净的厨具和餐具。",
+            "home": "Even a trace of wheat can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        }
+      }
+    },
+    "ja": {
+      "reviewed": false,
+      "reviewedBy": null,
+      "title": {
+        "local": "アレルギーについて",
+        "home": "Allergy information"
+      },
+      "request": {
+        "local": "この料理に上記の食材は入っていますか？",
+        "home": "Does this dish contain any of these?"
+      },
+      "requestRomanization": "Kono ryōri ni jōki no shokuzai wa haitte imasu ka?",
+      "severityLabels": {
+        "mild": {
+          "local": "軽度",
+          "home": "Mild"
+        },
+        "serious": {
+          "local": "重度",
+          "home": "Serious"
+        },
+        "life_threatening": {
+          "local": "命に関わる",
+          "home": "Life-threatening"
+        }
+      },
+      "allergens": {
+        "egg": {
+          "name": "卵",
+          "nameHome": "egg",
+          "mild": {
+            "local": "できれば卵を使わないでください。",
+            "home": "Please avoid egg if possible."
+          },
+          "serious": {
+            "local": "私は卵を食べられません。卵を含むソースや衣も食べられません。",
+            "home": "I must not eat egg, including sauces or batters containing egg."
+          },
+          "life_threatening": {
+            "local": "ごく微量の卵でも命に関わります。すべての材料を確認し、清潔な調理器具を使ってください。",
+            "home": "Even a trace of egg can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "milk": {
+          "name": "牛乳・乳製品",
+          "nameHome": "milk and dairy",
+          "mild": {
+            "local": "できれば牛乳・乳製品を使わないでください。",
+            "home": "Please avoid milk and dairy if possible."
+          },
+          "serious": {
+            "local": "私は牛乳・乳製品を食べられません。バター、クリーム、牛乳を含むソースも食べられません。",
+            "home": "I must not eat milk or dairy, including butter, cream or sauces containing milk."
+          },
+          "life_threatening": {
+            "local": "ごく微量の牛乳・乳製品でも命に関わります。すべての材料を確認し、清潔な調理器具を使ってください。",
+            "home": "Even a trace of milk or dairy can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "mustard": {
+          "name": "からし（マスタード）",
+          "nameHome": "mustard",
+          "mild": {
+            "local": "できればからしを使わないでください。",
+            "home": "Please avoid mustard if possible."
+          },
+          "serious": {
+            "local": "私はからしを食べられません。からし油やからしを含むソースも食べられません。",
+            "home": "I must not eat mustard, including mustard oil or sauces containing mustard."
+          },
+          "life_threatening": {
+            "local": "ごく微量のからしでも命に関わります。すべての材料を確認し、清潔な調理器具を使ってください。",
+            "home": "Even a trace of mustard can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "peanut": {
+          "name": "落花生（ピーナッツ）",
+          "nameHome": "peanuts",
+          "mild": {
+            "local": "できれば落花生（ピーナッツ）を使わないでください。",
+            "home": "Please avoid peanuts if possible."
+          },
+          "serious": {
+            "local": "私は落花生（ピーナッツ）を食べられません。ピーナッツオイルやピーナッツを含むソースも食べられません。",
+            "home": "I must not eat peanuts, including peanut oil or sauces containing peanuts."
+          },
+          "life_threatening": {
+            "local": "ごく微量の落花生（ピーナッツ）でも命に関わります。すべての材料を確認し、清潔な調理器具を使ってください。",
+            "home": "Even a trace of peanut can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "crustacean_mollusc": {
+          "name": "えび・かに・貝類・いか",
+          "nameHome": "shellfish (shrimp, crab, clams, squid)",
+          "mild": {
+            "local": "できればえび・かに・貝類・いかを使わないでください。",
+            "home": "Please avoid shellfish if possible."
+          },
+          "serious": {
+            "local": "私はえび・かに・貝類・いかを食べられません。それらを使っただしやソースも食べられません。",
+            "home": "I must not eat shellfish (shrimp, crab, clams, squid), including stock or sauces containing them."
+          },
+          "life_threatening": {
+            "local": "ごく微量のえび・かに・貝類・いかでも命に関わります。すべての材料を確認し、清潔な調理器具を使ってください。",
+            "home": "Even a trace of shellfish can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "fish": {
+          "name": "魚",
+          "nameHome": "fish",
+          "mild": {
+            "local": "できれば魚を使わないでください。",
+            "home": "Please avoid fish if possible."
+          },
+          "serious": {
+            "local": "私は魚を食べられません。魚のだし（かつおだしなど）や魚を含むソースも食べられません。",
+            "home": "I must not eat fish, including fish stock or sauces containing fish."
+          },
+          "life_threatening": {
+            "local": "ごく微量の魚でも命に関わります。すべての材料を確認し、清潔な調理器具を使ってください。",
+            "home": "Even a trace of fish can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "sesame": {
+          "name": "ごま",
+          "nameHome": "sesame",
+          "mild": {
+            "local": "できればごまを使わないでください。",
+            "home": "Please avoid sesame if possible."
+          },
+          "serious": {
+            "local": "私はごまを食べられません。ごま油やごまを含むソースも食べられません。",
+            "home": "I must not eat sesame, including sesame oil or sauces containing sesame."
+          },
+          "life_threatening": {
+            "local": "ごく微量のごまでも命に関わります。すべての材料を確認し、清潔な調理器具を使ってください。",
+            "home": "Even a trace of sesame can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "soy": {
+          "name": "大豆",
+          "nameHome": "soy",
+          "mild": {
+            "local": "できれば大豆を使わないでください。",
+            "home": "Please avoid soy if possible."
+          },
+          "serious": {
+            "local": "私は大豆を食べられません。大豆油や、醤油など大豆を含む調味料も食べられません。",
+            "home": "I must not eat soy, including soybean oil or sauces containing soy, such as soy sauce."
+          },
+          "life_threatening": {
+            "local": "ごく微量の大豆でも命に関わります。すべての材料を確認し、清潔な調理器具を使ってください。",
+            "home": "Even a trace of soy can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "sulphite": {
+          "name": "亜硫酸塩",
+          "nameHome": "sulphites",
+          "mild": {
+            "local": "できれば亜硫酸塩を含むものを使わないでください。",
+            "home": "Please avoid sulphites if possible."
+          },
+          "serious": {
+            "local": "私は亜硫酸塩を摂れません。ワイン、ドライフルーツ、亜硫酸塩を含むソースもだめです。",
+            "home": "I must not eat sulphites, including wine, dried fruit or sauces containing sulphites."
+          },
+          "life_threatening": {
+            "local": "ごく微量の亜硫酸塩でも命に関わります。すべての材料を確認し、清潔な調理器具を使ってください。",
+            "home": "Even a trace of sulphites can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "tree_nut": {
+          "name": "ナッツ類（くるみ・カシューナッツ・アーモンドなど）",
+          "nameHome": "tree nuts (walnuts, cashews, almonds)",
+          "mild": {
+            "local": "できればナッツ類を使わないでください。",
+            "home": "Please avoid tree nuts if possible."
+          },
+          "serious": {
+            "local": "私はナッツ類（くるみ・カシューナッツ・アーモンドなど）を食べられません。ナッツオイルやナッツを含むソースも食べられません。",
+            "home": "I must not eat tree nuts (walnuts, cashews, almonds), including nut oil or sauces containing nuts."
+          },
+          "life_threatening": {
+            "local": "ごく微量のナッツ類でも命に関わります。すべての材料を確認し、清潔な調理器具を使ってください。",
+            "home": "Even a trace of tree nuts can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        },
+        "wheat": {
+          "name": "小麦",
+          "nameHome": "wheat",
+          "mild": {
+            "local": "できれば小麦を使わないでください。",
+            "home": "Please avoid wheat if possible."
+          },
+          "serious": {
+            "local": "私は小麦を食べられません。小麦粉、衣、醤油など小麦を含む調味料も食べられません。",
+            "home": "I must not eat wheat, including flour, batter or sauces containing wheat, such as soy sauce."
+          },
+          "life_threatening": {
+            "local": "ごく微量の小麦でも命に関わります。すべての材料を確認し、清潔な調理器具を使ってください。",
+            "home": "Even a trace of wheat can be life-threatening; please check every ingredient and use clean utensils."
+          }
+        }
+      }
+    }
+  },
+  "taxiPhrases": {
+    "zh-Hans": {
+      "local": "请带我去这里",
+      "romanization": "Qǐng dài wǒ qù zhèlǐ",
+      "gloss": "Please take me here",
+      "reviewed": false
+    },
+    "ja": {
+      "local": "こちらまでお願いします",
+      "romanization": "Kochira made onegai shimasu",
+      "gloss": "Please take me here",
+      "reviewed": false
+    },
+    "zh-Hant": {
+      "local": "請帶我去這裡",
+      "romanization": "Qǐng dài wǒ qù zhèlǐ",
+      "gloss": "Please take me here",
+      "reviewed": false
+    }
+  }
+}

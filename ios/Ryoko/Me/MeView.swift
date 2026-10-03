@@ -12,6 +12,7 @@ struct MeView: View {
             ScrollViewReader { proxy in
                 List {
                     ProfileSummarySection()
+                    AllergyCardSection() // the allergy card preview row (W3, ios/Ryoko/Show/)
                     DisplaySection()
                     DeveloperSection()
                 }
