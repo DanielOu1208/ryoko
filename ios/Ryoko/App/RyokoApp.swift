@@ -1,48 +1,88 @@
 import SwiftUI
 
+/// The app shell (W2.1). It owns the stores and puts them in the environment:
+///
+///     @Environment(AppSituationStore.self) private var situationStore
+///     @Environment(ProfileStore.self) private var profileStore
+///     @Environment(APIStore.self) private var apiStore     // fixture vs live, base URL
+///     @Environment(\.ryokoAPI) private var api              // the API to call
+///
+/// Previews: `.environment(AppSituationStore.preview())`,
+/// `.environment(ProfileStore.preview())`, `.environment(APIStore())`.
+/// `\.ryokoAPI` defaults to the fixture API.
 @main
 struct RyokoApp: App {
+    @State private var situationStore = AppSituationStore()
+    @State private var profileStore = ProfileStore()
+    @State private var apiStore = APIStore()
+
+    init() {
+        #if DEBUG
+        FixtureSelfCheck.runAtLaunch()
+        #endif
+    }
+
     var body: some Scene {
         WindowGroup {
             RootTabView()
+                .environment(situationStore)
+                .environment(profileStore)
+                .environment(apiStore)
+                .environment(\.ryokoAPI, apiStore.api)
+                #if DEBUG
+                .task { await DebugLaunchOptions.apply(to: situationStore) }
+                #endif
         }
     }
 }
 
-/// Placeholder shell. The shell workstream replaces this.
-struct RootTabView: View {
-    var body: some View {
-        TabView {
-            Tab("Now", systemImage: "location.fill") {
-                PlaceholderTab(title: "Now")
+#if DEBUG
+/// DEBUG launch arguments, for exercising the app from the command line:
+///
+///     xcrun simctl launch booted com.danielou.ryoko \
+///       -RyokoAPIMode fixture -RyokoSamplePreview 19 -RyokoInitialTab now
+///
+/// - `-RyokoAPIMode fixture|live`: which API to use, for this launch only.
+/// - `-RyokoSamplePreview <hour>`: preview the sample Tokyo ramen shop at that
+///   local hour.
+/// - `-RyokoInitialTab now|map|translate|mimo|me`: the tab to open on.
+/// - `-RyokoScrollToBottom 1`: open scrolling screens at the end (screenshots).
+/// - `-RyokoAutoConfirm 1`: in live mode, confirm the nearest place once found.
+enum DebugLaunchOptions {
+    static let samplePreviewKey = "RyokoSamplePreview"
+    static let initialTabKey = "RyokoInitialTab"
+
+    static func apply(to situationStore: AppSituationStore) async {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: samplePreviewKey) != nil, situationStore.previewSituation == nil {
+            situationStore.previewSample(hour: defaults.integer(forKey: samplePreviewKey))
+        }
+        if defaults.bool(forKey: "RyokoAutoConfirm") {
+            // Wait up to 30 s for live mode to list places, then confirm the nearest.
+            for _ in 0..<120 where situationStore.liveState != .ready {
+                try? await Task.sleep(for: .milliseconds(250))
             }
-            Tab("Map", systemImage: "map") {
-                PlaceholderTab(title: "Map")
-            }
-            Tab("Translate", systemImage: "character.bubble") {
-                PlaceholderTab(title: "Translate")
-            }
-            Tab("Mimo", systemImage: "bubble.left") {
-                PlaceholderTab(title: "Mimo")
-            }
-            Tab("Me", systemImage: "person.crop.circle") {
-                PlaceholderTab(title: "Me")
-            }
+            if let nearest = situationStore.candidates.first { situationStore.confirm(nearest.place) }
         }
     }
-}
 
-private struct PlaceholderTab: View {
-    let title: String
+    static var initialTab: AppTab? {
+        UserDefaults.standard.string(forKey: initialTabKey).flatMap(AppTab.init(rawValue:))
+    }
 
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(title, systemImage: "hammer", description: Text("Coming soon"))
-                .navigationTitle(title)
-        }
+    static var scrollAnchor: UnitPoint? {
+        UserDefaults.standard.bool(forKey: "RyokoScrollToBottom") ? .bottom : nil
     }
 }
+#endif
 
-#Preview {
-    RootTabView()
+extension View {
+    /// DEBUG: honours `-RyokoScrollToBottom 1`. Does nothing in release builds.
+    func debugLaunchScrollAnchor() -> some View {
+        #if DEBUG
+        defaultScrollAnchor(DebugLaunchOptions.scrollAnchor)
+        #else
+        self
+        #endif
+    }
 }
