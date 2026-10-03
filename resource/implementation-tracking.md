@@ -30,7 +30,7 @@ Updated 2026-10-03 15:30. Update this section whenever a screen changes state.
 | Nearby (was Now) | **Partly working** (minimal W2 version, plus large-text fix, banner with the place name and tap-to-change-time) | "Find places near me" (location permission, then the nearest 3 to confirm) or "Preview a sample place" (Tokyo ramen). Shows the header, local time, the preview banner with Back to here, 2–3 phrase cards (local script, romanization, gloss, because…) and tips over the time-of-day gradient. Loading, error and retry states. **Not yet:** quick cards (Allergy, Taxi), Mimo picks, mini map, the Show button (W3) |
 | Map | **Placeholder** (but it's the launch tab) | Nothing yet: W4 (bottom sheet of Mimo picks + nearby places, search, place details, Preview, layers) hasn't started |
 | Translate | **Placeholder** | Nothing yet: W5 hasn't started (it also needs `SONIOX_API_KEY`) |
-| Mimo | **Placeholder** | Nothing yet: W6 (the chat UI) and W7 (the real Mimo skill) haven't started |
+| Mimo | **Working on fixtures** (W6) | Ask Mimo or tap a starter: streamed reply with tappable phrase blocks (open Show), place chips (open Map), Show on map, source links; Stop, New chat, Ask Mimo about this place; transcript kept on device. Real model answers once W7 lands |
 | Me | **Working** (minimal) | Read-only seed profile, home base (placeholder hotel), romanization toggle, developer section (Fixtures or Live server, base URL, profile hash, reset, sample preview) |
 | Show mode | **Placeholder** | `ShowModeView` stub; nothing opens it yet (W3) |
 | Server | **Fixture mode only** | `MODEL=faux pnpm server:dev` serves the canned place-card, discover, allergy-card and Mimo stream. The real model skills come in W7 (`MODEL=gmi` returns `model_error` until then) |
@@ -125,10 +125,10 @@ Write down what you find. The results may change the spec.
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| W6.1 | Chat over SSE: segments (text, phrase, places, sources), quiet tool line, 2–4-sentence replies | | todo | | |
-| W6.2 | Phrase blocks → Show mode | | todo | | |
-| W6.3 | Place chips + Show on map (From Mimo layer); plans as numbered stops | | todo | | |
-| W6.4 | Starters per category, New chat, Ask Mimo about this place (subject place), local transcript | | todo | | |
+| W6.1 | Chat over SSE: segments (text, phrase, places, sources), quiet tool line, 2–4-sentence replies | wf:W6 | done |  | SSE chat with ordered segments, inline Markdown, quiet tool line, error ends the reply, Stop/Try again, 409 handling; sends profile, currentSituation(), up to 20 POIs, subjectPlace |
+| W6.2 | Phrase blocks → Show mode | wf:W6 | done |  | Phrase blocks (PhraseCardView .block) set router.show = .phrase, with a haptic |
+| W6.3 | Place chips + Show on map (From Mimo layer); plans as numbered stops | wf:W6 | done |  | Place chips via the shared resolver (misses dropped), openMap(selecting:), Show on map; plans as numbered stops with times |
+| W6.4 | Starters per category, New chat, Ask Mimo about this place (subject place), local transcript | wf:W6 | done |  | Starters per category plus a time-of-day plan starter; New chat; subject chip; transcripts saved on device (20 most recent). Tested on fixtures only; real model is checked in e2e |
 
 ### W7. Agent server and skills
 
