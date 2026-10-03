@@ -29,7 +29,7 @@ Updated 2026-10-03 15:30. Update this section whenever a screen changes state.
 | Tab bar | **Working** | Native Liquid Glass bar: Translate · Nearby · **Map (opens first)** · Mimo · Me |
 | Nearby (was Now) | **Working** (W3) | Phrase cards with Show, tips, Allergy and Taxi quick cards, mini map (opens Map), preview banner with tap-to-change-time, special cases with a way to the Map, saved card when offline. Large-text layout fixed |
 | Map | **Placeholder** (but it's the launch tab) | Nothing yet: W4 (bottom sheet of Mimo picks + nearby places, search, place details, Preview, layers) hasn't started |
-| Translate | **Placeholder** | Nothing yet: W5 hasn't started (it also needs `SONIOX_API_KEY`) |
+| Translate | **Built, needs key + device** (W5) | English ⇄ the place's language (or picked), glass mic, live panes upright or face to face, History sheet, clear Soniox error messages. Real speech needs a valid Soniox key and the phone (the simulator mic crashes); `-RyokoTranslateSource canned` plays a scripted conversation |
 | Mimo | **Working on fixtures** (W6) | Ask Mimo or tap a starter: streamed reply with tappable phrase blocks (open Show), place chips (open Map), Show on map, source links; Stop, New chat, Ask Mimo about this place; transcript kept on device. Real model answers once W7 lands |
 | Me | **Working** (minimal) | Read-only seed profile, home base (placeholder hotel), romanization toggle, developer section (Fixtures or Live server, base URL, profile hash, reset, sample preview) |
 | Show mode | **Working** (W3) | Full screen for phrases, the allergy card and the taxi card: Flip, Done, max brightness, screen stays awake |
@@ -116,10 +116,10 @@ Write down what you find. The results may change the spec.
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| W5.1 | Soniox WebSocket client (`stt-rt-v5`, `two_way`, language ID, endpoints), 16 kHz mono PCM capture (nonisolated tap) | | todo | | |
-| W5.2 | Turn model + rule (§4.8), History sheet, 2-minute silence stop | | todo | | |
-| W5.3 | Pair from situation (manual pick, fixed mid-session) | | todo | | |
-| W5.4 | Upright + face-to-face layouts, CoreMotion tilt with hysteresis, manual toggle, haptics | | todo | | Tilt can only be tested on a device |
+| W5.1 | Soniox WebSocket client (`stt-rt-v5`, `two_way`, language ID, endpoints), 16 kHz mono PCM capture (nonisolated tap) | wf:W5 | review |  | SonioxSession (stt-rt-v5 two_way, LID, endpoints, 120 ms frames, error copy per code) + MicrophoneCapture (nonisolated tap → 16 kHz Int16). **Mic aborts in the simulator** (AURemoteIO RPC timeout); needs a device run. **No real speech yet**: Soniox key 401 |
+| W5.2 | Turn model + rule (§4.8), History sheet, 2-minute silence stop | wf:W5 | done |  | TurnBuilder (pure): 2 wordy final tokens or 2 CJK characters start a turn, false flips absorbed, <end> commits, late translations attach by source_language; History sheet; 2-minute silence stop (tokens, not audio energy). Harness passes; real tokens untested |
+| W5.3 | Pair from situation (manual pick, fixed mid-session) | wf:W5 | done |  | Pair from the situation via LangCode, manual picker (their language / your language), fixed mid-session |
+| W5.4 | Upright + face-to-face layouts, CoreMotion tilt with hysteresis, manual toggle, haptics | wf:W5 | review |  | Upright + face-to-face (top rotated 180°), tilt hysteresis (harness-tested), toolbar toggle (tap = flip, hold = Follow tilt / Upright / Face to face), haptics; tilt and haptics only checkable on device |
 
 ### W6. Mimo tab
 
