@@ -1,13 +1,13 @@
-# Echo: product and design decisions
+# Ryoko: product and design decisions
 
 Status: locked for the hackathon, 2026-10-03.
-This is the source of truth for what Echo does and how it looks. An agent building one part should read its feature section, §6 (agent and data), §7 (sponsors) and all of §8 (styling).
+This is the source of truth for what Ryoko does and how it looks. An agent building one part should read its feature section, §6 (agent and data), §7 (sponsors) and all of §8 (styling).
 
 ## 1. The idea
 
-Echo knows where you are, what time it is there, and who you are, and uses that to hand you the right words in the local language before you need them.
+Ryoko knows where you are, what time it is there, and who you are, and uses that to hand you the right words in the local language before you need them.
 
-You walk into a tea shop in Shanghai at 3 PM. Echo already shows the order you'd want, written in Chinese, with a line saying why it picked it. You show it to the staff or let the phone say it. When they answer, Translate takes over.
+You walk into a tea shop in Shanghai at 3 PM. Ryoko already shows the order you'd want, written in Chinese, with a line saying why it picked it. You show it to the staff or let the phone say it. When they answer, Translate takes over.
 
 Principles that settle trade-offs:
 
