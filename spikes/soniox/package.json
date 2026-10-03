@@ -1,0 +1,11 @@
+{
+  "name": "spike-soniox",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "audio": "./make-audio.sh && ./make-noise.sh",
+    "all": "./run-all.sh",
+    "summary": "node summary.mjs"
+  }
+}
