@@ -36,6 +36,9 @@ Ryoko is an iOS travel app. **Mimo** is its agent, served by a Node server. Befo
 - `ios/Shared/` is built into the widget extension too, so use only APIs available in app extensions there. No `UIApplication.shared`.
 - The app target defaults to MainActor isolation but the extension doesn't, so types in `ios/Shared/` should be `nonisolated` and `Sendable` (see `RyokoActivityAttributes`).
 - Keep non-source files such as plists out of the synced folders: anything in them gets copied as a resource. Config lives in `ios/Config/`.
+- The app target enables `MemberImportVisibility`: any file that uses `RyokoLog` (an `os.Logger`) must `import os` itself.
+- The contract type `Tip` shadows TipKit's `Tip`. In a file that imports TipKit, write `TipKit.Tip`.
+- After any change to `contracts/` or `ios/Shared/`, run `ios/scripts/check-contracts.sh`. Add `--live` to also hit a running server on 8792.
 - `DEVELOPMENT_TEAM` comes from the gitignored `ios/Config/Local.xcconfig` (copy `Local.example.xcconfig`); never set it in `project.pbxproj`.
 - **Build:** use your own DerivedData per worktree so agents don't collide.
   ```

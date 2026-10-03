@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "The request body doesn't match the place-card contract: profile.version is missing.",
+    "retryable": false
+  }
+}

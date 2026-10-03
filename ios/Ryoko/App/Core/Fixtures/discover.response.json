@@ -1,0 +1,46 @@
+{
+  "places": [
+    {
+      "name": "Jing'an Park",
+      "localName": "静安公园",
+      "category": "park",
+      "why": "Old plane trees and shady benches, calm mid-afternoon",
+      "bestTime": "Afternoons"
+    },
+    {
+      "name": "Yuyuan Road",
+      "localName": "愚园路",
+      "category": "shopping",
+      "why": "Leafy street of small shops and cafés, few crowds",
+      "bestTime": "Afternoons"
+    },
+    {
+      "name": "Fengsheng Li",
+      "localName": "丰盛里",
+      "category": "shopping",
+      "why": "Restored shikumen lane with snack and tea stalls",
+      "bestTime": "Late afternoon"
+    },
+    {
+      "name": "Changde Apartment",
+      "localName": "常德公寓",
+      "category": "other",
+      "why": "Eileen Chang's old building, a small bookshop below",
+      "bestTime": "Afternoons"
+    },
+    {
+      "name": "Shanghai Natural History Museum",
+      "localName": "上海自然博物馆",
+      "category": "museum",
+      "why": "Big, cool and quiet on a weekday afternoon",
+      "bestTime": "Weekdays"
+    },
+    {
+      "name": "Jing'an Temple",
+      "localName": "静安寺",
+      "category": "temple_shrine",
+      "why": "Gilded halls right in the city; small entry fee",
+      "bestTime": "Mornings"
+    }
+  ]
+}

@@ -1,0 +1,337 @@
+// Mac-side check of the Swift contract mirrors (ios/Shared/) and the
+// Foundation-only parts of ios/Ryoko/App/Core/. Built and run by
+// ios/scripts/check-contracts.sh; not part of any Xcode target.
+
+import Foundation
+
+let env = ProcessInfo.processInfo.environment
+let root = URL(fileURLWithPath: env["RYOKO_ROOT"] ?? FileManager.default.currentDirectoryPath)
+let examples = root.appending(path: "contracts/examples")
+let tables = root.appending(path: "contracts/tables")
+let bundled = root.appending(path: "ios/Ryoko/App/Core/Fixtures")
+
+var failures = 0
+var passes = 0
+
+func expect(_ condition: @autoclosure () throws -> Bool, _ label: String) {
+    do {
+        if try condition() {
+            passes += 1
+        } else {
+            failures += 1
+            print("  FAIL \(label)")
+        }
+    } catch {
+        failures += 1
+        print("  FAIL \(label): \(error)")
+    }
+}
+
+func section(_ title: String) { print("\n== \(title)") }
+
+func json(_ value: some Encodable) throws -> [String: Any] {
+    let data = try JSONEncoder().encode(value)
+    return try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+}
+
+// MARK: - Fixture round trips
+
+for (label, directory) in [("contracts/examples", examples), ("Core/Fixtures (bundled copies)", bundled)] {
+    section("Round trip every fixture in \(label)")
+    for outcome in FixtureSelfCheck.run(source: .directory(directory)) {
+        if let failure = outcome.failure {
+            failures += 1
+            print("  FAIL \(outcome.file.fileName): \(failure)")
+        } else {
+            passes += 1
+            print("  pass \(outcome.file.fileName)")
+        }
+    }
+}
+
+// MARK: - Required-nullable keys are written as null
+
+section("Explicit nulls and omitted optionals")
+do {
+    let skipped = Profile(
+        version: String(repeating: "0", count: 64), nationality: nil, homeLanguage: "en",
+        spokenLanguages: nil, diet: nil, dietNotes: nil, allergies: nil, favourites: nil,
+        taste: Taste(sweetness: nil, spice: 3), personality: Personality(rhythm: nil, food: .myUsual, budget: nil, vibe: nil),
+        homeBase: nil
+    )
+    let object = try json(skipped)
+    let nullKeys = ["nationality", "spokenLanguages", "diet", "dietNotes", "allergies", "favourites", "homeBase"]
+    expect(nullKeys.allSatisfy { object[$0] is NSNull }, "profile writes skipped fields as null")
+    expect((object["taste"] as? [String: Any])?["sweetness"] is NSNull, "taste writes a skipped slider as null")
+    expect((object["personality"] as? [String: Any])?["rhythm"] is NSNull, "personality writes a skipped pair as null")
+
+    let latin = Phrase(id: "p", lang: "en", local: "Hi", romanization: nil, gloss: "Hi")
+    let phrase = try json(latin)
+    expect(phrase["romanization"] is NSNull, "phrase writes romanization: null")
+    expect(phrase["because"] == nil && phrase["basis"] == nil, "phrase omits because and basis when nil")
+
+    var cityOnly = try FixtureSource.directory(examples).decode(Situation.self, from: .situationShanghai)
+    cityOnly.place = nil
+    cityOnly.district = nil
+    let situation = try json(cityOnly)
+    expect(situation["place"] is NSNull, "situation writes place: null in city-only mode")
+    expect(situation["district"] == nil, "situation omits district when nil")
+
+    let chip = try json(Allergy(id: .peanut, label: nil, severity: .serious))
+    expect(chip.keys.sorted() == ["id", "severity"], "chip allergy has no label key")
+} catch {
+    failures += 1
+    print("  FAIL building values: \(error)")
+}
+
+// MARK: - SSE line reader
+
+section("SSE line reader")
+expect(SSELineReader.parse(": ping") == .ignored, "comment is ignored")
+expect(SSELineReader.parse("") == .ignored, "blank line is ignored")
+expect(SSELineReader.parse("event: text") == .ignored, "event field is ignored")
+expect(SSELineReader.parse("retry: 1000") == .ignored, "retry field is ignored")
+expect(SSELineReader.parse(#"data:{"type":"text","delta":"a"}"#) == .event(.text(delta: "a")), "data without a space")
+expect(SSELineReader.parse(#"data: {"type":"text","delta":" b"}"# + "\r") == .event(.text(delta: " b")), "CRLF line, leading space kept in the delta")
+expect(SSELineReader.parse(#"data: {"type":"brand_new","x":1}"#) == .event(.unknown(type: "brand_new")), "unknown type decodes as .unknown")
+if case .malformed = SSELineReader.parse("data: not json") { passes += 1 } else { failures += 1; print("  FAIL junk data is malformed") }
+if case .malformed = SSELineReader.parse(#"data: {"type":"text"}"#) { passes += 1 } else { failures += 1; print("  FAIL text without delta is malformed") }
+let webSearchEnd = #"data: {"type":"tool_end","id":"t1","name":"web_search","ok":true,"details":{"sources":[{"title":"A","url":"https://example.com/a"}]}}"#
+if case let .event(.toolEnd(end)) = SSELineReader.parse(webSearchEnd), case let .webSearch(details) = end.details {
+    expect(details.sources.first?.link?.host() == "example.com", "web_search tool_end decodes sources")
+} else {
+    failures += 1
+    print("  FAIL web_search tool_end")
+}
+let futureToolEnd = #"data: {"type":"tool_end","id":"t2","name":"book_table","ok":false,"details":{"anything":[1]}}"#
+expect(SSELineReader.parse(futureToolEnd) == .event(.toolEnd(MimoToolEnd(id: "t2", name: ToolName(rawValue: "book_table"), ok: false, details: .unknown))), "unknown tool's tool_end still decodes")
+let errorEvent = #"data: {"type":"error","code":"timeout","message":"Took too long.","retryable":true}"#
+expect(SSELineReader.parse(errorEvent) == .event(.error(ErrorBody(code: .timeout, message: "Took too long.", retryable: true))), "error event")
+
+// MARK: - Situation clock
+
+section("Situation clock")
+let instant = try! Date("2026-10-05T07:00:00Z", strategy: .iso8601)
+let shanghai = Situation.clock(for: instant, in: TimeZone(identifier: "Asia/Shanghai")!)
+expect(shanghai.localTime == "2026-10-05T15:00:00+08:00" && shanghai.hourBucket == "2026-10-05T15", "Shanghai \(shanghai)")
+let vancouver = Situation.clock(for: instant, in: TimeZone(identifier: "America/Vancouver")!)
+expect(vancouver.localTime == "2026-10-05T00:00:00-07:00" && vancouver.hourBucket == "2026-10-05T00", "Vancouver \(vancouver)")
+let kolkata = Situation.clock(for: instant, in: TimeZone(identifier: "Asia/Kolkata")!)
+expect(kolkata.localTime == "2026-10-05T12:30:00+05:30", "Kolkata half-hour offset \(kolkata)")
+let built = Situation(mode: .preview, date: instant, timeZone: TimeZone(identifier: "Asia/Tokyo")!, place: nil, city: "Tokyo", countryCode: "JP", localLanguage: "ja")
+expect(built.localTime == "2026-10-05T16:00:00+09:00" && built.date == instant, "Situation(date:) round trips the instant")
+
+// MARK: - Tables match contracts/tables
+
+section("LangCode matches contracts/tables/langcodes.json")
+do {
+    let data = try Data(contentsOf: tables.appending(path: "langcodes.json"))
+    let rows = (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["languages"] as? [[String: Any]] ?? []
+    expect(rows.count == LangCode.allCases.count, "same number of languages (\(rows.count))")
+    for row in rows {
+        let tag = row["tag"] as? String ?? "?"
+        guard let code = LangCode(rawValue: tag) else {
+            failures += 1
+            print("  FAIL no LangCode for \(tag)")
+            continue
+        }
+        expect(code.status.rawValue == row["status"] as? String, "\(tag) status")
+        expect(code.displayName == row["displayName"] as? String, "\(tag) displayName")
+        expect(code.nativeName == row["nativeName"] as? String, "\(tag) nativeName")
+        expect(code.sonioxCode == row["soniox"] as? String, "\(tag) soniox")
+        expect(code.localeIdentifier == row["locale"] as? String, "\(tag) locale")
+        expect(code.romanization.rawValue == row["romanization"] as? String, "\(tag) romanization")
+        expect(code.romanizationSource.rawValue == row["romanizationSource"] as? String, "\(tag) romanizationSource")
+        expect(code.voice == row["voice"] as? String, "\(tag) voice")
+        expect(code.regions == row["regions"] as? [String], "\(tag) regions")
+    }
+} catch {
+    failures += 1
+    print("  FAIL reading langcodes.json: \(error)")
+}
+expect(LangCode(tag: "zh-Hans") == .zhHans, "zh-Hans")
+expect(LangCode(tag: "zh-CN") == .zhHans, "zh-CN → zh-Hans")
+expect(LangCode(tag: "zh_Hans_CN") == .zhHans, "zh_Hans_CN → zh-Hans")
+expect(LangCode(tag: "zh-TW") == .zhHant, "zh-TW → zh-Hant")
+expect(LangCode(tag: "zh-Hant-HK") == .zhHant, "zh-Hant-HK → zh-Hant")
+expect(LangCode(tag: "ja-JP") == .ja, "ja-JP → ja")
+expect(LangCode(tag: "en-CA") == .en, "en-CA → en")
+expect(LangCode(tag: "fr") == nil, "fr → nil")
+expect(LangCode.forRegion("cn") == .zhHans && LangCode.forRegion("JP") == .ja && LangCode.forRegion("HK") == .zhHant, "forRegion")
+
+section("CategorySlug matches contracts/tables/categories.json")
+do {
+    let data = try Data(contentsOf: tables.appending(path: "categories.json"))
+    let rows = (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["categories"] as? [[String: Any]] ?? []
+    expect(rows.count == CategorySlug.allCases.count, "same number of categories (\(rows.count))")
+    for row in rows {
+        let slug = row["slug"] as? String ?? "?"
+        guard let category = CategorySlug(rawValue: slug) else {
+            failures += 1
+            print("  FAIL no CategorySlug for \(slug)")
+            continue
+        }
+        expect(category.displayName == row["displayName"] as? String, "\(slug) displayName")
+        expect(category.sfSymbol == row["sfSymbol"] as? String, "\(slug) sfSymbol")
+        expect(category.starters == row["starters"] as? [String], "\(slug) starters")
+    }
+} catch {
+    failures += 1
+    print("  FAIL reading categories.json: \(error)")
+}
+expect((try? JSONDecoder().decode([CategorySlug].self, from: Data(#"["spa","cafe"]"#.utf8))) == [.other, .cafe], "unknown category decodes as other")
+
+// MARK: - Configuration and errors
+
+section("Configuration and error envelope")
+expect(RyokoAPIConfiguration.validBaseURL("http://127.0.0.1:8792") != nil, "http localhost URL is valid")
+expect(RyokoAPIConfiguration.validBaseURL("https://example.ts.net:10000/") != nil, "https URL is valid")
+expect(RyokoAPIConfiguration.validBaseURL("ftp://example.com") == nil, "ftp is rejected")
+expect(RyokoAPIConfiguration.validBaseURL("127.0.0.1:8792") == nil, "URL without a scheme is rejected")
+expect(RyokoAPIConfiguration.validBaseURL("") == nil, "empty is rejected")
+let suite = "ryoko.contract-check.\(UUID().uuidString)"
+if let defaults = UserDefaults(suiteName: suite) {
+    expect(RyokoAPIConfiguration.setBaseURLOverride("not a url", defaults: defaults) == false, "a bad override is refused")
+    expect(RyokoAPIConfiguration.setBaseURLOverride("http://10.0.0.2:8792", defaults: defaults), "a good override is stored")
+    expect(RyokoAPIConfiguration.baseURLOverride(defaults: defaults) == "http://10.0.0.2:8792", "override reads back")
+    expect(RyokoAPIConfiguration.setBaseURLOverride(nil, defaults: defaults) && RyokoAPIConfiguration.baseURLOverride(defaults: defaults) == nil, "override clears")
+    let first = RyokoAPIConfiguration.installId(defaults: defaults)
+    expect(UUID(uuidString: first) != nil && RyokoAPIConfiguration.installId(defaults: defaults) == first, "install id is a stable UUID")
+    defaults.removePersistentDomain(forName: suite)
+}
+let busyBody = (try? Data(contentsOf: examples.appending(path: "error.session-busy.response.json"))) ?? Data()
+expect(LiveRyokoAPI.error(status: 409, body: busyBody).code == .sessionBusy, "409 body decodes to session_busy")
+expect(LiveRyokoAPI.error(status: 502, body: Data("<html>".utf8)) == .http(status: 502), "non-envelope body gives .http")
+expect(LiveRyokoAPI.mapped(URLError(.cancelled)) is CancellationError, "cancelled request maps to CancellationError")
+expect((LiveRyokoAPI.mapped(URLError(.timedOut)) as? RyokoAPIError) == .transport(.timedOut), "timeout maps to .transport")
+
+// MARK: - Fixture API
+
+section("FixtureRyokoAPI")
+let fixtureAPI = FixtureRyokoAPI(source: .directory(examples), latency: .zero, eventInterval: .zero)
+do {
+    let tokyoRequest = try FixtureSource.directory(examples).decode(PlaceCardRequest.self, from: .placeCardTokyoRequest)
+    let tokyoCard = try await fixtureAPI.placeCard(tokyoRequest)
+    expect(tokyoCard.language == "ja" && tokyoCard.phrases.count == 3, "Tokyo request gets the Japanese card")
+    let shanghaiRequest = try FixtureSource.directory(examples).decode(PlaceCardRequest.self, from: .placeCardRequest)
+    let shanghaiCard = try await fixtureAPI.placeCard(shanghaiRequest)
+    expect(shanghaiCard.language == "zh-Hans", "Shanghai request gets the Chinese card")
+    let discoverRequest = try FixtureSource.directory(examples).decode(DiscoverRequest.self, from: .discoverRequest)
+    let picks = try await fixtureAPI.discover(discoverRequest)
+    expect(picks.places.count == 6, "discover returns 6 places")
+    let mimoRequest = try FixtureSource.directory(examples).decode(MimoMessageRequest.self, from: .mimoMessageRequest)
+    var events: [MimoEvent] = []
+    for try await event in fixtureAPI.mimoMessages(sessionId: "session-xyz", request: mimoRequest) {
+        events.append(event)
+    }
+    expect(events.first == .start(sessionId: "session-xyz", runId: "run_01"), "stream starts with the requested session id")
+    expect(events.count == 12, "stream has 12 events (got \(events.count))")
+    expect(events.last == .done(stopReason: .stop), "stream ends with done")
+    let places = events.compactMap { event -> [ShownPlace]? in
+        if case let .toolEnd(end) = event, case let .showPlaces(details) = end.details { details.places } else { nil }
+    }
+    expect(places.first?.count == 3, "show_places carries 3 places")
+
+    let busy = FixtureRyokoAPI.sessionBusy(source: .directory(examples))
+    do {
+        for try await _ in busy.mimoMessages(sessionId: "s", request: mimoRequest) {}
+        failures += 1
+        print("  FAIL session-busy fixture didn't throw")
+    } catch let error as RyokoAPIError {
+        expect(error.code == .sessionBusy && error.isRetryable, "session-busy fixture throws a typed, retryable error")
+    }
+} catch {
+    failures += 1
+    print("  FAIL fixture API: \(error)")
+}
+
+// MARK: - Live server (optional)
+
+if let base = env["RYOKO_LIVE_BASE_URL"], let token = env["RYOKO_APP_TOKEN"], !token.isEmpty {
+    section("LiveRyokoAPI against \(base)")
+    let installId = UUID().uuidString.lowercased()
+    func live(_ token: String) -> LiveRyokoAPI {
+        LiveRyokoAPI(configuration: {
+            guard let url = RyokoAPIConfiguration.validBaseURL(base) else { throw RyokoAPIError.notConfigured("base") }
+            return RyokoAPIConfiguration(baseURL: url, appToken: token, installId: installId, clientVersion: "ios/contract-check")
+        })
+    }
+    let api = live(token)
+    let source = FixtureSource.directory(examples)
+    do {
+        let card = try await api.placeCard(source.decode(PlaceCardRequest.self, from: .placeCardRequest))
+        expect(!card.phrases.isEmpty, "place-card returns phrases (\(card.language), \(card.phrases.count))")
+        let picks = try await api.discover(source.decode(DiscoverRequest.self, from: .discoverRequest))
+        expect(!picks.places.isEmpty, "discover returns places (\(picks.places.count))")
+        let allergy = try await api.allergyCard(source.decode(AllergyCardRequest.self, from: .allergyCardRequest))
+        expect(!allergy.items.isEmpty && !allergy.reviewed, "allergy-card returns unreviewed items")
+
+        let request = try source.decode(MimoMessageRequest.self, from: .mimoMessageRequest)
+        let sessionId = UUID().uuidString.lowercased()
+        var kinds: [String] = []
+        var firstEventAfter: Duration?
+        let started = ContinuousClock.now
+        for try await event in api.mimoMessages(sessionId: sessionId, request: request) {
+            if firstEventAfter == nil { firstEventAfter = ContinuousClock.now - started }
+            switch event {
+            case .start: kinds.append("start")
+            case .text: kinds.append("text")
+            case .phrase: kinds.append("phrase")
+            case .toolStart: kinds.append("tool_start")
+            case .toolEnd: kinds.append("tool_end")
+            case .done: kinds.append("done")
+            case .error(let body): kinds.append("error(\(body.code.rawValue))")
+            case .unknown(let type): kinds.append("unknown(\(type))")
+            }
+        }
+        print("  stream: \(kinds.count) events, first after \(firstEventAfter.map { "\($0)" } ?? "-"): \(kinds.joined(separator: " "))")
+        expect(kinds.first == "start" && kinds.last == "done", "Mimo stream runs start → done")
+
+        // A second message while the first run is still streaming gets 409 session_busy.
+        let busySession = UUID().uuidString.lowercased()
+        var running = api.mimoMessages(sessionId: busySession, request: request).makeAsyncIterator()
+        _ = try await running.next()
+        do {
+            for try await _ in api.mimoMessages(sessionId: busySession, request: request) {}
+            print("  note: the second message wasn't busy (the first run may already have finished)")
+        } catch let error as RyokoAPIError {
+            expect(error.code == .sessionBusy && error.isRetryable, "second message while streaming gives a retryable session_busy (\(error))")
+        }
+        while try await running.next() != nil {}
+
+        // Leaving the loop early cancels the request; the server frees the session.
+        // (Inside a function: in top-level code the loop's iterator is a global and
+        // is never released, so the stream would never see the consumer leave.)
+        func readUntilFirstText(_ stream: AsyncThrowingStream<MimoEvent, any Error>) async throws {
+            for try await event in stream {
+                if case .text = event { break }
+            }
+        }
+        let leftSession = UUID().uuidString.lowercased()
+        try await readUntilFirstText(api.mimoMessages(sessionId: leftSession, request: request))
+        try await Task.sleep(for: .milliseconds(200))
+        var again: [MimoEvent] = []
+        for try await event in api.mimoMessages(sessionId: leftSession, request: request) {
+            again.append(event)
+        }
+        expect(again.last == .done(stopReason: .stop), "after leaving a stream early, the same session answers again")
+    } catch {
+        failures += 1
+        print("  FAIL live: \(error)")
+    }
+    do {
+        _ = try await live("wrong-token").placeCard(source.decode(PlaceCardRequest.self, from: .placeCardRequest))
+        failures += 1
+        print("  FAIL a wrong token was accepted")
+    } catch let error as RyokoAPIError {
+        expect(error.code == .unauthorized, "a wrong token gives unauthorized (\(error))")
+    } catch {
+        failures += 1
+        print("  FAIL wrong token: \(error)")
+    }
+} else {
+    print("\n(Skipping the live server check. Run with --live to include it.)")
+}
+
+print("\n\(passes) passed, \(failures) failed")
+exit(failures == 0 ? 0 : 1)

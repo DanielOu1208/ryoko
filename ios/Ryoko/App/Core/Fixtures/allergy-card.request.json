@@ -1,0 +1,7 @@
+{
+  "language": "ja",
+  "homeLanguage": "en",
+  "allergies": [
+    { "id": "custom", "label": "buckwheat", "severity": "life_threatening" }
+  ]
+}

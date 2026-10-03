@@ -15,7 +15,7 @@ A living tracker for the build. **Update it as you work.** When you start a task
 | --- | --- | --- |
 | Setup (§12.2) | doing | S1, S2, S3, S5 done; S4 waiting on keys |
 | Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 waiting on Soniox key |
-| Tier 1: working core | doing | W1 contracts done; W1 server and W2 iOS in progress (workflow) |
+| Tier 1: working core | doing | W1 done; W2 foundation done; W2 shell in progress (workflow) |
 | Tier 2 | todo | |
 | After core | todo | |
 | Submission | todo | |
@@ -59,11 +59,11 @@ Write down what you find. The results may change the spec.
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
 | W2.1 | `TabView` (Now, Map, Translate, Mimo, Me), theme tokens, time-of-day `LinearGradient` | | todo | | |
-| W2.2 | Codable `Situation`, `Profile`, `Phrase` mirroring `contracts/` | | todo | | |
+| W2.2 | Codable `Situation`, `Profile`, `Phrase` mirroring `contracts/` | wf:ios-core | done |  | Codable mirrors of every §7 shape in `ios/Shared/Contracts/` (nonisolated, Sendable, Foundation only). Values the server sends tolerate unknown cases; `MimoEvent.unknown` |
 | W2.3 | `SituationStore`: live (nearest 3 + confirm) and preview (place + date-time); local-language derivation | | todo | | |
 | W2.4 | `ProfileStore` with the bundled seed profile (§10) and content-hash version | | todo | | |
-| W2.5 | `RyokoAPI` client + SSE line reader; base-URL override; fixture implementation | | todo | | |
-| W2.6 | `PlaceResolver`, `SpeechService` protocols with fixtures; `LocalText`; stubs for `PhraseCardView`, `TipRow`, `ShowContent`; preview gallery | | todo | | |
+| W2.5 | `RyokoAPI` client + SSE line reader; base-URL override; fixture implementation | wf:ios-core | done |  | `RyokoAPI` protocol, `LiveRyokoAPI` (headers, install id, base-URL override, SSE line reader), `FixtureRyokoAPI` with bundled examples. `ios/scripts/check-contracts.sh --live`: 173 pass against the faux server, Mimo stream parsed end to end |
+| W2.6 | `PlaceResolver`, `SpeechService` protocols with fixtures; `LocalText`; stubs for `PhraseCardView`, `TipRow`, `ShowContent`; preview gallery | wf:ios-core | done |  | `PlaceResolver`, `SpeechService`, `SituationStore` protocols with fixtures; `LocalText`, `PhraseCardView`, `TipRow`, `ShowContent`; `FixtureSelfCheck` (DEBUG); `ios/scripts/sync-fixtures.sh` |
 
 ### W3. Now and cards
 
