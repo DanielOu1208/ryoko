@@ -183,7 +183,7 @@ For all of them:
   - **Hidden gems:** Mimo's `discover` picks for the area, resolved with MapKit and cached per area.
   - **From Mimo:** places and plans from the Mimo tab. Plans show numbered pins. The layer stays until it's cleared or a new chat starts.
 - **Resolving names Mimo gives:**
-  - Resolve one name at a time with `MKLocalSearch`, always with `regionPriority .required` (a 1.5–3 km region); `.default` returns results near the device in Canada. Treat `placemarkNotFound` as "no results". In China, try the local name first, then English, then a category query. Key the cache on `identifier.rawValue`.
+  - Resolve one name at a time with `MKLocalSearch`, always with `regionPriority .required` (a 1.5–3 km region); `.default` returns results near the device in Canada. Treat `placemarkNotFound` as "no results". In China, try the local name first, then English, then a category query. Key the cache on `identifier.rawValue`, falling back to normalized name plus coordinates rounded to 4 decimals (about 40% of Taipei and Hong Kong POIs have no identifier). Accept a hit only if its name is similar to the requested name (short brand queries match loosely in Hong Kong). The POI request caps at about 50 results, so sort by distance on the device.
   - Take the nearest POI within 5 km and silently drop misses.
   - Cache by (normalized name, area). Keep under MapKit's throttle (about 50 requests a minute).
 - Every Shanghai coordinate comes from MapKit. Never mix in coordinates from other sources: China's offset coordinate systems put them hundreds of metres off.
