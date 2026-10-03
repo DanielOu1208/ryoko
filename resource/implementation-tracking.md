@@ -52,7 +52,7 @@ Updated 2026-10-03 15:30. Update this section whenever a screen changes state.
 | S1 | Root `.gitignore`, `server/.env.example`, `Secrets.example.xcconfig` | lead | done |  | `.gitignore`, `server/.env.example`; local `server/.env` has a random `APP_TOKEN` |
 | S2 | Xcode project in the GUI: Ryoko app, RyokoLiveActivity extension, synced folders, `Shared/` in both targets, team, iOS 26.1, iPhone and portrait only, Info.plist keys, xcconfigs. Builds on simulator and phone | agent:xcode | done |  | Generated from the CLI: synced folders (`Ryoko/`, `Shared/` in both targets, `RyokoLiveActivity/`), xcconfigs, shared scheme. Simulator build OK, launches with the 5-tab Liquid Glass bar; signed generic-device build OK. Still to do: run it on the physical phone; add Assets.xcassets (app icon) later |
 | S3 | `AGENTS.md` (+ `CLAUDE.md` → `AGENTS.md`): ownership, build command, Swift rules, networking, key rules | lead | done |  | `AGENTS.md` and `CLAUDE.md` (imports AGENTS.md) |
-| S4 | Keys in place: `server/.env` (GMI key + model id, Tavily key, `APP_TOKEN`), `Secrets.xcconfig` (Soniox key, app token, base URL) | daniel | blocked |  | GMI key and `GMI_MODEL` are in `server/.env`. Still needed: SONIOX_API_KEY (server/.env + Secrets.xcconfig), TAVILY_API_KEY |
+| S4 | Keys in place: `server/.env` (GMI key + model id, Exa key, `APP_TOKEN`), `Secrets.xcconfig` (Soniox key, app token, base URL) | daniel | blocked |  | GMI key and `GMI_MODEL` are in `server/.env`. Still needed: SONIOX_API_KEY (server/.env + Secrets.xcconfig) and EXA_API_KEY; the user pastes them in (reading keys out of other apps' files is blocked) |
 | S5 | Tailscale Funnel `:10000` → `127.0.0.1:8792` (`:443`/`:8443` belong to other services), reachable from the phone over cellular | agent:sse | done |  | `:10000` Funnel → `127.0.0.1:8792` (8790/8791 are taken by aerivoiceweb `wrangler dev`); `:443`/`:8443` untouched. Phone check over cellular still to do |
 
 ## 1. Device spikes (§11)
@@ -139,7 +139,7 @@ Write down what you find. The results may change the spec.
 | W7.3 | `place-card` skill + server checks (basis, length, no Latin in zh, allergen filter, `pinyin-pro`) | | todo | | |
 | W7.4 | `discover` skill (Mimo picks + Hidden gems) | | todo | | |
 | W7.5 | `allergy-card` skill (free text only) | | todo | | |
-| W7.6 | `mimo` skill: persona, `show_places`, Tavily `web_search`, sessions, guardrails (4 turns, 3 tools, timeout, busy lock) | | todo | | |
+| W7.6 | `mimo` skill: persona, `show_places`, Exa `web_search`, sessions, guardrails (4 turns, 3 tools, timeout, busy lock) | | todo | | |
 | W7.7 | Phrase-tag stream transformer → `phrase` events | | todo | | |
 | W7.8 | Caching (persisted LRU, in-flight de-duplication), prefetch on situation change, daily cost kill switch | | todo | | |
 | W7.9 | `server/evals/run.ts` with the canned situations (§6.4) | | todo | | |
@@ -192,3 +192,4 @@ Write down what you find. The results may change the spec.
 | 2026-10-03 | §7.8 mapping: >64 KB → 413 `invalid_request`, unknown route → 404 `invalid_request`, unhandled → 500 `model_error`. A failed Mimo run ends with one `error` event (terminal, no `done`) | W1 server | no (implementation detail) |
 | 2026-10-03 | Live situations are re-stamped hourly and when the app becomes active (only if the hour changed); cross-tab navigation goes through `AppRouter` | W1/W2 review | no (implementation; documented in AGENTS.md) |
 | 2026-10-03 | Map-first: tabs are Translate · Nearby · Map · Mimo · Me, opening on Map; Now → Nearby; Map bottom sheet with Mimo picks then nearby places; Mimo picks moved off Nearby | user | yes (#42, #43) |
+| 2026-10-03 | Web search provider Tavily → Exa (`EXA_API_KEY`) | user | yes (#44) |

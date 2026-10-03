@@ -365,7 +365,7 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
 
 - **Mimo's tools:**
   - `show_places` returns `{places: [{name, localName?, why, order?, when?}]}`, at most 5 places (or stops). `order` is 1–5. `when` is a local 24-hour `HH:mm`.
-  - `web_search` is backed by Tavily and returns `details.sources [{title, url}]`.
+  - `web_search` is backed by **Exa** (`POST https://api.exa.ai/search`, header `x-api-key`) and returns `details.sources [{title, url}]`.
 - **Guardrails** (pi's Agent has none built in):
   - at most 4 model turns and 3 tool calls per run, via `finishTurn` and `beforeToolCall`
   - a 25–30 s timeout
@@ -574,7 +574,7 @@ Gemini becomes Mimo's model before submission (§6.3). The story for judges: the
   - The free tier for `gemini-3.8-flash` allows only about 20 requests a day.
   - Prepay at least $5 on a dedicated project, and set a project spend cap.
   - The $300 Google Cloud credit doesn't cover AI Studio usage.
-- **Grounding:** Google Search grounding can't be used through pi, so web search stays on Tavily.
+- **Grounding:** Google Search grounding can't be used through pi, so web search stays on Exa.
 - **Embeddings:** after core, Tiger Data memory also uses Gemini embeddings (same key).
 
 ### 8.3 Tiger Data: after core
@@ -744,7 +744,7 @@ AGENTS.md    conventions for coding agents (CLAUDE.md points to it)
    
    Other workstreams fill in implementations behind these protocols.
 5. **Keys in place:**
-   - `server/.env`: GMI key and model id, Tavily key, `APP_TOKEN`
+   - `server/.env`: GMI key and model id, Exa key, `APP_TOKEN`
    - `Secrets.xcconfig`: Soniox key, app token, base URL
 
 ### 12.3 Workstreams (for parallel agents)
@@ -791,7 +791,7 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 7 | Mimo's server is built from scratch on the pi npm packages, pinned at 1.0.1 | user + research |
 | 8 | Model: GMI Cloud now, with provider-agnostic typed output. Switch to Gemini before submission | user + research |
 | 9 | Discovery in tier 1: Hidden gems layer, Mimo picks (now at the top of the Map's sheet, #43), asking Mimo for places, planning a few hours | user |
-| 10 | Mimo has Tavily web search with sources in tier 1 | user |
+| 10 | Mimo has web search with sources in tier 1, via **Exa** (switched from Tavily, #44) | user |
 | 11 | Mimo's suggested phrases are tappable phrase blocks that open Show mode. They're implemented as phrase tags turned into `phrase` events on the server | user + default |
 | 12 | The server runs on the dev Mac behind Tailscale Funnel (`:10000` → `127.0.0.1:8792`; `:443` and `:8443` belong to other services) | user |
 | 13 | After core: Tiger Data, then Snowflake | user |
@@ -806,7 +806,7 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 22 | GMI's `json_schema` mode is staging-only, so typed output is prompt plus validation | research |
 | 23 | ElevenLabs: free tier can't use library voices over the API. Use the MLH code or Starter | research |
 | 24 | Gemini: the free tier is about 20 requests a day; a billed project and a spend cap are needed before switching. Thinking can't be off on 3.8 Flash | research |
-| 25 | Ask web search through Gemini grounding isn't usable via pi, so Tavily it is | research |
+| 25 | Ask web search through Gemini grounding isn't usable via pi, so a search API it is (Exa, #44) | research |
 | 26 | Wikivoyage is CC BY-SA 4.0, so guides keep attribution fields | research |
 | 27 | MLH rules: all work happens during the event; libraries are allowed but your own earlier code isn't; AI tools are disclosed on Devpost; the repo stays public | research |
 | 28 | Contracts in §7 are frozen first, with a fixture mode so iOS doesn't wait on the model | default |
@@ -825,3 +825,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 41 | Build setup: `.gitignore` first, the Xcode project created by hand, `AGENTS.md`, shared Swift pieces first | default |
 | 42 | Tabs are Translate · Nearby · Map · Mimo · Me; the app opens on Map (centre). "Now" is renamed **Nearby** | user |
 | 43 | The Map has an Apple Maps-style bottom sheet: Mimo picks (hidden gems, special spots) first, then the nearest places; about 3 rows visible, scroll for more. Tapping a place makes it current and opens Nearby. Place details show in the same sheet. A first pass, to iterate on | user |
+| 44 | Web search uses **Exa** rather than Tavily (the user already has an Exa key) | user |
