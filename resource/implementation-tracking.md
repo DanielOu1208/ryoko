@@ -15,10 +15,27 @@ A living tracker for the build. **Update it as you work.** When you start a task
 | --- | --- | --- |
 | Setup (§12.2) | doing | S1, S2, S3, S5 done; S4 waiting on keys |
 | Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 waiting on Soniox key |
-| Tier 1: working core | doing | W1 and W2 done, reviewed and fixed; next: W3–W7 (feature workstreams) |
+| Tier 1: working core | doing | **W1 contracts + server and W2 shell: done.** W3 Now/cards, W4 Map, W5 Translate, W6 Mimo tab and W7 Mimo skills: **not started** |
 | Tier 2 | todo | |
 | After core | todo | |
 | Submission | todo | |
+
+## What works in the app right now
+
+Updated 2026-10-03 15:20, at commit `cb26c3f`. Update this section whenever a screen changes state.
+
+| Screen | State | What you can do |
+| --- | --- | --- |
+| Tab bar | **Working** | Native Liquid Glass bar with Now, Map, Translate, Mimo and Me |
+| Now | **Partly working** (minimal W2 version) | "Find places near me" (location permission, then the nearest 3 to confirm) or "Preview a sample place" (Tokyo ramen). Shows the header, local time, the preview banner with Back to here, 2–3 phrase cards (local script, romanization, gloss, because…) and tips over the time-of-day gradient. Loading, error and retry states. **Not yet:** quick cards (Allergy, Taxi), Mimo picks, mini map, the Show button (W3) |
+| Map | **Placeholder** | Nothing yet: W4 (search, place sheet, Preview, layers) hasn't started |
+| Translate | **Placeholder** | Nothing yet: W5 hasn't started (it also needs `SONIOX_API_KEY`) |
+| Mimo | **Placeholder** | Nothing yet: W6 (the chat UI) and W7 (the real Mimo skill) haven't started |
+| Me | **Working** (minimal) | Read-only seed profile, home base (placeholder hotel), romanization toggle, developer section (Fixtures or Live server, base URL, profile hash, reset, sample preview) |
+| Show mode | **Placeholder** | `ShowModeView` stub; nothing opens it yet (W3) |
+| Server | **Fixture mode only** | `MODEL=faux pnpm server:dev` serves the canned place-card, discover, allergy-card and Mimo stream. The real model skills come in W7 (`MODEL=gmi` returns `model_error` until then) |
+
+**How to see it:** run `MODEL=faux pnpm server:dev`, build the `Ryoko` scheme on an iPhone simulator, then use Me → Developer → Preview a sample place.
 
 ## 0. Setup before agents fan out (§12.2)
 
