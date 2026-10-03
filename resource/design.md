@@ -316,13 +316,14 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
   - It emits a `phrase` event (§7.7) in order between `text` events.
   - A malformed or unterminated tag is flushed as plain text at the end of the run.
   - The stored transcript keeps the raw tag, so Mimo sees its earlier phrases.
-- Phrases are always in the active situation's local language. At most about 4 per reply. The allergen filter applies to phrase text too.
+- Phrases are always in the active situation's local language. At most about 4 per reply. The allergen filter applies to phrase text too, but must allow allergens mentioned in a safety context ("I'm allergic to peanuts", 不要花生).
+- The prompt says to never write local script outside a phrase tag. The server still checks, and turns stray local-script runs into plain text. When text arrives both before and after a tool call, the adapter inserts a separator between them.
 - One shared `Phrase` type (§7.3) is used by Now's cards, place sheets, Mimo's blocks and Show mode.
 
 ### 6.3 Models
 
 - **Per-skill model config:** `{provider, modelId, baseUrl?, reasoning}`, read from `server/.env`. Switching models is a config change.
-- **Now: GMI Cloud** (OpenAI-compatible, `https://api.gmi-serving.com/v1`). pi-ai 1.0.1 has no built-in GMI provider, so the server registers one with pi-ai's `createProvider` (`@earendil-works/pi-ai/models`) and `openAICompletionsApi` (`@earendil-works/pi-ai/api/openai-completions.lazy`). The default model is DeepSeek V4.1 Flash; confirm the exact model id in the GMI console.
+- **Now: GMI Cloud** (OpenAI-compatible, `https://api.gmi-serving.com/v1`). pi-ai 1.0.1 has no built-in GMI provider, so the server registers one with pi-ai's `createProvider` (`@earendil-works/pi-ai/models`) and `openAICompletionsApi` (`@earendil-works/pi-ai/api/openai-completions.lazy`). The model is `deepseek-ai/DeepSeek-V4.1-Flash` with **thinking off**: set `reasoning: true` and `thinkingLevelMap: {off: 'none'}` on the model definition, then use thinking level `off`. In the D3 spike its place cards took 2.9 s p50, JSON was 100% valid, and tool calls and phrase tags were 100% compliant. The fallback is `Qwen/Qwen3.8-Flash`. Drop thinking events anyway.
 - **Typed output is provider-agnostic.** The JSON schema goes in the prompt. The server parses the JSON, checks it with TypeBox `Value.Check`, retries once, then returns `invalid_model_output`. (GMI's `json_schema` response mode is staging-only.)
 - **Tier 2: switch to Gemini before submission**, so the Gemini track qualifies:
   - `gemini-3.8-flash` (GA) through pi-ai's built-in `google` provider, with reasoning `low` (thinking can't be turned off).
@@ -379,6 +380,10 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
   - The phone uses the public HTTPS URL, so there are no ATS exceptions and no Local Network prompt. The app can override the base URL at runtime (Me).
   - Never use Cloudflare quick tunnels (they don't support SSE) or serverless hosts (they lose in-memory sessions).
 - **Fixture mode:** `MODEL=faux` serves canned responses built from the example JSON in `contracts/`, including a scripted Mimo stream, so iOS work never waits on the model.
+- **Prompt rules from the D3 spike:**
+  - Send a compacted profile with null and empty fields removed, plus an explicit `allowedBasis` list. This took bad basis citations from 3/8 to 0.
+  - Tip text must be in the traveller's home language.
+  - For `show_places`: call it once with all the places, then write 1–2 sentences without repeating the list.
 - **Evals:** `server/evals/run.ts` runs canned situations through each skill:
   - Heytea at 15:00 and at 08:00
   - a Tokyo ramen shop at 20:00
