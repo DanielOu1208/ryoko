@@ -23,6 +23,13 @@ import os
 /// so `hourBucket` changes reload `.task(id:)` work. Between those, its
 /// `localTime` is as old as the last stamp: requests send `currentSituation()`
 /// (see `SituationStore`).
+///
+/// **Map (W4): `makeCurrent(_:)`.** The Map's bottom sheet and place details
+/// make any MapKit place the current place (design §4.2, §4.7). While
+/// previewing, it previews that place at the same committed time. Live, a
+/// place within 300 m of the last fix is confirmed (with its own area when
+/// live mode has none yet); anything further, or with no fix, is previewed at
+/// the current time, since you aren't there.
 @MainActor
 @Observable
 final class AppSituationStore: SituationStore {
@@ -312,5 +319,50 @@ final class AppSituationStore: SituationStore {
         guard let address else { return nil }
         let parts = address.split(whereSeparator: { $0 == "," || $0 == " " }).map(String.init)
         return parts.first(where: LocalLanguage.isQuebec)
+    }
+}
+
+// MARK: - Map (W4)
+
+extension AppSituationStore {
+    /// Makes a place found on the Map the current place (design §4.7: tapping
+    /// a place in the Map's sheet, or "Make this my place").
+    ///
+    /// - Previewing: previews `candidate` at the same committed time.
+    /// - Live, within 300 m of the last fix: confirms it. If live mode has no
+    ///   area yet, the candidate's own area is used.
+    /// - Live but further away, or with no fix: previews it at the current
+    ///   time, because you aren't there.
+    ///
+    /// `candidate.area` should be set: it gives the city, country and time zone
+    /// a preview needs. Without it the active situation's are used.
+    func makeCurrent(_ candidate: NearbyCandidate) {
+        let place = candidate.place
+        let area = candidate.area
+        let base = situation
+
+        let isHere = previewSituation == nil && lastFix.map {
+            CLLocation(latitude: $0.lat, longitude: $0.lon)
+                .distance(from: CLLocation(latitude: place.coordinate.lat, longitude: place.coordinate.lon)) <= 300
+        } == true
+        if isHere {
+            if liveArea == nil { liveArea = area }
+            confirm(place)
+            return
+        }
+
+        let zone = candidate.timeZone ?? area?.timeZone ?? base?.zone ?? .current
+        let date = previewSituation?.date ?? .now
+        startPreview(
+            SituationPreview(
+                place: place,
+                date: date,
+                timeZone: zone,
+                city: area?.city ?? base?.city ?? NearbySearch.cityFromTimeZone(zone) ?? place.name,
+                district: area?.district,
+                countryCode: area?.countryCode ?? base?.countryCode ?? "US"
+            ),
+            subdivision: area?.subdivision
+        )
     }
 }

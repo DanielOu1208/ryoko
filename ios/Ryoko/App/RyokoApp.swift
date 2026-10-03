@@ -31,7 +31,7 @@ struct RyokoApp: App {
     @State private var router = AppRouter(selectedTab: RootTabView.launchTab)
     /// One resolver for the app (MapKit's throttle is per app). W4 replaces the
     /// fixture with its MapKit resolver here, and nowhere else.
-    @State private var placeResolver: any PlaceResolver = FixturePlaceResolver()
+    @State private var placeResolver: any PlaceResolver = LivePlaceResolver()
     /// The Speech workstream replaces the fixture here.
     @State private var speechService: any SpeechService = FixtureSpeechService()
     @Environment(\.scenePhase) private var scenePhase

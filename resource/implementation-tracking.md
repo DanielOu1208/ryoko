@@ -28,7 +28,7 @@ Updated 2026-10-03 15:30. Update this section whenever a screen changes state.
 | --- | --- | --- |
 | Tab bar | **Working** | Native Liquid Glass bar: Translate · Nearby · **Map (opens first)** · Mimo · Me |
 | Nearby (was Now) | **Working** (W3) | Phrase cards with Show, tips, Allergy and Taxi quick cards, mini map (opens Map), preview banner with tap-to-change-time, special cases with a way to the Map, saved card when offline. Large-text layout fixed |
-| Map | **Placeholder** (but it's the launch tab) | Nothing yet: W4 (bottom sheet of Mimo picks + nearby places, search, place details, Preview, layers) hasn't started |
+| Map | **Working** (W4), the launch tab | Opens on the map at your location with a floating sheet above the tab bar: Mimo picks with whys, then the nearest places; tap a row → it becomes your place → Nearby. ⓘ, a pin, a search result or a long-press opens details in the sheet (phrases, Preview, Taxi card, Ask Mimo, Make this my place). Layers: Food & drink, Washrooms, Hidden gems, From Mimo |
 | Translate | **Built, needs key + device** (W5) | English ⇄ the place's language (or picked), glass mic, live panes upright or face to face, History sheet, clear Soniox error messages. Real speech needs a valid Soniox key and the phone (the simulator mic crashes); `-RyokoTranslateSource canned` plays a scripted conversation |
 | Mimo | **Working on fixtures** (W6) | Ask Mimo or tap a starter: streamed reply with tappable phrase blocks (open Show), place chips (open Map), Show on map, source links; Stop, New chat, Ask Mimo about this place; transcript kept on device. Real model answers once W7 lands |
 | Me | **Working** (minimal) | Read-only seed profile, home base (placeholder hotel), romanization toggle, developer section (Fixtures or Live server, base URL, profile hash, reset, sample preview) |
@@ -106,11 +106,11 @@ Write down what you find. The results may change the spec.
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| W4.1 | Map with `.searchable` + `MKLocalSearchCompleter`; POI tap (`MapSelection`) and long-press | | todo | | |
-| W4.2 | Place sheet: phrase cards, tips, Preview with date-time picker + chips, Taxi card, Ask Mimo about this place | | todo | | |
-| W4.3 | Layers: Food & drink and Washrooms (MapStyle filters), Hidden gems, From Mimo (numbered for plans) | | todo | | |
-| W4.4 | `PlaceResolver`: name → MKMapItem, local name first in China, 5 km cap, cache, throttle-safe | | todo | | |
-| W4.5 | **Map home bottom sheet** (Apple Maps style): Mimo picks first (from `discover`), then the nearest places; ~3 rows at the small detent, scroll for more; tapping a place makes it current and opens Nearby (`router.openNearby()`); place details shown in the same sheet | | todo | | Design #42/#43. A first pass, iterate on device |
+| W4.1 | Map with `.searchable` + `MKLocalSearchCompleter`; POI tap (`MapSelection`) and long-press | wf:W4 | done |  | Map home at your location, .searchable + MKLocalSearchCompleter (biased to the visible region), POI tap (MapSelection → MKMapItemRequest), long-press (reverse-geocoded). Real touch untested (no tap automation) |
+| W4.2 | Place sheet: phrase cards, tips, Preview with date-time picker + chips, Taxi card, Ask Mimo about this place | wf:W4 | done |  | Place details in the same panel: Mimo's why, Make this my place, Preview (PreviewTimeSheet), Taxi card (TaxiCardFactory → Show from the panel), Ask Mimo, phrase cards and tips |
+| W4.3 | Layers: Food & drink and Washrooms (MapStyle filters), Hidden gems, From Mimo (numbered for plans) | wf:W4 | done |  | Layers menu: Food & drink + Washrooms (MapStyle POI filters), Hidden gems (orange), From Mimo (numbered plan pins, clear action); router.mapFocus applied then cleared |
+| W4.4 | `PlaceResolver`: name → MKMapItem, local name first in China, 5 km cap, cache, throttle-safe | wf:W4 | done |  | LivePlaceResolver: always .required, local name first in China, nearest hit within 5 km, name-match ranking, cache by identifier or name+coordinate, 40/min throttle; registered in RyokoApp |
+| W4.5 | **Map home bottom sheet** (Apple Maps style): Mimo picks first (from `discover`), then the nearest places; ~3 rows at the small detent, scroll for more; tapping a place makes it current and opens Nearby (`router.openNearby()`); place details shown in the same sheet | wf:W4 | done |  | Bottom sheet = in-tab floating panel above the tab bar (a native .sheet covered the tab bar); 3 snap points, ~3 rows at small; header Near you / Previewing; Mimo picks first, then up to 25 nearest; row tap → makeCurrent + openNearby; ⓘ → details |
 
 ### W5. Translate
 
@@ -193,3 +193,4 @@ Write down what you find. The results may change the spec.
 | 2026-10-03 | Live situations are re-stamped hourly and when the app becomes active (only if the hour changed); cross-tab navigation goes through `AppRouter` | W1/W2 review | no (implementation; documented in AGENTS.md) |
 | 2026-10-03 | Map-first: tabs are Translate · Nearby · Map · Mimo · Me, opening on Map; Now → Nearby; Map bottom sheet with Mimo picks then nearby places; Mimo picks moved off Nearby | user | yes (#42, #43) |
 | 2026-10-03 | Web search provider Tavily → Exa (`EXA_API_KEY`) | user | yes (#44) |
+| 2026-10-03 | Map bottom sheet is an in-tab floating panel above the tab bar, not a native `.sheet` (inside TabView a sheet covers the tab bar). Tapping a far pick previews it at the current time; within 300 m it becomes the live place | W4 | no (implementation) |
