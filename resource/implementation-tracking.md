@@ -14,7 +14,7 @@ A living tracker for the build. **Update it as you work.** When you start a task
 | Area | Status | Notes |
 | --- | --- | --- |
 | Setup (§12.2) | done | S1–S5 done |
-| Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 running (valid key) |
+| Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 done (desk) |
 | Tier 1: working core | doing | W1–W7 built and committed; end-to-end check against real GMI, review and fixes running. Translate needs a valid Soniox key and a device run |
 | Tier 2 | todo | |
 | After core | todo | |
@@ -29,7 +29,7 @@ Updated 2026-10-03 16:40. Update this section whenever a screen changes state.
 | Tab bar | **Working** | Native Liquid Glass bar: Translate · Nearby · **Map (opens first)** · Mimo · Me |
 | Nearby (was Now) | **Working** (W3) | Phrase cards with Show, tips, Allergy and Taxi quick cards, mini map (opens Map), preview banner with tap-to-change-time, special cases with a way to the Map, saved card when offline. Large-text layout fixed |
 | Map | **Working** (W4), the launch tab | Opens on the map at your location with a floating sheet above the tab bar: Mimo picks with whys, then the nearest places; tap a row → it becomes your place → Nearby. ⓘ, a pin, a search result or a long-press opens details in the sheet (phrases, Preview, Taxi card, Ask Mimo, Make this my place). Layers: Food & drink, Washrooms, Hidden gems, From Mimo |
-| Translate | **Built, needs key + device** (W5) | English ⇄ the place's language (or picked), glass mic, live panes upright or face to face, History sheet, clear Soniox error messages. Real speech needs a valid Soniox key and the phone (the simulator mic crashes); `-RyokoTranslateSource canned` plays a scripted conversation |
+| Translate | **Built, needs key + device** (W5) | English ⇄ the place's language (or picked), glass mic, live panes upright or face to face, History sheet, clear Soniox error messages. Soniox key valid and the turn rule confirmed on real Soniox output (D2); real mic speech still needs the phone (the simulator mic crashes); `-RyokoTranslateSource canned` plays a scripted conversation |
 | Mimo | **Working** (W6 UI + W7 real model) | Ask Mimo or tap a starter: streamed reply with tappable phrase blocks (open Show), place chips (open Map), Show on map, source links; Stop, New chat, Ask Mimo about this place; transcript kept on device. |
 | Me | **Working** (minimal) | Read-only seed profile, home base (placeholder hotel), romanization toggle, developer section (Fixtures or Live server, base URL, profile hash, reset, sample preview) |
 | Show mode | **Working** (W3) | Full screen for phrases, the allergy card and the taxi card: Flip, Done, max brightness, screen stays awake |
@@ -62,7 +62,7 @@ Write down what you find. The results may change the spec.
 | # | Question | Owner | Status | Result |
 | --- | --- | --- | --- | --- |
 | D1 | MapKit from Canada: Shanghai and Tokyo search, POIs, reverse geocoding in `zh_Hans_CN` / `ja_JP`, time zones, `.restroom` coverage. Simulator first (Jing'an `.gpx`), then the phone | agent:mapkit | done (desk) | MapKit works from a plain CLI on the Mac. **Shanghai:** 26 POIs at 300 m, all `Asia/Shanghai`; reverse geocoding with `zh_Hans_CN` gives Chinese, but only to road level; restrooms sparse (0 at 300 m, 2 at 1.5 km); **Heytea Jing'an isn't in Apple's data**; `.default` priority leaks to Canadian results. **Tokyo:** 49 POIs, full `ja_JP` addresses, plenty of restrooms. **Names follow the app's language, not `preferredLocale`** (an English UI gives romanized or English names, and the language is fixed per process), so local names come from `placeNameLocal`. `timeZone` and `identifier` are always present. Phone check still to do: English iPhone on venue Wi-Fi, Heytea on iOS, restroom layer, `.required` from Vancouver. Code: `spikes/mapkit/` **Follow-up:** **Taipei** has rich data: 50嵐 9 hits, CoCo, 春水堂; house-number addresses in `zh_Hant_TW`; Traditional names under a zh-Hant UI; restrooms 38–50. It's the best Mandarin stand-in. **Hong Kong** has Heytea and rich data, but is Cantonese and matches short brand queries loosely. About 40% of TW/HK POIs have no identifier. |
-| D2 | Soniox zh⇄en and ja⇄en: accuracy, script, latency, false language switches in a noisy hall. Tune the turn rule (§4.8) | agent:soniox | doing | **Valid Soniox key in place** (16:40; GET /v1/models → 200). Running the full harness now (`spikes/soniox/run-all.sh`): zh⇄en, ja⇄en, noisy variants, turn rule, temporary keys |
+| D2 | Soniox zh⇄en and ja⇄en: accuracy, script, latency, false language switches in a noisy hall. Tune the turn rule (§4.8) | agent:soniox | done (desk) | Valid key. TTS clips: connect 230–420 ms; median final lag zh/en 0.6–0.8 s, ja 1.1–1.6 s; zh always Simplified. **Turn rule as specified (2 tok / 2 CJK + <end>) splits every conversation correctly (en,zh,en / en,ja,en), including noisy variants**; also works without <end>. No translations arrive after <end>. Translation quality good; brand names miss (多肉葡萄 → "a pot of grapes"). **Temporary keys work** (mint 201 + full session), so T2.6 is feasible. Still to do: real voices in a noisy hall, on the phone |
 | D3 | GMI: place-card latency (target < 3 s), and how reliably the model calls `show_places` / `web_search` | agent:gmi | done | **`deepseek-ai/DeepSeek-V4.1-Flash`, thinking off** (fallback `Qwen/Qwen3.8-Flash`). Place card p50 2.9 s / max 3.7 s; JSON 100% valid; show_places 10/10 in 2 turns; Mimo turn p50 4.4 s; phrase tags 5/5. Qwen and GLM are 2–3× slower. `json_object` mode works but doesn't help. Provider snippet and prompt rules are in design §6.2–6.4. Code: `spikes/gmi/src/` |
 | D4 | SSE through Funnel: no buffering? Round-trip time on venue Wi-Fi and on cellular | agent:sse | done (desk) | Public Funnel path exercised (relay IPs, `Tailscale-Funnel-Request` header). **No buffering**: events arrive ~300 ms apart; lag 58–162 ms on average, max 497 ms; first byte 0.4–1.5 s (mostly TLS). /healthz RTT p50 ~0.5 s (reused connection) / ~0.8 s (new connection) on jittery Wi-Fi. Keep the 512-byte padding for URLSession. Phone check: URLSession `bytes(for:)` on `/sse` over cellular. Code: `spikes/sse/` |
 
@@ -153,7 +153,7 @@ Write down what you find. The results may change the spec.
 | T2.3 | Onboarding survey (7 pages) + editing in Me + redo survey | | todo | | |
 | T2.4 | Translate Type mode + tap-to-edit turns + `/v1/translate` | | todo | | |
 | T2.5 | Bottom Listening accessory + tab-bar minimize | | todo | | |
-| T2.6 | Server-minted Soniox keys (`/v1/soniox-key`) | | todo | | |
+| T2.6 | Server-minted Soniox keys (`/v1/soniox-key`) |  | todo |  | Feasible: D2 confirmed `POST /v1/auth/temporary-api-key` (transcribe_websocket, 60 s) works with this key |
 | T2.7 | Switch to Gemini: billed project + spend cap, `gemini-3.8-flash` (reasoning low), Flash-Lite for translate, rerun evals | | todo | | Required before submission (Gemini track) |
 
 ## 4. After core
