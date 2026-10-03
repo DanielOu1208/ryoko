@@ -16,14 +16,78 @@ nonisolated enum FixtureFile: String, CaseIterable, Sendable {
     case placeCardTokyoResponse = "place-card.tokyo.response.json"
     case discoverRequest = "discover.request.json"
     case discoverResponse = "discover.response.json"
+    case discoverTokyoRequest = "discover.tokyo.request.json"
+    case discoverTokyoResponse = "discover.tokyo.response.json"
     case allergyCardRequest = "allergy-card.request.json"
     case allergyCardResponse = "allergy-card.response.json"
+    case allergyCardZhHansRequest = "allergy-card.zh-hans.request.json"
+    case allergyCardZhHansResponse = "allergy-card.zh-hans.response.json"
     case mimoMessageRequest = "mimo-message.request.json"
     case mimoStream = "mimo.sse.txt"
+    case mimoStreamZhHans = "mimo.zh-hans.sse.txt"
     case errorInvalidRequest = "error.invalid-request.response.json"
     case errorSessionBusy = "error.session-busy.response.json"
 
     var fileName: String { rawValue }
+
+    /// A Mimo SSE transcript rather than JSON.
+    var isTranscript: Bool { self == .mimoStream || self == .mimoStreamZhHans }
+}
+
+/// One endpoint's examples, each for one local language, with the default first.
+/// `file(for:)` picks the way the faux server does (`pickFixture` in
+/// server/src/fixtures.ts): an exact tag match, then the same primary subtag
+/// (`ja-JP` → `ja`, `zh-Hant` → `zh-Hans`), then the default. The server reads each
+/// language from the request file (or a transcript's phrases); `FixtureSelfCheck`
+/// checks these tables against the same files.
+nonisolated struct FixtureVariants: Sendable {
+    struct Variant: Sendable {
+        /// The local language the example is for.
+        var language: String
+        var file: FixtureFile
+    }
+
+    /// The default example (no variant infix in its file name) first.
+    let variants: [Variant]
+
+    /// Place cards: Shanghai (zh-Hans) by default, Tokyo for Japanese.
+    static let placeCard = FixtureVariants(
+        ("zh-Hans", .placeCardResponse),
+        ("ja", .placeCardTokyoResponse)
+    )
+    /// Discover: Jing'an (zh-Hans) by default, Shinjuku for Japanese.
+    static let discover = FixtureVariants(
+        ("zh-Hans", .discoverResponse),
+        ("ja", .discoverTokyoResponse)
+    )
+    /// Allergy cards, by `request.language`: Japanese buckwheat by default, Chinese kiwi.
+    static let allergyCard = FixtureVariants(
+        ("ja", .allergyCardResponse),
+        ("zh-Hans", .allergyCardZhHansResponse)
+    )
+    /// Mimo transcripts: the Tokyo ramen chat (ja) by default, the Shanghai café chat.
+    static let mimoStream = FixtureVariants(
+        ("ja", .mimoStream),
+        ("zh-Hans", .mimoStreamZhHans)
+    )
+
+    static let all: [FixtureVariants] = [placeCard, discover, allergyCard, mimoStream]
+
+    private init(_ defaultVariant: (String, FixtureFile), _ others: (String, FixtureFile)...) {
+        variants = ([defaultVariant] + others).map { Variant(language: $0.0, file: $0.1) }
+    }
+
+    /// The example for a BCP-47 language tag.
+    func file(for language: String) -> FixtureFile {
+        let primary = Self.primarySubtag(language)
+        return variants.first { $0.language == language }?.file
+            ?? variants.first { Self.primarySubtag($0.language) == primary }?.file
+            ?? variants[0].file
+    }
+
+    private static func primarySubtag(_ tag: String) -> String {
+        String(tag.split(separator: "-", maxSplits: 1).first ?? "").lowercased()
+    }
 }
 
 /// Where fixtures are read from: the app bundle, or a directory (for the macOS

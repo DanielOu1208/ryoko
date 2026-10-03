@@ -4,7 +4,8 @@ import os
 
 /// DEBUG-only check that every bundled fixture decodes into its Swift mirror and
 /// encodes back to the same JSON. That proves the field names, the explicit
-/// `null`s and the SSE parser match `contracts/`.
+/// `null`s and the SSE parser match `contracts/`. It also checks that each example
+/// is for the language `FixtureVariants` says, so the app picks what the server picks.
 ///
 /// Not wired into any UI. To run it at launch, call
 /// `FixtureSelfCheck.runAtLaunch()` from `RyokoApp.init()`; it works off the main
@@ -56,23 +57,58 @@ nonisolated enum FixtureSelfCheck {
     }
 
     private static func check(_ file: FixtureFile, source: FixtureSource) throws {
-        if file == .mimoStream {
+        if file.isTranscript {
             try checkStream(source.text(file))
-            return
+        } else {
+            let data = try source.data(file)
+            switch file {
+            case .profileSeed: try roundTrip(Profile.self, data)
+            case .situationShanghai, .situationTokyo: try roundTrip(Situation.self, data)
+            case .placeCardRequest, .placeCardTokyoRequest: try roundTrip(PlaceCardRequest.self, data)
+            case .placeCardResponse, .placeCardTokyoResponse: try roundTrip(PlaceCardResponse.self, data)
+            case .discoverRequest, .discoverTokyoRequest: try roundTrip(DiscoverRequest.self, data)
+            case .discoverResponse, .discoverTokyoResponse: try roundTrip(DiscoverResponse.self, data)
+            case .allergyCardRequest, .allergyCardZhHansRequest: try roundTrip(AllergyCardRequest.self, data)
+            case .allergyCardResponse, .allergyCardZhHansResponse: try roundTrip(AllergyCardResponse.self, data)
+            case .mimoMessageRequest: try roundTrip(MimoMessageRequest.self, data)
+            case .errorInvalidRequest, .errorSessionBusy: try roundTrip(ErrorEnvelope.self, data)
+            case .mimoStream, .mimoStreamZhHans: break
+            }
         }
-        let data = try source.data(file)
-        switch file {
-        case .profileSeed: try roundTrip(Profile.self, data)
-        case .situationShanghai, .situationTokyo: try roundTrip(Situation.self, data)
-        case .placeCardRequest, .placeCardTokyoRequest: try roundTrip(PlaceCardRequest.self, data)
-        case .placeCardResponse, .placeCardTokyoResponse: try roundTrip(PlaceCardResponse.self, data)
-        case .discoverRequest: try roundTrip(DiscoverRequest.self, data)
-        case .discoverResponse: try roundTrip(DiscoverResponse.self, data)
-        case .allergyCardRequest: try roundTrip(AllergyCardRequest.self, data)
-        case .allergyCardResponse: try roundTrip(AllergyCardResponse.self, data)
-        case .mimoMessageRequest: try roundTrip(MimoMessageRequest.self, data)
-        case .errorInvalidRequest, .errorSessionBusy: try roundTrip(ErrorEnvelope.self, data)
-        case .mimoStream: break
+        try checkVariantLanguage(file, source: source)
+    }
+
+    /// Every endpoint response and transcript must be in a `FixtureVariants` table, for
+    /// the language the server reads from it: its request's, or its phrases'.
+    private static func checkVariantLanguage(_ file: FixtureFile, source: FixtureSource) throws {
+        let isVariant = file.isTranscript || (file.fileName.hasSuffix(".response.json") && !file.fileName.hasPrefix("error."))
+        guard isVariant else { return }
+        guard let declared = FixtureVariants.all.flatMap(\.variants).first(where: { $0.file == file })?.language else {
+            throw CheckError("not in any FixtureVariants table")
+        }
+        let actual: Set<String>
+        if file.isTranscript {
+            actual = Set(try SSELineReader.events(inTranscript: source.text(file)).compactMap { event in
+                if case let .phrase(phrase) = event { phrase.lang } else { nil }
+            })
+        } else {
+            let requestName = file.fileName.replacingOccurrences(of: ".response.json", with: ".request.json")
+            guard let request = FixtureFile(rawValue: requestName) else { throw CheckError("no \(requestName) to read its language from") }
+            let data = try source.data(request)
+            let decoder = JSONDecoder()
+            switch request {
+            case .placeCardRequest, .placeCardTokyoRequest:
+                actual = [try decoder.decode(PlaceCardRequest.self, from: data).situation.localLanguage]
+            case .discoverRequest, .discoverTokyoRequest:
+                actual = [try decoder.decode(DiscoverRequest.self, from: data).situation.localLanguage]
+            case .allergyCardRequest, .allergyCardZhHansRequest:
+                actual = [try decoder.decode(AllergyCardRequest.self, from: data).language]
+            default:
+                throw CheckError("\(requestName) isn't an endpoint request")
+            }
+        }
+        guard actual == [declared] else {
+            throw CheckError("FixtureVariants says \(declared), but the example is for \(actual.sorted().joined(separator: ", "))")
         }
     }
 

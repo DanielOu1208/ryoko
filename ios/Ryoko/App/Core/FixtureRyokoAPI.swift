@@ -4,10 +4,14 @@ import Foundation
 /// latency so loading states show. Use it in previews, and to work on the app
 /// without a server.
 ///
-/// - Place cards: the Tokyo example when the situation's language is Japanese,
-///   otherwise the Shanghai one.
-/// - Discover: the Jing'an example. Allergy card: the Japanese buckwheat example.
-/// - Mimo: replays `mimo.sse.txt` event by event, with the requested session id.
+/// Each call answers with the example for its local language, picked the way the
+/// faux server picks (`FixtureVariants`):
+/// - Place card and discover: by `situation.localLanguage`. Japanese gets Tokyo
+///   (Menya Kaze, Shinjuku picks); anything else gets Shanghai (Wutong Coffee, Jing'an picks).
+/// - Allergy card: by `request.language`. Chinese gets the kiwi card; anything else
+///   the Japanese buckwheat card.
+/// - Mimo: by `situation.localLanguage`. Chinese replays `mimo.zh-hans.sse.txt`;
+///   anything else `mimo.sse.txt`. Event by event, with the requested session id.
 nonisolated struct FixtureRyokoAPI: RyokoAPI {
     var source: FixtureSource = .mainBundle
     /// Delay before a JSON response, and before the first stream event.
@@ -27,29 +31,27 @@ nonisolated struct FixtureRyokoAPI: RyokoAPI {
 
     func placeCard(_ request: PlaceCardRequest) async throws -> PlaceCardResponse {
         try await respond()
-        let file: FixtureFile = LangCode(tag: request.situation.localLanguage) == .ja
-            ? .placeCardTokyoResponse
-            : .placeCardResponse
-        return try load(PlaceCardResponse.self, file)
+        return try load(PlaceCardResponse.self, FixtureVariants.placeCard.file(for: request.situation.localLanguage))
     }
 
     func discover(_ request: DiscoverRequest) async throws -> DiscoverResponse {
         try await respond()
-        return try load(DiscoverResponse.self, .discoverResponse)
+        return try load(DiscoverResponse.self, FixtureVariants.discover.file(for: request.situation.localLanguage))
     }
 
     func allergyCard(_ request: AllergyCardRequest) async throws -> AllergyCardResponse {
         try await respond()
-        return try load(AllergyCardResponse.self, .allergyCardResponse)
+        return try load(AllergyCardResponse.self, FixtureVariants.allergyCard.file(for: request.language))
     }
 
     func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error> {
         let fixture = self
+        let transcript = FixtureVariants.mimoStream.file(for: request.situation.localLanguage)
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     try await fixture.respond()
-                    let events = try SSELineReader.events(inTranscript: fixture.source.text(.mimoStream))
+                    let events = try SSELineReader.events(inTranscript: fixture.source.text(transcript))
                     for event in events {
                         if case let .start(_, runId) = event {
                             continuation.yield(.start(sessionId: sessionId, runId: runId))

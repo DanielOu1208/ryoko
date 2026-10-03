@@ -1,0 +1,30 @@
+: ........................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+
+data: {"type":"start","sessionId":"4c1b8e27-6a3d-4f9e-b05c-2d7e9f1a8c34","runId":"run_01"}
+
+data: {"type":"text","delta":"Order at the counter"}
+
+data: {"type":"text","delta":" or scan the QR code on your table with Alipay or WeChat."}
+
+data: {"type":"text","delta":" Drinks here run sweet, so ask for less sugar:\n\n"}
+
+data: {"type":"phrase","phrase":{"id":"mimo-run_01-1","lang":"zh-Hans","local":"一杯水果茶，少糖，谢谢。","romanization":"Yì bēi shuǐguǒchá, shǎo táng, xièxie.","gloss":"One fruit tea, less sugar, thanks."}}
+
+data: {"type":"text","delta":"Some cakes and toppings use peanut, so check before you pick one:\n\n"}
+
+data: {"type":"phrase","phrase":{"id":"mimo-run_01-2","lang":"zh-Hans","local":"我对花生过敏。这个蛋糕里有花生吗？","romanization":"Wǒ duì huāshēng guòmǐn. Zhège dàngāo lǐ yǒu huāshēng ma?","gloss":"I'm allergic to peanuts. Is there any peanut in this cake?"}}
+
+data: {"type":"tool_start","id":"call_show_places_1","name":"show_places","label":"Finding places…"}
+
+: ping
+
+data: {"type":"tool_end","id":"call_show_places_1","name":"show_places","ok":true,"details":{"places":[{"name":"Jing'an Sculpture Park","localName":"静安雕塑公园","why":"Open lawns and sculptures, calm in the afternoon"},{"name":"Jing'an Villa","localName":"静安别墅","why":"Red-brick lane off West Nanjing Road, quiet and lived-in"},{"name":"Zhang Yuan","localName":"张园","why":"Restored stone-gate lanes, calmer than the malls nearby"}]}}
+
+data: {"type":"text","delta":"\n\n"}
+
+data: {"type":"text","delta":"All three are just off West Nanjing Road"}
+
+data: {"type":"text","delta":" and free to wander, about 20 minutes on foot from here."}
+
+data: {"type":"done","stopReason":"stop"}
+

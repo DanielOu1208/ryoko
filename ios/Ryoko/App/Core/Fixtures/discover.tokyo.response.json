@@ -1,0 +1,53 @@
+{
+  "places": [
+    {
+      "name": "Omoide Yokocho",
+      "localName": "思い出横丁",
+      "category": "restaurant",
+      "why": "Smoky lane of tiny yakitori counters by the station",
+      "bestTime": "Evenings"
+    },
+    {
+      "name": "Hanazono Shrine",
+      "localName": "花園神社",
+      "category": "temple_shrine",
+      "why": "Quiet shrine grounds right beside Golden Gai",
+      "bestTime": "Evenings"
+    },
+    {
+      "name": "Shinjuku Golden Gai",
+      "localName": "新宿ゴールデン街",
+      "category": "bar",
+      "why": "Six lanes of tiny bars; some add a seat charge",
+      "bestTime": "Late evening"
+    },
+    {
+      "name": "Coffee Edinburgh",
+      "localName": "珈琲貴族エジンバラ",
+      "category": "cafe",
+      "why": "Old-school kissaten with deep chairs, open very late",
+      "bestTime": "Late night"
+    },
+    {
+      "name": "Tokyo Metropolitan Government Building",
+      "localName": "東京都庁第一本庁舎",
+      "category": "other",
+      "why": "Free night views from the 45th-floor observatory",
+      "bestTime": "After dark"
+    },
+    {
+      "name": "Fuunji",
+      "localName": "風雲児",
+      "category": "ramen",
+      "why": "Rich chicken-and-fish tsukemen; the line moves fast",
+      "bestTime": "Early evening"
+    },
+    {
+      "name": "Shinjuku Gyoen National Garden",
+      "localName": "新宿御苑",
+      "category": "park",
+      "why": "Wide lawns and old trees, an easy break from the crowds",
+      "bestTime": "Weekday mornings"
+    }
+  ]
+}

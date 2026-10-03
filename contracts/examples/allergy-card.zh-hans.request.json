@@ -1,0 +1,7 @@
+{
+  "language": "zh-Hans",
+  "homeLanguage": "en",
+  "allergies": [
+    { "id": "custom", "label": "kiwi", "severity": "serious" }
+  ]
+}

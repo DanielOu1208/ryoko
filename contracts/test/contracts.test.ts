@@ -32,8 +32,12 @@ const EXAMPLES: Record<string, TSchema> = {
   'place-card.tokyo.response.json': C.PlaceCardResponse,
   'discover.request.json': C.DiscoverRequest,
   'discover.response.json': C.DiscoverResponse,
+  'discover.tokyo.request.json': C.DiscoverRequest,
+  'discover.tokyo.response.json': C.DiscoverResponse,
   'allergy-card.request.json': C.AllergyCardRequest,
   'allergy-card.response.json': C.AllergyCardResponse,
+  'allergy-card.zh-hans.request.json': C.AllergyCardRequest,
+  'allergy-card.zh-hans.response.json': C.AllergyCardResponse,
   'mimo-message.request.json': C.MimoMessageRequest,
   'error.invalid-request.response.json': C.ErrorEnvelope,
   'error.session-busy.response.json': C.ErrorEnvelope,
@@ -42,11 +46,17 @@ const EXAMPLES: Record<string, TSchema> = {
 const INVALID_EXAMPLES: Record<string, TSchema> = {
   'error.invalid-request.request.json': C.PlaceCardRequest,
 };
+/** Mimo stream transcripts, each for one local language (the server picks one by situation.localLanguage). */
+const TRANSCRIPTS: Record<string, string> = {
+  'mimo.sse.txt': 'ja',
+  'mimo.zh-hans.sse.txt': 'zh-Hans',
+};
 
 test('every example file is covered by this test', () => {
-  const files = readdirSync(join(root, 'examples')).filter((f) => f.endsWith('.json'));
-  const covered = new Set([...Object.keys(EXAMPLES), ...Object.keys(INVALID_EXAMPLES)]);
+  const files = readdirSync(join(root, 'examples'));
+  const covered = new Set([...Object.keys(EXAMPLES), ...Object.keys(INVALID_EXAMPLES), ...Object.keys(TRANSCRIPTS)]);
   assert.deepEqual(files.filter((f) => !covered.has(f)), []);
+  for (const file of Object.keys(TRANSCRIPTS)) assert.match(file, /^mimo(\.[a-z0-9-]+)?\.sse\.txt$/, `${file}: transcript name`);
 });
 
 for (const [file, schema] of Object.entries(EXAMPLES)) {
@@ -68,6 +78,40 @@ test('seed profile matches design §10 and its version is the canonical hash', (
   assert.equal(p.personality?.budget, 'save');
   assert.equal(p.personality?.vibe, 'quiet');
   assert.ok(p.homeBase?.name.includes('placeholder'), 'home base must stay marked as a placeholder');
+});
+
+/** An endpoint's variant example files, e.g. `discover.request.json` and `discover.tokyo.request.json`. */
+const variantsOf = (endpoint: string, suffix: '.request.json' | '.response.json') =>
+  Object.keys(EXAMPLES).filter((f) => f.startsWith(`${endpoint}.`) && f.endsWith(suffix));
+const requestFor = (responseFile: string) => responseFile.replace(/\.response\.json$/, '.request.json');
+
+test('each variant pair is for one local language, and no two variants share it', () => {
+  for (const file of variantsOf('place-card', '.response.json')) {
+    const request = readJson(`examples/${requestFor(file)}`) as C.PlaceCardRequest;
+    assert.equal((readJson(`examples/${file}`) as C.PlaceCardResponse).language, request.situation.localLanguage, file);
+  }
+  for (const file of variantsOf('allergy-card', '.response.json')) {
+    const request = readJson(`examples/${requestFor(file)}`) as C.AllergyCardRequest;
+    assert.equal((readJson(`examples/${file}`) as C.AllergyCardResponse).language, request.language, file);
+  }
+  // The faux server picks a variant by language (server/src/fixtures.ts pickFixture).
+  const discover = variantsOf('discover', '.request.json').map((f) => (readJson(`examples/${f}`) as C.DiscoverRequest).situation.localLanguage);
+  const allergy = variantsOf('allergy-card', '.request.json').map((f) => (readJson(`examples/${f}`) as C.AllergyCardRequest).language);
+  assert.deepEqual(discover.sort(), ['ja', 'zh-Hans']);
+  assert.deepEqual(allergy.sort(), ['ja', 'zh-Hans']);
+});
+
+test('allergy-card examples are unreviewed and their Chinese has no Latin letters', () => {
+  for (const file of variantsOf('allergy-card', '.response.json')) {
+    const card = readJson(`examples/${file}`) as C.AllergyCardResponse;
+    assert.equal(card.reviewed, false, `${file}: generated cards are never reviewed`);
+    assert.ok(card.romanization, `${file}: CJK request needs romanization`);
+    if (card.language.startsWith('zh')) {
+      for (const text of [card.title, card.requestLocal, ...card.items.map((i) => i.local)]) {
+        assert.doesNotMatch(text, /[A-Za-z]/, `${file}: Latin letters in ${text}`);
+      }
+    }
+  }
 });
 
 test('place-card examples follow the server checks (§7.4)', () => {
@@ -143,33 +187,42 @@ test('enums are flat string enums: no const anywhere', () => {
   for (const [name, schema] of Object.entries(SCHEMAS)) walk(JSON.parse(JSON.stringify(schema)), name);
 });
 
-test('mimo.sse.txt follows the §7.7 wire format and every event matches the union', () => {
-  const raw = read('examples/mimo.sse.txt');
-  assert.ok(raw.endsWith('\n\n'), 'stream ends with a blank line');
-  const lines = raw.split('\n');
-  // Every non-blank line is a comment or a single data line, and is followed by a blank line.
-  const events: C.SseEvent[] = [];
-  let firstComment: string | undefined;
-  for (let i = 0; i < lines.length - 1; i++) {
-    const line = lines[i]!;
-    if (line === '') continue;
-    assert.equal(lines[i + 1], '', `line ${i + 1} must be followed by a blank line`);
-    if (line.startsWith(':')) {
-      if (events.length === 0 && firstComment === undefined) firstComment = line;
-      continue;
+for (const [file, language] of Object.entries(TRANSCRIPTS)) {
+  test(`${file} follows the §7.7 wire format and every event matches the union`, () => {
+    const raw = read(`examples/${file}`);
+    assert.ok(raw.endsWith('\n\n'), 'stream ends with a blank line');
+    const lines = raw.split('\n');
+    // Every non-blank line is a comment or a single data line, and is followed by a blank line.
+    const events: C.SseEvent[] = [];
+    let firstComment: string | undefined;
+    for (let i = 0; i < lines.length - 1; i++) {
+      const line = lines[i]!;
+      if (line === '') continue;
+      assert.equal(lines[i + 1], '', `line ${i + 1} must be followed by a blank line`);
+      if (line.startsWith(':')) {
+        if (events.length === 0 && firstComment === undefined) firstComment = line;
+        continue;
+      }
+      assert.ok(line.startsWith('data: '), `line ${i + 1} is neither a comment nor data: ${line.slice(0, 40)}`);
+      const event = JSON.parse(line.slice('data: '.length));
+      assertValid(C.SseEvent, event, `line ${i + 1}`);
+      events.push(event as C.SseEvent);
     }
-    assert.ok(line.startsWith('data: '), `line ${i + 1} is neither a comment nor data: ${line.slice(0, 40)}`);
-    const event = JSON.parse(line.slice('data: '.length));
-    assertValid(C.SseEvent, event, `line ${i + 1}`);
-    events.push(event as C.SseEvent);
-  }
-  assert.ok(firstComment && Buffer.byteLength(firstComment) > 512, 'padding comment of more than 512 bytes comes first');
-  assert.equal(events[0]?.type, 'start');
-  assert.equal(events.at(-1)?.type, 'done');
-  assert.ok(events.some((e) => e.type === 'phrase'), 'has a phrase event');
-  const starts = events.filter((e) => e.type === 'tool_start');
-  const ends = events.filter((e) => e.type === 'tool_end');
-  assert.deepEqual(starts.map((e) => e.id), ends.map((e) => e.id), 'every tool_start has a tool_end');
-  const shown = ends.find((e) => e.name === 'show_places');
-  assert.ok(shown && shown.name === 'show_places' && shown.details.places.length === 3, 'show_places returns 3 places');
-});
+    assert.ok(firstComment && Buffer.byteLength(firstComment) > 512, 'padding comment of more than 512 bytes comes first');
+    assert.equal(events[0]?.type, 'start');
+    assert.equal(events.at(-1)?.type, 'done');
+    assert.ok(events.some((e) => e.type === 'phrase'), 'has a phrase event');
+    const starts = events.filter((e) => e.type === 'tool_start');
+    const ends = events.filter((e) => e.type === 'tool_end');
+    assert.deepEqual(starts.map((e) => e.id), ends.map((e) => e.id), 'every tool_start has a tool_end');
+    const shown = ends.find((e) => e.name === 'show_places');
+    assert.ok(shown && shown.name === 'show_places' && shown.details.places.length === 3, 'show_places returns 3 places');
+    const phrases = events.flatMap((e) => (e.type === 'phrase' ? [e.phrase] : []));
+    assert.equal(new Set(phrases.map((p) => p.id)).size, phrases.length, 'phrase ids are unique');
+    for (const p of phrases) {
+      assert.equal(p.lang, language, `${p.id}: every phrase is in the transcript's language`);
+      assert.ok(p.romanization, `${p.id}: CJK phrase needs romanization`);
+      if (p.lang.startsWith('zh')) assert.doesNotMatch(p.local, /[A-Za-z]/, `${p.id}: Latin letters in Chinese text`);
+    }
+  });
+}

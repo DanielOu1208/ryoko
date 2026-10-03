@@ -24,10 +24,15 @@ place-card.tokyo.request.json
 place-card.tokyo.response.json
 discover.request.json
 discover.response.json
+discover.tokyo.request.json
+discover.tokyo.response.json
 allergy-card.request.json
 allergy-card.response.json
+allergy-card.zh-hans.request.json
+allergy-card.zh-hans.response.json
 mimo-message.request.json
 mimo.sse.txt
+mimo.zh-hans.sse.txt
 error.invalid-request.response.json
 error.session-busy.response.json
 "

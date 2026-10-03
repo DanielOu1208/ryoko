@@ -19,6 +19,7 @@ import {
   type ErrorCode,
   type MimoMessageRequest,
   type PlaceCardRequest,
+  type Situation,
 } from '@ryoko/contracts';
 import { createApp } from '../src/app.ts';
 import { ConfigError, configFromEnv, loadConfig, type Config } from '../src/config.ts';
@@ -33,8 +34,16 @@ const example = (file: string): unknown => JSON.parse(readFileSync(join(EXAMPLES
 const placeCardShanghai = example('place-card.request.json') as PlaceCardRequest;
 const placeCardTokyo = example('place-card.tokyo.request.json') as PlaceCardRequest;
 const discoverRequest = example('discover.request.json');
+const discoverTokyo = example('discover.tokyo.request.json');
 const allergyRequest = example('allergy-card.request.json');
+const allergyZhHans = example('allergy-card.zh-hans.request.json');
 const mimoRequest = example('mimo-message.request.json') as MimoMessageRequest;
+/** The same message from the Shanghai café (mimo-message.request.json is set in Tokyo). */
+const mimoShanghai: MimoMessageRequest = {
+  ...mimoRequest,
+  situation: example('situation.shanghai-cafe.json') as Situation,
+  nearby: [{ name: 'Wutong Coffee', localName: '梧桐咖啡', category: 'cafe', distanceMeters: 0 }],
+};
 
 function testConfig(env: Record<string, string> = {}): Config {
   return configFromEnv({ APP_TOKEN: TOKEN, MODEL: 'faux', FAUX_PACE: '0', LOG_REQUESTS: '0', ...env });
@@ -240,13 +249,71 @@ describe('fixture mode (MODEL=faux)', () => {
     assert.equal(res.status, 200);
   });
 
-  test('fixtures are picked by local language, with fallbacks', () => {
+  test('discover returns Shinjuku places for Tokyo and Jing\'an places for Shanghai', async () => {
+    const tokyo = await call(app, '/v1/discover', { body: discoverTokyo });
+    assert.equal(tokyo.status, 200);
+    const tokyoBody = await tokyo.json();
+    assertValid(DiscoverResponse, tokyoBody, 'Tokyo discover response');
+    const tokyoNames: string[] = tokyoBody.places.map((p: { name: string }) => p.name);
+    for (const name of ['Omoide Yokocho', 'Shinjuku Golden Gai', 'Fuunji', 'Shinjuku Gyoen National Garden']) {
+      assert.ok(tokyoNames.includes(name), `Tokyo picks include ${name}`);
+    }
+    const shanghai = await (await call(app, '/v1/discover', { body: discoverRequest })).json();
+    const shanghaiNames: string[] = shanghai.places.map((p: { name: string }) => p.name);
+    assert.ok(shanghaiNames.includes("Jing'an Park"), 'Shanghai picks are the Jing\'an ones');
+    assert.ok(!shanghaiNames.some((n) => tokyoNames.includes(n)), 'no place is in both');
+  });
+
+  test('allergy-card answers in the requested language', async () => {
+    const zh = await call(app, '/v1/allergy-card', { body: allergyZhHans });
+    assert.equal(zh.status, 200);
+    const zhCard = await zh.json();
+    assertValid(AllergyCardResponse, zhCard, 'zh-Hans allergy card');
+    assert.equal(zhCard.language, 'zh-Hans');
+    assert.equal(zhCard.reviewed, false);
+    assert.match(zhCard.items[0].local, /猕猴桃/);
+    assert.match(zhCard.romanization, /míhóutáo/);
+    const ja = await (await call(app, '/v1/allergy-card', { body: allergyRequest })).json();
+    assert.equal(ja.language, 'ja');
+    assert.match(ja.requestLocal, /そば/);
+  });
+
+  test('fixtures are picked by the primary language subtag, with fallbacks', () => {
     const fixtures = loadFixtures();
     assert.equal(pickFixture(fixtures.placeCard, 'ja').response.language, 'ja');
     assert.equal(pickFixture(fixtures.placeCard, 'zh-Hans').response.language, 'zh-Hans');
     assert.equal(pickFixture(fixtures.placeCard, 'zh-Hant').response.language, 'zh-Hans');
     assert.equal(pickFixture(fixtures.placeCard, 'ko').variant, '');
-    assert.ok(fixtures.mimo.some((i) => i.kind === 'event' && i.event.type === 'phrase'));
+
+    const discover = (language: string) => pickFixture(fixtures.discover, language).variant;
+    assert.deepEqual(['ja', 'ja-JP', 'zh-Hans', 'zh-Hant', 'en'].map(discover), ['tokyo', 'tokyo', '', '', '']);
+
+    const allergy = (language: string) => pickFixture(fixtures.allergyCard, language).variant;
+    assert.deepEqual(['zh-Hans', 'zh', 'zh-Hant', 'ja', 'en'].map(allergy), ['zh-hans', 'zh-hans', 'zh-hans', '', '']);
+
+    assert.deepEqual(
+      fixtures.mimo.map((f) => [f.variant, f.language]),
+      [['', 'ja'], ['zh-hans', 'zh-Hans']],
+      'each transcript takes its language from its phrases',
+    );
+    const mimo = (language: string) => pickFixture(fixtures.mimo, language).variant;
+    assert.deepEqual(['zh-Hans', 'zh-CN', 'zh-Hant', 'ja', 'ko'].map(mimo), ['zh-hans', 'zh-hans', 'zh-hans', '', '']);
+  });
+
+  test('a transcript that mixes phrase languages fails at load', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ryoko-fixtures-'));
+    try {
+      for (const file of ['place-card.response.json', 'discover.response.json', 'allergy-card.response.json']) {
+        writeFileSync(join(dir, file), readFileSync(join(EXAMPLES_DIR, file)));
+      }
+      const zh = readFileSync(join(EXAMPLES_DIR, 'mimo.zh-hans.sse.txt'), 'utf8');
+      const ja = readFileSync(join(EXAMPLES_DIR, 'mimo.sse.txt'), 'utf8');
+      const jaPhrase = ja.split('\n').find((l) => l.includes('"type":"phrase"'));
+      writeFileSync(join(dir, 'mimo.sse.txt'), zh.replace('data: {"type":"tool_start"', `${jaPhrase}\n\ndata: {"type":"tool_start"`));
+      assert.throws(() => loadFixtures(dir), /mixes phrase languages/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -303,6 +370,30 @@ describe('Mimo SSE stream', () => {
     const phrase = events.find((e) => e.type === 'phrase');
     assert.ok(phrase?.type === 'phrase' && phrase.phrase.id.includes(runId), 'phrase ids carry this run id');
     assert.equal(sessions.isBusy('7d3e9a10-session'), false, 'the session is free after the run');
+  });
+
+  test('replays the transcript for the situation language: zh-Hans for Shanghai, ja for Tokyo', async () => {
+    const { app } = createApp(testConfig());
+    const shownNames = (events: SseEvent[]) =>
+      events.flatMap((e) => (e.type === 'tool_end' && e.name === 'show_places' ? e.details.places.map((p) => p.name) : []));
+
+    const shanghai = parseSse(await (await call(app, '/v1/sessions/sh/messages', { body: mimoShanghai })).text()).events;
+    const start = shanghai[0];
+    const runId = start?.type === 'start' ? start.runId : '';
+    const zhPhrases = shanghai.flatMap((e) => (e.type === 'phrase' ? [e.phrase] : []));
+    assert.equal(zhPhrases.length, 2);
+    for (const phrase of zhPhrases) {
+      assert.equal(phrase.lang, 'zh-Hans');
+      assert.doesNotMatch(phrase.local, /[A-Za-z]/);
+      assert.ok(phrase.id.includes(runId), 'phrase ids carry this run id');
+    }
+    assert.deepEqual(shownNames(shanghai), ["Jing'an Sculpture Park", "Jing'an Villa", 'Zhang Yuan']);
+    assert.deepEqual(shanghai.at(-1), { type: 'done', stopReason: 'stop' });
+
+    const tokyo = parseSse(await (await call(app, '/v1/sessions/tk/messages', { body: mimoRequest })).text()).events;
+    const jaPhrases = tokyo.flatMap((e) => (e.type === 'phrase' ? [e.phrase] : []));
+    assert.ok(jaPhrases.length > 0 && jaPhrases.every((p) => p.lang === 'ja'), 'Tokyo gets Japanese phrases');
+    assert.ok(shownNames(tokyo).includes('Tajimaya Coffee'));
   });
 
   test('each run gets a new run id', async () => {

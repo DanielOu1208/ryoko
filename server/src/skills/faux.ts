@@ -1,6 +1,7 @@
 // MODEL=faux: canned responses from contracts/examples, no model calls (design §6.4).
-// JSON skills return the example for the situation's local language; Mimo replays
-// mimo.sse.txt with realistic pacing.
+// Every skill answers with the example for the local language (pickFixture): the
+// situation's for place-card, discover and Mimo, the request's for allergy-card.
+// Mimo replays mimo[.<variant>].sse.txt with realistic pacing.
 
 import type { SseEvent, StopReason } from '@ryoko/contracts';
 import type { FauxConfig } from '../config.ts';
@@ -72,8 +73,8 @@ export function createFauxSkills(config: FauxConfig, fixtures: FixtureSet = load
       await latency();
       return structuredClone(pickFixture(fixtures.allergyCard, request.language).response);
     },
-    async mimo(_request, ctx) {
-      return replayTranscript(fixtures.mimo, ctx, config.pace);
+    async mimo(request, ctx) {
+      return replayTranscript(pickFixture(fixtures.mimo, request.situation.localLanguage).response, ctx, config.pace);
     },
   };
 }

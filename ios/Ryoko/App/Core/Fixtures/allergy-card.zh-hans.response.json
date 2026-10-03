@@ -1,0 +1,16 @@
+{
+  "language": "zh-Hans",
+  "title": "过敏提示",
+  "items": [
+    {
+      "allergenId": "custom",
+      "local": "我对猕猴桃（奇异果）过敏，不能吃猕猴桃，包括猕猴桃汁和含有猕猴桃的甜品或酱料。",
+      "home": "I'm allergic to kiwi fruit and must not eat it, including kiwi juice or desserts and sauces containing kiwi.",
+      "severity": "serious"
+    }
+  ],
+  "requestLocal": "请问这道菜里有猕猴桃吗？",
+  "requestHome": "Does this dish contain kiwi?",
+  "romanization": "Qǐngwèn zhè dào cài lǐ yǒu míhóutáo ma?",
+  "reviewed": false
+}

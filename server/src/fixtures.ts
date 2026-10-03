@@ -20,11 +20,14 @@ import {
 export const CONTRACTS_DIR = dirname(fileURLToPath(import.meta.resolve('@ryoko/contracts/package.json')));
 export const EXAMPLES_DIR = join(CONTRACTS_DIR, 'examples');
 
-/** One example request/response pair, e.g. place-card.tokyo.{request,response}.json. */
+/**
+ * One example for one local language: a request/response pair such as
+ * place-card.tokyo.{request,response}.json, or a Mimo transcript such as mimo.zh-hans.sse.txt.
+ */
 export interface Fixture<Res> {
-  /** '' for the default pair (`place-card.response.json`), otherwise the infix (`tokyo`). */
+  /** '' for the default (`place-card.response.json`, `mimo.sse.txt`), otherwise the infix (`tokyo`). */
   variant: string;
-  /** The local language this pair is for, from its request. */
+  /** The local language this example is for: from its request, or a transcript's phrases. */
   language: string | null;
   response: Res;
 }
@@ -35,7 +38,7 @@ export interface FixtureSet {
   placeCard: Fixture<PlaceCardResponse>[];
   discover: Fixture<DiscoverResponse>[];
   allergyCard: Fixture<AllergyCardResponse>[];
-  mimo: TranscriptItem[];
+  mimo: Fixture<TranscriptItem[]>[];
 }
 
 export class FixtureError extends Error {
@@ -121,18 +124,41 @@ export function parseTranscript(text: string, file = 'mimo.sse.txt'): Transcript
   return items;
 }
 
+/** The one language of a transcript's phrase events, or null if it has none. Mixed languages throw. */
+function transcriptLanguage(items: TranscriptItem[], file: string): string | null {
+  const languages = new Set(items.flatMap((i) => (i.kind === 'event' && i.event.type === 'phrase' ? [i.event.phrase.lang] : [])));
+  if (languages.size > 1) throw new FixtureError(`contracts/examples/${file} mixes phrase languages: ${[...languages].join(', ')}.`);
+  return [...languages][0] ?? null;
+}
+
+/** Finds every `mimo[.<variant>].sse.txt`, e.g. mimo.sse.txt (ja) and mimo.zh-hans.sse.txt. */
+function loadTranscripts(dir: string): Fixture<TranscriptItem[]>[] {
+  const pattern = /^mimo(?:\.([a-z0-9-]+))?\.sse\.txt$/;
+  const fixtures: Fixture<TranscriptItem[]>[] = [];
+  for (const file of readdirSync(dir).sort()) {
+    const match = pattern.exec(file);
+    if (!match) continue;
+    const items = parseTranscript(readFileSync(join(dir, file), 'utf8'), file);
+    fixtures.push({ variant: match[1] ?? '', language: transcriptLanguage(items, file), response: items });
+  }
+  if (fixtures.length === 0) throw new FixtureError('No mimo.sse.txt transcript found in contracts/examples.');
+  return fixtures;
+}
+
 export function loadFixtures(dir = EXAMPLES_DIR): FixtureSet {
   return {
     placeCard: loadPairs(dir, 'place-card', PlaceCardRequest, PlaceCardResponse, (r) => r.situation.localLanguage),
     discover: loadPairs(dir, 'discover', DiscoverRequest, DiscoverResponse, (r) => r.situation.localLanguage),
     allergyCard: loadPairs(dir, 'allergy-card', AllergyCardRequest, AllergyCardResponse, (r) => r.language),
-    mimo: parseTranscript(readFileSync(join(dir, 'mimo.sse.txt'), 'utf8')),
+    mimo: loadTranscripts(dir),
   };
 }
 
 /**
- * The fixture for a language: an exact tag match (ja → Tokyo, zh-Hans → Shanghai),
- * then the same primary language (zh-Hant → zh-Hans), then the default pair.
+ * The fixture for a language: an exact tag match (ja → the Tokyo variant, zh-Hans → the
+ * zh-Hans or Shanghai one), then the same primary subtag (ja-JP → ja, zh-Hant → zh-Hans),
+ * then the default (the file with no variant infix).
+ * FixtureRyokoAPI in ios/Ryoko/App/Core/ follows the same rule; keep the two in step.
  */
 export function pickFixture<Res>(fixtures: Fixture<Res>[], language: string): Fixture<Res> {
   const primary = (tag: string) => tag.split('-')[0]?.toLowerCase();
