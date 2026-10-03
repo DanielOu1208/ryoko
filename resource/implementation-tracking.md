@@ -15,14 +15,14 @@ A living tracker for the build. **Update it as you work.** When you start a task
 | --- | --- | --- |
 | Setup (§12.2) | done | S1–S5 done |
 | Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 blocked (Soniox key 401) |
-| Tier 1: working core | doing | **W1 contracts + server and W2 shell: done.** W3 Nearby/cards, W4 Map, W5 Translate, W6 Mimo tab and W7 Mimo skills: **not started** |
+| Tier 1: working core | doing | W1–W7 built and committed; end-to-end check against real GMI, review and fixes running. Translate needs a valid Soniox key and a device run |
 | Tier 2 | todo | |
 | After core | todo | |
 | Submission | todo | |
 
 ## What works in the app right now
 
-Updated 2026-10-03 15:30. Update this section whenever a screen changes state.
+Updated 2026-10-03 16:40. Update this section whenever a screen changes state.
 
 | Screen | State | What you can do |
 | --- | --- | --- |
@@ -30,10 +30,10 @@ Updated 2026-10-03 15:30. Update this section whenever a screen changes state.
 | Nearby (was Now) | **Working** (W3) | Phrase cards with Show, tips, Allergy and Taxi quick cards, mini map (opens Map), preview banner with tap-to-change-time, special cases with a way to the Map, saved card when offline. Large-text layout fixed |
 | Map | **Working** (W4), the launch tab | Opens on the map at your location with a floating sheet above the tab bar: Mimo picks with whys, then the nearest places; tap a row → it becomes your place → Nearby. ⓘ, a pin, a search result or a long-press opens details in the sheet (phrases, Preview, Taxi card, Ask Mimo, Make this my place). Layers: Food & drink, Washrooms, Hidden gems, From Mimo |
 | Translate | **Built, needs key + device** (W5) | English ⇄ the place's language (or picked), glass mic, live panes upright or face to face, History sheet, clear Soniox error messages. Real speech needs a valid Soniox key and the phone (the simulator mic crashes); `-RyokoTranslateSource canned` plays a scripted conversation |
-| Mimo | **Working on fixtures** (W6) | Ask Mimo or tap a starter: streamed reply with tappable phrase blocks (open Show), place chips (open Map), Show on map, source links; Stop, New chat, Ask Mimo about this place; transcript kept on device. Real model answers once W7 lands |
+| Mimo | **Working** (W6 UI + W7 real model) | Ask Mimo or tap a starter: streamed reply with tappable phrase blocks (open Show), place chips (open Map), Show on map, source links; Stop, New chat, Ask Mimo about this place; transcript kept on device. |
 | Me | **Working** (minimal) | Read-only seed profile, home base (placeholder hotel), romanization toggle, developer section (Fixtures or Live server, base URL, profile hash, reset, sample preview) |
 | Show mode | **Working** (W3) | Full screen for phrases, the allergy card and the taxi card: Flip, Done, max brightness, screen stays awake |
-| Server | **Fixture mode only** | `MODEL=faux pnpm server:dev` serves the canned place-card, discover, allergy-card and Mimo stream. The real model skills come in W7 (`MODEL=gmi` returns `model_error` until then) |
+| Server | **Real Mimo on GMI** (W7) | `pnpm server:dev` runs the real skills on DeepSeek V4.1 Flash: place cards ~2.6 s, discover ~3 s, Mimo chat with show_places and Exa web search, streamed phrase events with pinyin. `MODEL=faux` still serves fixtures |
 
 **How to see it:** run `MODEL=faux pnpm server:dev`, build the `Ryoko` scheme on an iPhone simulator, then use Me → Developer → Preview a sample place and open the Nearby tab.
 
@@ -134,15 +134,15 @@ Write down what you find. The results may change the spec.
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| W7.1 | pi 1.0.1 pinned; GMI custom provider; per-skill model config from `.env` | | todo | | |
-| W7.2 | Provider-agnostic typed output: schema in prompt → parse → `Value.Check` → retry once | | todo | | |
-| W7.3 | `place-card` skill + server checks (basis, length, no Latin in zh, allergen filter, `pinyin-pro`) | | todo | | |
-| W7.4 | `discover` skill (Mimo picks + Hidden gems) | | todo | | |
-| W7.5 | `allergy-card` skill (free text only) | | todo | | |
-| W7.6 | `mimo` skill: persona, `show_places`, Exa `web_search`, sessions, guardrails (4 turns, 3 tools, timeout, busy lock) | | todo | | |
-| W7.7 | Phrase-tag stream transformer → `phrase` events | | todo | | |
-| W7.8 | Caching (persisted LRU, in-flight de-duplication), prefetch on situation change, daily cost kill switch | | todo | | |
-| W7.9 | `server/evals/run.ts` with the canned situations (§6.4) | | todo | | |
+| W7.1 | pi 1.0.1 pinned; GMI custom provider; per-skill model config from `.env` | wf:W7 | done |  | pi 1.0.1 pinned; GMI registered as an OpenAI-compatible provider (reasoning:true, off→none); per-skill MODEL_<SKILL> overrides; google provider lazy for the Gemini switch |
+| W7.2 | Provider-agnostic typed output: schema in prompt → parse → `Value.Check` → retry once | wf:W7 | done |  | Provider-agnostic typed output: schema in prompt → tolerant parse → Value.Clean/Check → skill checks → one retry listing problems → 502 |
+| W7.3 | `place-card` skill + server checks (basis, length, no Latin in zh, allergen filter, `pinyin-pro`) | wf:W7 | done |  | place-card with compacted profile + allowedBasis; checks (basis, ≤12-word because, script, no Latin in zh, allergen + diet filter with safety exemption); pinyin-pro. Evals: 100% valid, p50 2.6 s, max 2.9 s |
+| W7.4 | `discover` skill (Mimo picks + Hidden gems) | wf:W7 | done |  | discover: 5–8 places, why ≤60 chars, bestTime; drops duplicates, wrong-script names, allergen conflicts. ~3.1 s |
+| W7.5 | `allergy-card` skill (free text only) | wf:W7 | done |  | allergy-card: free text only, §4.5 wording, severity from the request, reviewed:false, pinyin |
+| W7.6 | `mimo` skill: persona, `show_places`, Exa `web_search`, sessions, guardrails (4 turns, 3 tools, timeout, busy lock) | wf:W7 | done |  | mimo: pi-agent-core Agent per session, context sections replaced per message, show_places + Exa web_search, ≤4 turns / ≤3 tools, timeout, abort on disconnect, rollback of failed runs |
+| W7.7 | Phrase-tag stream transformer → `phrase` events | wf:W7 | done |  | Phrase-tag transformer: buffered tags → phrase events, pinyin fill, ≤4 per reply, separator around tool calls, malformed tags flushed as text |
+| W7.8 | Caching (persisted LRU, in-flight de-duplication), prefetch on situation change, daily cost kill switch | wf:W7 | done |  | Persisted LRU in server/.cache (survives restart, 2 ms hits), in-flight de-duplication, daily budget kill switch (pi usage + Exa cost); $0.18 spent so far |
+| W7.9 | `server/evals/run.ts` with the canned situations (§6.4) | wf:W7 | done |  | server/evals/run.ts on real GMI (RUNS=2): place-card/discover/allergy 100% valid. 89 offline tests pass; check-contracts --live 193/193 |
 
 ## 3. Tier 2
 

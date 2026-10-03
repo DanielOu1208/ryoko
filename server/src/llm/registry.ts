@@ -1,0 +1,167 @@
+// The model registry behind the skills (design §6.3): one pi-ai `Models` collection
+// with the providers the config names, plus each skill's model and request options.
+//
+// GMI Cloud has no built-in pi-ai provider, so it's registered here as an
+// OpenAI-compatible one (the D3 spike's shape): reasoning on in the model
+// definition with `thinkingLevelMap.off = 'none'`, then requested with thinking
+// off, so pi sends `reasoning_effort: "none"`.
+//
+// Keys are read from the server config (server/.env merged with the process
+// environment), never from process.env alone, and never logged.
+
+import { createModels, createProvider, type MutableModels } from '@earendil-works/pi-ai/models';
+import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
+import { envApiKeyAuth, type Api, type Model, type SimpleStreamOptions, type ThinkingLevel, type Usage } from '@earendil-works/pi-ai';
+import { describeModel, type Config, type ModelProvider, type SkillName } from '../config.ts';
+import { ApiError } from '../errors.ts';
+
+export const GMI_BASE_URL = 'https://api.gmi-serving.com/v1';
+
+/** Per-million-token prices, from GMI's model list (spike D3). Unknown models get a deliberately high guess so the budget errs safe. */
+const GMI_PRICES: Record<string, Model<'openai-completions'>['cost']> = {
+  'deepseek-ai/DeepSeek-V4.1-Flash': { input: 0.3, output: 1.2, cacheRead: 0.006, cacheWrite: 0 },
+  'Qwen/Qwen3.8-Flash': { input: 0.16, output: 0.47, cacheRead: 0.016, cacheWrite: 0.2 },
+};
+const UNKNOWN_PRICE = { input: 1, output: 4, cacheRead: 0, cacheWrite: 0 };
+
+/** The env var holding each provider's key. */
+export const PROVIDER_KEY_ENV: Record<ModelProvider, string> = {
+  gmi: 'GMI_API_KEY',
+  google: 'GEMINI_API_KEY',
+};
+
+export function gmiModel(id: string, baseUrl = GMI_BASE_URL): Model<'openai-completions'> {
+  return {
+    id,
+    name: id.split('/').pop() ?? id,
+    api: 'openai-completions',
+    provider: 'gmi',
+    baseUrl,
+    reasoning: true,
+    // Thinking off is sent as reasoning_effort "none" (DeepSeek V4.1 Flash and Qwen3.8 Flash accept it).
+    thinkingLevelMap: { off: 'none' },
+    input: ['text'],
+    cost: GMI_PRICES[id] ?? UNKNOWN_PRICE,
+    contextWindow: 1_048_575,
+    maxTokens: 8192,
+    compat: {
+      supportsDeveloperRole: false, // the system prompt goes as `system`
+      supportsStore: false,
+      maxTokensField: 'max_tokens',
+    },
+  };
+}
+
+/** What a skill needs to call its model. */
+export interface SkillModel {
+  model: Model<Api>;
+  /** Stable id for cache keys and logs, e.g. `gmi:deepseek-ai/DeepSeek-V4.1-Flash`. */
+  key: string;
+  /** Options for every request: reasoning, low retry delays. Add maxTokens and signal per call. */
+  options: SimpleStreamOptions;
+}
+
+export interface Llm {
+  readonly models: MutableModels;
+  /** The model for a skill. Throws ApiError model_error (503) when its provider isn't configured. */
+  forSkill(skill: SkillName): Promise<SkillModel>;
+}
+
+/** Request options shared by every call: rate limits surface as errors fast instead of hanging (design §6.4). */
+export const BASE_REQUEST_OPTIONS: SimpleStreamOptions = {
+  maxRetries: 1,
+  maxRetryDelayMs: 1500,
+};
+
+/**
+ * A provider's error text, safe to send to the app: long token-like runs (keys,
+ * request ids) are masked and it's kept short.
+ */
+export function providerErrorText(message: string | undefined): string {
+  const text = (message ?? 'unknown error').replace(/\s+/g, ' ').replace(/[A-Za-z0-9_\-]{24,}/g, '…').trim();
+  return text.length <= 160 ? text : `${text.slice(0, 159)}…`;
+}
+
+/** Cost in US dollars of one response. Uses the provider's figure, else the model's prices (the faux test provider reports 0). */
+export function costOf(model: Pick<Model<Api>, 'cost'>, usage: Usage | undefined): number {
+  if (!usage) return 0;
+  if (usage.cost?.total > 0) return usage.cost.total;
+  const rates = model.cost;
+  return (rates.input * usage.input + rates.output * usage.output + rates.cacheRead * usage.cacheRead + rates.cacheWrite * usage.cacheWrite) / 1_000_000;
+}
+
+function unavailable(provider: ModelProvider): ApiError {
+  return new ApiError('model_error', `The ${provider} model isn't configured: set ${PROVIDER_KEY_ENV[provider]} in server/.env, or run with MODEL=faux for fixtures.`, {
+    status: 503,
+    retryable: false,
+  });
+}
+
+/**
+ * Registers the providers the config uses. Google (tier 2) is imported lazily, only
+ * when a skill names it, so its SDK isn't loaded otherwise.
+ */
+export function createLlm(config: Config): Llm {
+  const specs = config.models;
+  if (!specs) throw new Error('createLlm needs model specs (MODEL is faux).');
+  const env = config.env;
+  const models = createModels({
+    authContext: {
+      env: async (name: string) => env[name]?.trim() || undefined,
+      fileExists: async () => false,
+    },
+  });
+
+  const gmiIds = [...new Set([...Object.keys(GMI_PRICES), ...Object.values(specs).filter((s) => s.provider === 'gmi').map((s) => s.modelId)])];
+  const baseUrl = env.GMI_BASE_URL?.trim() || GMI_BASE_URL;
+  models.setProvider(
+    createProvider({
+      id: 'gmi',
+      name: 'GMI Cloud',
+      baseUrl,
+      auth: { apiKey: envApiKeyAuth('GMI Cloud API key', [PROVIDER_KEY_ENV.gmi]) },
+      models: gmiIds.map((id) => gmiModel(id, baseUrl)),
+      api: openAICompletionsApi(),
+    }),
+  );
+
+  let googleReady: Promise<void> | null = null;
+  const ensureProvider = async (provider: ModelProvider) => {
+    if (provider !== 'google') return;
+    googleReady ??= import('@earendil-works/pi-ai/providers/google').then(({ googleProvider }) => models.setProvider(googleProvider()));
+    await googleReady;
+  };
+
+  return {
+    models,
+    async forSkill(skill) {
+      const spec = specs[skill];
+      if (!env[PROVIDER_KEY_ENV[spec.provider]]?.trim()) throw unavailable(spec.provider);
+      await ensureProvider(spec.provider);
+      const model = models.getModel(spec.provider, spec.modelId);
+      if (!model) {
+        throw new ApiError('model_error', `${describeModel(spec)} isn't a model the server knows. Check ${skill}'s model setting in server/.env.`, { status: 503, retryable: false });
+      }
+      return {
+        model,
+        key: `${spec.provider}:${spec.modelId}`,
+        options: { ...BASE_REQUEST_OPTIONS, ...(spec.reasoning === 'off' ? {} : { reasoning: spec.reasoning as ThinkingLevel }) },
+      };
+    },
+  };
+}
+
+/** An Llm over a ready-made Models collection: tests use pi-ai's faux provider through this. */
+export function staticLlm(models: MutableModels, pick: (skill: SkillName) => Model<Api>): Llm {
+  return {
+    models,
+    async forSkill(skill) {
+      const model = pick(skill);
+      return {
+        model,
+        key: `${model.provider}:${model.id}`,
+        options: { ...BASE_REQUEST_OPTIONS },
+      };
+    },
+  };
+}

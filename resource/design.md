@@ -394,6 +394,14 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
   - Send a compacted profile with null and empty fields removed, plus an explicit `allowedBasis` list. This took bad basis citations from 3/8 to 0.
   - Tip text must be in the traveller's home language.
   - For `show_places`: call it once with all the places, then write 1–2 sentences without repeating the list.
+- **Implementation rules from W7:**
+  - In city-only mode the city counts as `place` for `basis`.
+  - A taste slider at 2 ("as usual") counts as unset, and early bird / night owl alone is never a basis.
+  - The model never writes `addressLocal` (the device geocodes it).
+  - A failed, timed-out or aborted Mimo run is removed from the server transcript, so the session stays valid.
+  - Phrase tags: more than 4 per reply are dropped, allergen phrases are dropped, and a tag in the wrong script is emitted as text.
+  - Diet restrictions are a server-side filter too, with the same safety-context exemption.
+  - The budget counts pi usage plus Exa cost, per server-local day.
 - **Evals:** `server/evals/run.ts` runs canned situations through each skill:
   - Heytea at 15:00 and at 08:00
   - a Tokyo ramen shop at 20:00

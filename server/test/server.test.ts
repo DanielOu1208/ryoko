@@ -46,7 +46,7 @@ const mimoShanghai: MimoMessageRequest = {
 };
 
 function testConfig(env: Record<string, string> = {}): Config {
-  return configFromEnv({ APP_TOKEN: TOKEN, MODEL: 'faux', FAUX_PACE: '0', LOG_REQUESTS: '0', ...env });
+  return configFromEnv({ APP_TOKEN: TOKEN, MODEL: 'faux', FAUX_PACE: '0', LOG_REQUESTS: '0', CACHE_DIR: 'off', ...env });
 }
 
 interface CallOptions {
@@ -528,17 +528,18 @@ describe('Mimo SSE stream', () => {
   });
 });
 
-describe('when MODEL is not faux', () => {
+describe('when MODEL=gmi has no GMI_API_KEY', () => {
   const { app, sessions } = createApp(testConfig({ MODEL: 'gmi' }));
 
-  test('JSON endpoints answer model_error and say the skills come in W7', async () => {
+  test('JSON endpoints answer 503 model_error naming the missing key', async () => {
     for (const [path, body] of [
       ['/v1/place-card', placeCardShanghai],
       ['/v1/discover', discoverRequest],
       ['/v1/allergy-card', allergyRequest],
     ] as const) {
       const error = await assertError(await call(app, path, { body }), 503, 'model_error');
-      assert.match(error.message, /W7/);
+      assert.match(error.message, /GMI_API_KEY/);
+      assert.equal(error.retryable, false);
     }
   });
 
