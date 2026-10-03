@@ -48,9 +48,6 @@ PY
 
 case "$which" in
   soniox)
-    case "$key" in
-      *.*.*) echo "Note: this looks like a temporary or session token (it has dots). Console API keys usually don't." ;;
-    esac
     status="$(curl -s -o /dev/null -w '%{http_code}' https://api.soniox.com/v1/models -H "Authorization: Bearer $key")"
     if [ "$status" != "200" ]; then
       echo "Soniox rejected this key (HTTP $status). Nothing was saved."
