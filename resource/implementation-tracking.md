@@ -139,6 +139,7 @@ Write down what you find. The results may change the spec.
 
 | # | Task | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| X0 | Repository README: overview, scope, architecture and local setup | agent:codex-docs | review | Branch `ws/docs-readme`; README distinguishes the current shell from planned features; local links and shell example syntax checked |
 | X1 | Devpost draft with GitHub link | | todo | Deadline Sun Oct 4, 12:00 PM PDT |
 | X2 | Demo video (≤ 3 min) | | todo | |
 | X3 | Write-up, screenshots (no keys or URLs visible), "built with", **AI tools disclosed** | | todo | |
