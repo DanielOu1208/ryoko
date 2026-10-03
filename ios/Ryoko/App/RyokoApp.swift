@@ -1,20 +1,40 @@
 import SwiftUI
 
-/// The app shell (W2.1). It owns the stores and puts them in the environment:
+/// The app shell (W2.1). It owns the stores and services and puts them in the
+/// environment:
 ///
 ///     @Environment(AppSituationStore.self) private var situationStore
 ///     @Environment(ProfileStore.self) private var profileStore
 ///     @Environment(APIStore.self) private var apiStore     // fixture vs live, base URL
+///     @Environment(AppRouter.self) private var router       // tabs, cross-tab hand-offs, Show mode
 ///     @Environment(\.ryokoAPI) private var api              // the API to call
+///     @Environment(\.placeResolver) private var resolver    // the one shared MapKit resolver
+///     @Environment(\.speechService) private var speech
 ///
 /// Previews: `.environment(AppSituationStore.preview())`,
-/// `.environment(ProfileStore.preview())`, `.environment(APIStore())`.
-/// `\.ryokoAPI` defaults to the fixture API.
+/// `.environment(ProfileStore.preview())`, `.environment(APIStore())`,
+/// `.environment(AppRouter())`. `\.ryokoAPI`, `\.placeResolver` and
+/// `\.speechService` default to fixtures.
+///
+/// **The situation's clock (W3, W4, W6).** `situationStore.situation` changes
+/// with the place, the preview and the local hour, so key `.task(id:)` work on
+/// it. Its live `localTime` is only as fresh as that hour, so build every
+/// request body (place card, discover, Mimo) from
+/// `situationStore.currentSituation()`, which re-stamps a live situation to now
+/// and leaves a preview at its committed time. Show a live clock with
+/// `TimelineView(.everyMinute)` and `currentSituation(at: context.date)`.
 @main
 struct RyokoApp: App {
     @State private var situationStore = AppSituationStore()
     @State private var profileStore = ProfileStore()
     @State private var apiStore = APIStore()
+    @State private var router = AppRouter(selectedTab: RootTabView.launchTab)
+    /// One resolver for the app (MapKit's throttle is per app). W4 replaces the
+    /// fixture with its MapKit resolver here, and nowhere else.
+    @State private var placeResolver: any PlaceResolver = FixturePlaceResolver()
+    /// The Speech workstream replaces the fixture here.
+    @State private var speechService: any SpeechService = FixtureSpeechService()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         #if DEBUG
@@ -28,10 +48,17 @@ struct RyokoApp: App {
                 .environment(situationStore)
                 .environment(profileStore)
                 .environment(apiStore)
+                .environment(router)
                 .environment(\.ryokoAPI, apiStore.api)
+                .environment(\.placeResolver, placeResolver)
+                .environment(\.speechService, speechService)
                 #if DEBUG
                 .task { await DebugLaunchOptions.apply(to: situationStore) }
                 #endif
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Timers don't run while the app is suspended: catch up on the local hour.
+            if phase == .active { situationStore.refreshClock() }
         }
     }
 }

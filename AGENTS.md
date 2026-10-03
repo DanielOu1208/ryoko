@@ -49,6 +49,10 @@ Ryoko is an iOS travel app. **Mimo** is its agent, served by a Node server. Befo
 - **Targets:** iOS 26.1, iPhone only, portrait only, Swift 6.
   - The app target defaults to `@MainActor` isolation.
   - Callbacks from audio taps (`AVAudioEngine.installTap`), CoreMotion handlers and other real-time threads must be `nonisolated` / `@Sendable`. MainActor-isolated tap closures crash at runtime.
+- **Shared app state** is in the SwiftUI environment: `AppSituationStore`, `ProfileStore`, `APIStore`, `\.ryokoAPI`, `\.placeResolver`, `\.speechService` and `AppRouter`.
+  - Cross-tab flows go through `AppRouter`: `openMap(selecting:)`, `mapFocus`, `mimoSubject`, `fromMimo` and `show` (Show mode). Never add tab state of your own.
+  - **Situation time:** key async work on `.task(id: situation)`, build request bodies from `situationStore.currentSituation()` (it re-stamps live local time), and show clocks with `TimelineView(.everyMinute)`.
+  - **Show mode:** set `router.show`, which `RootTabView` presents full screen. A view that is already inside a sheet presents `ShowModeView` itself.
 - **Secrets** come from `ios/Config/Secrets.xcconfig` (gitignored; copy `Secrets.example.xcconfig`) through the Info.plist keys `RyokoAppToken`, `RyokoAgentBaseURL` and `RyokoSonioxAPIKey`. In xcconfig, `//` starts a comment, so write URLs as `https:/$()/host:port`.
 - **Platform rules:**
   - Use `MKReverseGeocodingRequest`, not `CLGeocoder` (deprecated).

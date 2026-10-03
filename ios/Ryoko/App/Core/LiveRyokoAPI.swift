@@ -132,7 +132,7 @@ nonisolated struct LiveRyokoAPI: RyokoAPI {
                 }
                 throw error(status: status, body: body)
             }
-            try await SSELineReader.read(bytes.lines) { event in
+            try await SSELineReader.read(bytes: bytes) { event in
                 continuation.yield(event)
             }
         } onCancel: {

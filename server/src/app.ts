@@ -138,14 +138,21 @@ export function createApp(config: Config, options: AppOptions = {}): RyokoApp {
     return sseResponse(
       c,
       async (sink) => {
-        sink.send({ type: 'start', sessionId, runId });
-        const stopReason = await run(sink);
-        sink.send({ type: 'done', stopReason });
+        // Hold the lock until the run itself returns, not until the client leaves:
+        // a model call can outlive the connection, and pi throws on concurrent
+        // prompts (design §6.4, decision 21).
+        try {
+          if (sink.closed) return; // the client left before the run started
+          sink.send({ type: 'start', sessionId, runId });
+          const stopReason = await run(sink);
+          sink.send({ type: 'done', stopReason });
+        } finally {
+          release();
+        }
       },
       {
         pingMs: config.ssePingSeconds * 1000,
         onClose: (reason) => {
-          release();
           if (reason === 'client_closed' && config.logRequests) log(`SSE ${sessionId} ${runId} closed by the client`);
         },
         onError: (err) => {

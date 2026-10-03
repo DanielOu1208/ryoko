@@ -15,7 +15,7 @@ A living tracker for the build. **Update it as you work.** When you start a task
 | --- | --- | --- |
 | Setup (§12.2) | doing | S1, S2, S3, S5 done; S4 waiting on keys |
 | Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 waiting on Soniox key |
-| Tier 1: working core | doing | W1 and W2 built; verify and review running (workflow) |
+| Tier 1: working core | doing | W1 and W2 done, reviewed and fixed; next: W3–W7 (feature workstreams) |
 | Tier 2 | todo | |
 | After core | todo | |
 | Submission | todo | |
@@ -64,6 +64,7 @@ Write down what you find. The results may change the spec.
 | W2.4 | `ProfileStore` with the bundled seed profile (§10) and content-hash version | wf:ios-shell | done |  | `ProfileStore`: seed profile, persisted edits, sha-256 canonical `version`, reset. Me: read-only profile, romanization toggle, developer section (fixtures or live server, base URL). Now wired to the place card (redacted, error, retry); verified against the faux server |
 | W2.5 | `RyokoAPI` client + SSE line reader; base-URL override; fixture implementation | wf:ios-core | done |  | `RyokoAPI` protocol, `LiveRyokoAPI` (headers, install id, base-URL override, SSE line reader), `FixtureRyokoAPI` with bundled examples. `ios/scripts/check-contracts.sh --live`: 173 pass against the faux server, Mimo stream parsed end to end |
 | W2.6 | `PlaceResolver`, `SpeechService` protocols with fixtures; `LocalText`; stubs for `PhraseCardView`, `TipRow`, `ShowContent`; preview gallery | wf:ios-core | done |  | `PlaceResolver`, `SpeechService`, `SituationStore` protocols with fixtures; `LocalText`, `PhraseCardView`, `TipRow`, `ShowContent`; `FixtureSelfCheck` (DEBUG); `ios/scripts/sync-fixtures.sh` |
+| W2.7 | Review fixes: session lock held until the run stops; SSE escapes U+0085/2028/2029 (and iOS reads by LF bytes); live situation re-stamped every local hour and when the app becomes active; `AppRouter` + resolver/speech environment for cross-tab flows | wf:fix | done | | Server 34/34, iOS contract check 176/176 (180 live). Not yet seen at runtime: a real hour tick, and the router consumers (W3/W4/W6) |
 
 ### W3. Now and cards
 
@@ -163,3 +164,4 @@ Write down what you find. The results may change the spec.
 | 2026-10-03 | §6.3 model fixed to DeepSeek V4.1 Flash, thinking off; §6.2 the allergen filter allows safety mentions, plus a separator between text around tool calls; §6.4 prompt rules | D3 spike | yes |
 | 2026-10-03 | §7: allergy-card request adds `homeLanguage`; templates at `contracts/tables/`; `done.stopReason` values; `when` = HH:mm; `bestTime` label; free BCP-47 language strings; optional `place.id` | W1 contracts | yes |
 | 2026-10-03 | §7.8 mapping: >64 KB → 413 `invalid_request`, unknown route → 404 `invalid_request`, unhandled → 500 `model_error`. A failed Mimo run ends with one `error` event (terminal, no `done`) | W1 server | no (implementation detail) |
+| 2026-10-03 | Live situations are re-stamped hourly and when the app becomes active (only if the hour changed); cross-tab navigation goes through `AppRouter` | W1/W2 review | no (implementation; documented in AGENTS.md) |

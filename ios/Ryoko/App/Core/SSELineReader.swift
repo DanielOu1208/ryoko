@@ -6,8 +6,11 @@ import os
 /// The server sends each event as exactly one `data: {json}` line followed by a
 /// blank line, with no `event:` lines. It also sends a padding comment of more
 /// than 512 bytes first and `: ping` every 15 s. So the reader:
-/// - decodes every `data:` line as one `MimoEvent` (it doesn't wait for the blank
-///   line, because `AsyncBytes.lines` drops blank lines),
+/// - splits the byte stream at LF (0x0A) only, not with `AsyncBytes.lines`,
+///   which also splits at U+0085, U+2028 and U+2029: those can sit raw inside a
+///   JSON string (a web page title, say) and would cut an event in pieces,
+/// - decodes every `data:` line as one `MimoEvent` (it doesn't wait for the
+///   blank line),
 /// - ignores comments (`:`), blank lines and other fields (`event:`, `id:`, `retry:`),
 /// - reports a `data:` line it can't decode as `.malformed`, so the caller can log
 ///   it and keep reading.
@@ -47,21 +50,37 @@ nonisolated enum SSELineReader {
         }
     }
 
-    /// Feeds every event in `lines` to `yield`, logging and skipping malformed ones.
-    /// Throws whatever the line sequence throws (for example a dropped connection).
-    static func read<Lines: AsyncSequence>(
-        _ lines: Lines,
+    /// Feeds every event in a byte stream (URLSession's `AsyncBytes`) to `yield`,
+    /// logging and skipping malformed ones. Lines end at LF only; `parse` drops a
+    /// CR before it. Throws whatever the byte sequence throws (for example a
+    /// dropped connection).
+    static func read<Bytes: AsyncSequence>(
+        bytes: Bytes,
         yield: (MimoEvent) -> Void
-    ) async throws where Lines.Element == String {
-        for try await rawLine in lines {
-            switch parse(rawLine) {
-            case let .event(event):
-                yield(event)
-            case .ignored:
-                continue
-            case let .malformed(reason):
-                RyokoLog.api.error("Skipped a malformed Mimo event: \(reason, privacy: .public)")
+    ) async throws where Bytes.Element == UInt8 {
+        var line: [UInt8] = []
+        line.reserveCapacity(4096)
+        for try await byte in bytes {
+            if byte == 0x0A {
+                handle(String(decoding: line, as: UTF8.self), yield: yield)
+                line.removeAll(keepingCapacity: true)
+            } else {
+                line.append(byte)
             }
+        }
+        if !line.isEmpty {
+            handle(String(decoding: line, as: UTF8.self), yield: yield)
+        }
+    }
+
+    private static func handle(_ rawLine: String, yield: (MimoEvent) -> Void) {
+        switch parse(rawLine) {
+        case let .event(event):
+            yield(event)
+        case .ignored:
+            break
+        case let .malformed(reason):
+            RyokoLog.api.error("Skipped a malformed Mimo event: \(reason, privacy: .public)")
         }
     }
 

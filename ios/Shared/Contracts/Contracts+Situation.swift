@@ -97,6 +97,32 @@ nonisolated extension Situation {
         return (localTime, "\(day)T\(hour)")
     }
 
+    /// The situation as of `date`. A live situation gets `localTime` and
+    /// `hourBucket` re-stamped in its own time zone; a preview keeps its
+    /// committed time. Requests send this, so the server always gets the actual
+    /// local time (design §4.2), however long ago the situation was built.
+    func stamped(at date: Date = .now) -> Situation {
+        guard mode == .live, let zone else { return self }
+        let clock = Situation.clock(for: date, in: zone)
+        var stamped = self
+        stamped.localTime = clock.localTime
+        stamped.hourBucket = clock.hourBucket
+        return stamped
+    }
+
+    /// The first instant after `date` that starts a local hour in `timeZone`,
+    /// which is when `hourBucket` can next change. Not always on the device's
+    /// hour: Kolkata is UTC+05:30.
+    static func nextHour(after date: Date, in timeZone: TimeZone) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar.nextDate(
+            after: date,
+            matching: DateComponents(minute: 0, second: 0),
+            matchingPolicy: .nextTime
+        ) ?? date.addingTimeInterval(3600)
+    }
+
     /// The instant `localTime` describes, or nil if it doesn't parse.
     var date: Date? {
         try? Date(localTime, strategy: .iso8601)

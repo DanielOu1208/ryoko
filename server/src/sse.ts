@@ -40,19 +40,35 @@ export interface SseOptions {
   paddingBytes?: number;
   /** Check every event against the SseEvent union before writing it (default true). */
   validate?: boolean;
-  /** Called exactly once, when the stream ends for any reason. */
+  /**
+   * Called exactly once, when the stream ends for any reason. After a client
+   * disconnect the run may still be going, so don't release per-run resources
+   * (such as a session lock) here: release them when `run` settles.
+   */
   onClose?: (reason: SseCloseReason) => void;
   /** Receives errors thrown by the run (after they've been turned into an `error` event). */
   onError?: (err: unknown) => void;
 }
 
+/**
+ * Code points JSON.stringify leaves raw that some line readers treat as line
+ * breaks: Swift's `AsyncLineSequence` (URLSession `bytes.lines`) splits on NEL,
+ * LS and PS, which would cut a `data:` line in pieces and drop the event.
+ */
+const UNICODE_LINE_BREAKS = /[\u0085\u2028\u2029]/g;
+
+const escapeUnicodeLineBreaks = (json: string): string =>
+  json.replace(UNICODE_LINE_BREAKS, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`);
+
 export function formatSseEvent(event: SseEvent): string {
-  return `data: ${JSON.stringify(event)}\n\n`;
+  // Outside strings JSON.stringify emits no whitespace, so these can only sit
+  // inside a string, where the \uXXXX escape decodes to the same text.
+  return `data: ${escapeUnicodeLineBreaks(JSON.stringify(event))}\n\n`;
 }
 
 export function formatSseComment(text: string): string {
-  // A comment must stay on one line.
-  return `: ${text.replace(/[\r\n]+/g, ' ')}\n\n`;
+  // A comment must stay on one line, for every line reader.
+  return `: ${text.replace(/[\r\n\u0085\u2028\u2029]+/g, ' ')}\n\n`;
 }
 
 export function paddingComment(bytes = SSE_PADDING_BYTES): string {
@@ -62,6 +78,11 @@ export function paddingComment(bytes = SSE_PADDING_BYTES): string {
 /**
  * Answers the request with an SSE stream and runs `run` against it.
  * If `run` throws, the error becomes an `error` event (code, message, retryable) and the stream ends.
+ *
+ * `run` is always called exactly once, even when the client has already gone
+ * (its sink is then closed and its signal aborted), so cleanup in `run`'s
+ * `finally` always happens. Its promise settling is the only "the run has
+ * stopped" signal: the stream can close earlier.
  */
 export function sseResponse(c: Context, run: (sink: SseSink) => Promise<void>, options: SseOptions = {}): Response {
   const encoder = new TextEncoder();
@@ -122,12 +143,10 @@ export function sseResponse(c: Context, run: (sink: SseSink) => Promise<void>, o
       controller = ctrl;
       write(paddingComment(options.paddingBytes));
       ping = setInterval(() => write(formatSseComment('ping')), options.pingMs ?? SSE_PING_MS);
-      if (clientSignal.aborted) {
-        finish('client_closed');
-        return;
-      }
-      clientSignal.addEventListener('abort', onClientAbort, { once: true });
+      if (clientSignal.aborted) finish('client_closed');
+      else clientSignal.addEventListener('abort', onClientAbort, { once: true });
       // Start the run after start() returns, so the padding is readable first.
+      // It starts even if the client is already gone (see above).
       queueMicrotask(() => {
         run(sink)
           .catch((err: unknown) => {

@@ -26,7 +26,7 @@ import { ApiError } from '../src/errors.ts';
 import { EXAMPLES_DIR, loadFixtures, pickFixture } from '../src/fixtures.ts';
 import { createFauxSkills } from '../src/skills/faux.ts';
 import type { MimoRun, Skills } from '../src/skills/types.ts';
-import { sleep } from '../src/sse.ts';
+import { formatSseComment, formatSseEvent, sleep } from '../src/sse.ts';
 
 const TOKEN = `test-token-${Math.random().toString(36).slice(2)}`;
 const example = (file: string): unknown => JSON.parse(readFileSync(join(EXAMPLES_DIR, file), 'utf8'));
@@ -377,6 +377,59 @@ describe('Mimo SSE stream', () => {
     assert.ok(comments.filter((c) => c === ': ping').length >= 2, `pings: ${comments.length - 1}`);
   });
 
+  test('U+0085, U+2028 and U+2029 are escaped, so no line reader splits a data line', async () => {
+    const delta = 'a\u2028b\u2029c\u0085d \\\u2028e';
+    const line = formatSseEvent({ type: 'text', delta });
+    assert.ok(!/[\u0085\u2028\u2029]/.test(line), 'no raw NEL, LS or PS on the wire');
+    assert.match(line, /\\u2028/);
+    assert.match(line, /\\u2029/);
+    assert.match(line, /\\u0085/);
+    assert.deepEqual(JSON.parse(line.slice('data: '.length, -2)), { type: 'text', delta }, 'the escapes decode to the same text');
+    assert.ok(!/[\u0085\u2028\u2029]/.test(formatSseComment('x\u2028y')), 'comments stay on one line too');
+
+    // End to end, split the way Swift's AsyncLineSequence splits (CR, LF, CRLF, NEL, LS, PS).
+    const title = 'Ramen\u2028guide\u2029(updated)\u0085';
+    const { app } = createApp(testConfig(), {
+      skills: skillsWithMimo(async (sink) => {
+        sink.send({ type: 'text', delta });
+        sink.send({ type: 'tool_end', id: 't1', name: 'web_search', ok: true, details: { sources: [{ title, url: 'https://example.com/a' }] } });
+        return 'stop';
+      }),
+    });
+    const text = await (await call(app, '/v1/sessions/lines/messages', { body: mimoRequest })).text();
+    assert.ok(!/[\u0085\u2028\u2029]/.test(text), 'no raw NEL, LS or PS in the stream');
+    const events = text
+      .split(/\r\n|[\n\r\u0085\u2028\u2029]/)
+      .filter((l) => l.startsWith('data: '))
+      .map((l) => JSON.parse(l.slice('data: '.length)) as SseEvent);
+    assert.deepEqual(events.map((e) => e.type), ['start', 'text', 'tool_end', 'done']);
+    assert.equal(events[1]?.type === 'text' && events[1].delta, delta);
+    const end = events[2];
+    assert.deepEqual(end?.type === 'tool_end' && end.details, { sources: [{ title, url: 'https://example.com/a' }] });
+  });
+
+  test('a client that is gone before the run starts never runs Mimo, and frees the session', async () => {
+    let ran = false;
+    const { app, sessions } = createApp(testConfig(), {
+      skills: skillsWithMimo(async () => {
+        ran = true;
+        return 'stop';
+      }),
+    });
+    const gone = new AbortController();
+    gone.abort();
+    const res = await app.request('/v1/sessions/gone/messages', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json', 'X-Install-Id': 'install-test' },
+      body: JSON.stringify(mimoRequest),
+      signal: gone.signal,
+    });
+    assert.equal(res.status, 200);
+    await sleep(20);
+    assert.equal(ran, false, 'the run was skipped');
+    assert.equal(sessions.isBusy('gone'), false, 'the session was released');
+  });
+
   test('a session id with odd characters is rejected', async () => {
     const { app } = createApp(testConfig());
     await assertError(await call(app, `/v1/sessions/${'x'.repeat(65)}/messages`, { body: mimoRequest }), 400, 'invalid_request');
@@ -411,17 +464,24 @@ describe('over a real socket (@hono/node-server)', () => {
 
   /** Set when the hanging run for session `leaver` sees its signal abort. */
   let leaverAborted = false;
+  /** Set when that run has returned. */
+  let leaverReturned = false;
+  /** Lets that run return after its abort, like a model call that takes a moment to stop. */
+  const leaverWindDown = deferred();
 
   before(async () => {
     const faux = createFauxSkills({ pace: 1, latencyMs: 0 });
-    // Session `leaver` never finishes on its own: only a client disconnect can end it.
+    // Session `leaver` never finishes on its own: only a client disconnect can end it,
+    // and even then it returns only once `leaverWindDown` resolves.
     const hanging: MimoRun = async (sink) => {
       sink.send({ type: 'text', delta: 'Thinking about it.' });
       try {
         await sleep(60_000, sink.signal);
       } catch {
         leaverAborted = sink.signal.aborted;
+        await leaverWindDown.promise;
       }
+      leaverReturned = true;
       return 'aborted';
     };
     const skills: Skills = { ...faux, mimo: async (request, ctx) => (ctx.sessionId === 'leaver' ? hanging : faux.mimo(request, ctx)) };
@@ -464,7 +524,7 @@ describe('over a real socket (@hono/node-server)', () => {
     assert.ok(span > 1000, `paced over ${Math.round(span)} ms`);
   });
 
-  test('closing the connection aborts the run and frees the session', async () => {
+  test('closing the connection aborts the run; the session stays busy until the run returns', async () => {
     const controller = new AbortController();
     const res = await post('/v1/sessions/leaver/messages', mimoRequest, controller.signal);
     const reader = res.body!.getReader();
@@ -478,9 +538,22 @@ describe('over a real socket (@hono/node-server)', () => {
     assert.equal(leaverAborted, false);
     controller.abort();
     const deadline = Date.now() + 1000;
-    while ((ryoko.sessions.isBusy('leaver') || !leaverAborted) && Date.now() < deadline) await sleep(10);
+    while (!leaverAborted && Date.now() < deadline) await sleep(10);
     assert.equal(leaverAborted, true, "the run's signal aborted when the client left");
-    assert.equal(ryoko.sessions.isBusy('leaver'), false, 'the session was released after the client left');
+
+    // The client is gone but the run hasn't returned: still one run, still locked.
+    await sleep(50);
+    assert.equal(leaverReturned, false);
+    assert.ok(ryoko.sessions.isBusy('leaver'), 'busy until the run returns, not just until the client leaves');
+    const second = await post('/v1/sessions/leaver/messages', mimoRequest);
+    assert.equal(second.status, 409, 'a second message while the first run winds down');
+    assert.equal((await second.json()).error.code, 'session_busy');
+
+    leaverWindDown.resolve();
+    const freed = Date.now() + 1000;
+    while (ryoko.sessions.isBusy('leaver') && Date.now() < freed) await sleep(10);
+    assert.equal(leaverReturned, true);
+    assert.equal(ryoko.sessions.isBusy('leaver'), false, 'the session was released once the run returned');
   });
 
   test('JSON endpoints and auth work over the socket', async () => {

@@ -32,12 +32,14 @@ enum AppTab: String, CaseIterable, Hashable {
 
 /// The native `TabView` (iOS 18+ `Tab` API). On iOS 26 and later it renders as
 /// the standard Liquid Glass tab bar; no custom tab bar. Each feature view owns
-/// its `NavigationStack`, with a large title.
+/// its `NavigationStack`, with a large title. The selected tab and Show mode
+/// live in `AppRouter`, so any feature can switch tabs or open Show mode.
 struct RootTabView: View {
-    @State private var selection: AppTab = RootTabView.launchTab
+    @Environment(AppRouter.self) private var router
 
     var body: some View {
-        TabView(selection: $selection) {
+        @Bindable var router = router
+        TabView(selection: $router.selectedTab) {
             Tab(AppTab.now.title, systemImage: AppTab.now.systemImage, value: AppTab.now) {
                 NowView()
             }
@@ -55,9 +57,13 @@ struct RootTabView: View {
             }
         }
         .tint(Theme.tint)
+        .fullScreenCover(item: $router.show) { content in
+            ShowModeView(content: content)
+        }
     }
 
-    private static var launchTab: AppTab {
+    /// The tab to open on: Now, or `-RyokoInitialTab` in DEBUG.
+    static var launchTab: AppTab {
         #if DEBUG
         DebugLaunchOptions.initialTab ?? .now
         #else
@@ -71,4 +77,5 @@ struct RootTabView: View {
         .environment(AppSituationStore.preview())
         .environment(ProfileStore.preview())
         .environment(APIStore())
+        .environment(AppRouter())
 }

@@ -45,27 +45,30 @@ private struct NowSituationView: View {
             apiGeneration: apiStore.apiGeneration,
             attempt: attempt
         )
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.cardSpacing) {
-                if situation.mode == .preview {
-                    PreviewBanner(situation: situation) { situationStore.endPreview() }
+        // The header's clock ticks by the minute; `situation` itself only by the hour.
+        TimelineView(.everyMinute) { context in
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.cardSpacing) {
+                    if situation.mode == .preview {
+                        PreviewBanner(situation: situation) { situationStore.endPreview() }
+                    }
+                    header
+                    if situation.mode == .live, situation.place == nil || situationStore.candidates.count > 1 {
+                        NearbyPicker()
+                    }
+                    cardContent
                 }
-                header
-                if situation.mode == .live, situation.place == nil || situationStore.candidates.count > 1 {
-                    NearbyPicker()
-                }
-                cardContent
+                .pageMargins()
+                .padding(.top, Theme.grid)
+                .padding(.bottom, Theme.grid * 4)
             }
-            .pageMargins()
-            .padding(.top, Theme.grid)
-            .padding(.bottom, Theme.grid * 4)
+            .debugLaunchScrollAnchor()
+            .background {
+                TimeOfDayGradient(date: situation.date ?? .now, timeZone: situation.zone ?? .current)
+            }
+            .navigationTitle(situation.place?.name ?? "Where are you?")
+            .navigationSubtitle(Self.subtitle(for: situation.stamped(at: context.date)))
         }
-        .debugLaunchScrollAnchor()
-        .background {
-            TimeOfDayGradient(date: situation.date ?? .now, timeZone: situation.zone ?? .current)
-        }
-        .navigationTitle(situation.place?.name ?? "Where are you?")
-        .navigationSubtitle(Self.subtitle(for: situation))
         .toolbar {
             if situation.mode == .live {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -121,8 +124,11 @@ private struct NowSituationView: View {
     private func loadCard(_ key: CardKey) async {
         if key == loadedKey, case .loaded = load { return }
         load = .loading
+        // The key's situation is only as fresh as its hour: send the actual local time.
+        var request = key.request
+        request.situation = request.situation.stamped()
         do {
-            let card = try await api.placeCard(key.request)
+            let card = try await api.placeCard(request)
             load = .loaded(card)
             loadedKey = key
         } catch is CancellationError {

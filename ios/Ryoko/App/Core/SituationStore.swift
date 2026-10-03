@@ -19,6 +19,15 @@ nonisolated struct SituationPreview: Hashable, Sendable {
 /// follows it: the Now card, Mimo picks, Translate's pair and Mimo's context.
 /// Features read `situation`; only the store builds one.
 ///
+/// **The clock.** `situation` changes when the place or the preview changes,
+/// and when the local hour turns (`hourBucket`), not every minute, so it's safe
+/// as a `.task(id:)` key. A live situation's `localTime` is therefore only as
+/// fresh as its hour. So:
+/// - build every request body from `currentSituation()` (a live clock re-stamped
+///   to now; a preview keeps its committed time), never from `situation` as is;
+/// - show a live clock with `TimelineView(.everyMinute)` and
+///   `currentSituation(at: context.date)`.
+///
 /// Only the protocol and a fixture live here. The shell builds the real store.
 @MainActor
 protocol SituationStore: AnyObject, Observable {
@@ -37,6 +46,13 @@ protocol SituationStore: AnyObject, Observable {
 
 extension SituationStore {
     var isPreviewing: Bool { situation?.mode == .preview }
+
+    /// The active situation as of `date`, for a request body or a clock: a live
+    /// situation is re-stamped to `date` in its own time zone; a preview keeps
+    /// its committed time. Key `.task(id:)` on `situation`, not on this.
+    func currentSituation(at date: Date = .now) -> Situation? {
+        situation?.stamped(at: date)
+    }
 
     /// The situation's local language, if it's one Ryoko has a table row for.
     var localLanguage: LangCode? { situation.flatMap { LangCode(tag: $0.localLanguage) } }

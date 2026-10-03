@@ -108,6 +108,37 @@ expect(SSELineReader.parse(futureToolEnd) == .event(.toolEnd(MimoToolEnd(id: "t2
 let errorEvent = #"data: {"type":"error","code":"timeout","message":"Took too long.","retryable":true}"#
 expect(SSELineReader.parse(errorEvent) == .event(.error(ErrorBody(code: .timeout, message: "Took too long.", retryable: true))), "error event")
 
+// The byte reader splits at LF only. Raw NEL, LS and PS inside a JSON string
+// (which `AsyncBytes.lines` would split at) stay in their line.
+let rawBreaks = "a\u{2028}b\u{2029}c\u{85}d"
+let wire = ": " + String(repeating: ".", count: 600) + "\n\n"
+    + "data: {\"type\":\"text\",\"delta\":\"\(rawBreaks)\"}\r\n\r\n"
+    + "data: {\"type\":\"tool_end\",\"id\":\"t1\",\"name\":\"web_search\",\"ok\":true,\"details\":{\"sources\":[{\"title\":\"Ramen\u{2028}guide\",\"url\":\"https://example.com/a\"}]}}\n\n"
+    + ": ping\n\n"
+    + "data: {\"type\":\"done\",\"stopReason\":\"stop\"}" // no final LF: the last line still counts
+func wireBytes() -> AsyncStream<UInt8> {
+    AsyncStream { continuation in
+        for byte in Array(wire.utf8) { continuation.yield(byte) }
+        continuation.finish()
+    }
+}
+var readerEvents: [MimoEvent] = []
+try await SSELineReader.read(bytes: wireBytes()) { readerEvents.append($0) }
+expect(readerEvents.count == 3, "byte reader: 3 events from the wire, got \(readerEvents.count)")
+expect(readerEvents.first == .text(delta: rawBreaks), "byte reader: raw U+2028, U+2029 and U+0085 stay inside the delta")
+if readerEvents.count > 1, case let .toolEnd(end) = readerEvents[1], case let .webSearch(details) = end.details {
+    expect(details.sources.first?.title == "Ramen\u{2028}guide", "byte reader: a title with a raw U+2028 survives")
+} else {
+    failures += 1
+    print("  FAIL byte reader: web_search tool_end with a raw U+2028 in its title")
+}
+expect(readerEvents.last == .done(stopReason: .stop), "byte reader: a last line without LF is read")
+var eventsViaLines = 0 // the old way, for contrast
+for try await line in wireBytes().lines {
+    if case .event = SSELineReader.parse(line) { eventsViaLines += 1 }
+}
+print("  (AsyncBytes.lines reads \(eventsViaLines) of these 3 events)")
+
 // MARK: - Situation clock
 
 section("Situation clock")
@@ -120,6 +151,36 @@ let kolkata = Situation.clock(for: instant, in: TimeZone(identifier: "Asia/Kolka
 expect(kolkata.localTime == "2026-10-05T12:30:00+05:30", "Kolkata half-hour offset \(kolkata)")
 let built = Situation(mode: .preview, date: instant, timeZone: TimeZone(identifier: "Asia/Tokyo")!, place: nil, city: "Tokyo", countryCode: "JP", localLanguage: "ja")
 expect(built.localTime == "2026-10-05T16:00:00+09:00" && built.date == instant, "Situation(date:) round trips the instant")
+let builtLive = Situation(mode: .live, date: instant, timeZone: TimeZone(identifier: "Asia/Kolkata")!, place: nil, city: "Mumbai", countryCode: "IN", localLanguage: "hi")
+let later = instant.addingTimeInterval(95 * 60) // 12:30 → 14:05 in Kolkata
+let restamped = builtLive.stamped(at: later)
+expect(restamped.localTime == "2026-10-05T14:05:00+05:30" && restamped.hourBucket == "2026-10-05T14", "stamped(at:) re-stamps a live situation in its own zone \(restamped.localTime)")
+expect(restamped.city == builtLive.city && restamped.mode == .live && restamped.timeZone == builtLive.timeZone, "stamped(at:) keeps everything but the clock")
+expect(built.stamped(at: later) == built, "stamped(at:) leaves a preview at its committed time")
+let kolkataZone = TimeZone(identifier: "Asia/Kolkata")!
+let kolkataNext = Situation.nextHour(after: instant, in: kolkataZone) // 12:30 local
+expect(Situation.clock(for: kolkataNext, in: kolkataZone).localTime == "2026-10-05T13:00:00+05:30", "nextHour is the place's hour, not the device's (Kolkata 12:30 → 13:00)")
+let tokyoZone = TimeZone(identifier: "Asia/Tokyo")!
+let onTheHour = try! Date("2026-10-05T07:00:00Z", strategy: .iso8601) // 16:00 in Tokyo
+expect(Situation.nextHour(after: onTheHour, in: tokyoZone) == onTheHour.addingTimeInterval(3600), "nextHour on the hour is the following hour")
+// Every 7 minutes over the US fall-back day, in zones with whole, half and quarter hour offsets:
+// the next tick is after now, at most an hour away, and at minute 0 in the place's zone.
+var tickOK = true
+for zoneId in ["America/Vancouver", "Asia/Kolkata", "Asia/Kathmandu", "Asia/Shanghai"] {
+    let zone = TimeZone(identifier: zoneId)!
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = zone
+    for step in 0..<(26 * 60 / 7) {
+        let now = try! Date("2026-11-01T00:00:00Z", strategy: .iso8601).addingTimeInterval(Double(step * 7 * 60))
+        let next = Situation.nextHour(after: now, in: zone)
+        let gap = next.timeIntervalSince(now)
+        if !(gap > 0 && gap <= 3600 && calendar.component(.minute, from: next) == 0) {
+            tickOK = false
+            print("  \(zoneId) \(now) → \(next)")
+        }
+    }
+}
+expect(tickOK, "nextHour: after now, within an hour, on the place's hour (whole, half and quarter hour zones, DST)")
 
 // MARK: - Tables match contracts/tables
 

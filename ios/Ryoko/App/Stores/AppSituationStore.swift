@@ -17,6 +17,12 @@ import os
 ///
 /// The local language is always worked out on the device (`LocalLanguage`).
 /// `localTime` carries the place's UTC offset, so the server never uses its clock.
+///
+/// **Clock:** the live situation is re-stamped at every local hour boundary (in
+/// the place's zone) and, through `refreshClock()`, when the app becomes active,
+/// so `hourBucket` changes reload `.task(id:)` work. Between those, its
+/// `localTime` is as old as the last stamp: requests send `currentSituation()`
+/// (see `SituationStore`).
 @MainActor
 @Observable
 final class AppSituationStore: SituationStore {
@@ -72,6 +78,8 @@ final class AppSituationStore: SituationStore {
     private(set) var authorization: CLAuthorizationStatus
 
     @ObservationIgnored private var liveTask: Task<Void, Never>?
+    /// Sleeps until the live situation's next local hour, then re-stamps it.
+    @ObservationIgnored private var clockTask: Task<Void, Never>?
     @ObservationIgnored private let usesLocation: Bool
 
     /// - Parameter usesLocation: false for previews and tests: `refresh()` then
@@ -205,6 +213,7 @@ final class AppSituationStore: SituationStore {
             // Nothing known about the city: no situation yet (design §4.3 "Where are you?").
             liveSituation = nil
             liveLanguage = nil
+            scheduleHourTick()
             return
         }
         let zone = candidate?.timeZone ?? area.timeZone ?? .current
@@ -220,6 +229,44 @@ final class AppSituationStore: SituationStore {
             countryCode: area.countryCode,
             localLanguage: language.tag
         )
+        scheduleHourTick()
+    }
+
+    // MARK: Clock
+
+    /// Re-stamps the live situation if its local hour has passed: the app was
+    /// suspended over an hour boundary, or the device's clock changed. Within
+    /// the same hour it changes nothing, so returning to the app doesn't reload
+    /// anything. `RyokoApp` calls it whenever the app becomes active.
+    func refreshClock(now: Date = .now) {
+        guard let live = liveSituation else { return }
+        let current = live.stamped(at: now)
+        if current.hourBucket != live.hourBucket {
+            liveSituation = current
+            RyokoLog.situation.info("Live clock moved to \(current.hourBucket, privacy: .public)")
+        }
+        scheduleHourTick()
+    }
+
+    /// Wakes just after the live situation's next local hour (in the place's
+    /// zone, which can be a half hour off the device's) and re-stamps it.
+    private func scheduleHourTick() {
+        clockTask?.cancel()
+        guard let live = liveSituation else {
+            clockTask = nil
+            return
+        }
+        let boundary = Situation.nextHour(after: .now, in: live.zone ?? .current)
+        clockTask = Task { [weak self] in
+            // One second past the boundary, so the new hour is certain.
+            let wait = max(1, boundary.timeIntervalSinceNow + 1)
+            do {
+                try await Task.sleep(for: .seconds(wait), tolerance: .seconds(1))
+            } catch {
+                return // rescheduled or cancelled
+            }
+            self?.refreshClock()
+        }
     }
 
     // MARK: Preview
