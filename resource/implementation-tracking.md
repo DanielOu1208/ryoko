@@ -15,27 +15,35 @@ A living tracker for the build. **Update it as you work.** When you start a task
 | --- | --- | --- |
 | Setup (§12.2) | doing | S1, S2, S3, S5 done; S4 waiting on keys |
 | Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 waiting on Soniox key |
-| Tier 1: working core | doing | **W1 contracts + server and W2 shell: done.** W3 Now/cards, W4 Map, W5 Translate, W6 Mimo tab and W7 Mimo skills: **not started** |
+| Tier 1: working core | doing | **W1 contracts + server and W2 shell: done.** W3 Nearby/cards, W4 Map, W5 Translate, W6 Mimo tab and W7 Mimo skills: **not started** |
 | Tier 2 | todo | |
 | After core | todo | |
 | Submission | todo | |
 
 ## What works in the app right now
 
-Updated 2026-10-03 15:20, at commit `cb26c3f`. Update this section whenever a screen changes state.
+Updated 2026-10-03 15:30. Update this section whenever a screen changes state.
 
 | Screen | State | What you can do |
 | --- | --- | --- |
-| Tab bar | **Working** | Native Liquid Glass bar with Now, Map, Translate, Mimo and Me |
-| Now | **Partly working** (minimal W2 version) | "Find places near me" (location permission, then the nearest 3 to confirm) or "Preview a sample place" (Tokyo ramen). Shows the header, local time, the preview banner with Back to here, 2–3 phrase cards (local script, romanization, gloss, because…) and tips over the time-of-day gradient. Loading, error and retry states. **Not yet:** quick cards (Allergy, Taxi), Mimo picks, mini map, the Show button (W3) |
-| Map | **Placeholder** | Nothing yet: W4 (search, place sheet, Preview, layers) hasn't started |
+| Tab bar | **Working** | Native Liquid Glass bar: Translate · Nearby · **Map (opens first)** · Mimo · Me |
+| Nearby (was Now) | **Partly working** (minimal W2 version) | "Find places near me" (location permission, then the nearest 3 to confirm) or "Preview a sample place" (Tokyo ramen). Shows the header, local time, the preview banner with Back to here, 2–3 phrase cards (local script, romanization, gloss, because…) and tips over the time-of-day gradient. Loading, error and retry states. **Not yet:** quick cards (Allergy, Taxi), Mimo picks, mini map, the Show button (W3) |
+| Map | **Placeholder** (but it's the launch tab) | Nothing yet: W4 (bottom sheet of Mimo picks + nearby places, search, place details, Preview, layers) hasn't started |
 | Translate | **Placeholder** | Nothing yet: W5 hasn't started (it also needs `SONIOX_API_KEY`) |
 | Mimo | **Placeholder** | Nothing yet: W6 (the chat UI) and W7 (the real Mimo skill) haven't started |
 | Me | **Working** (minimal) | Read-only seed profile, home base (placeholder hotel), romanization toggle, developer section (Fixtures or Live server, base URL, profile hash, reset, sample preview) |
 | Show mode | **Placeholder** | `ShowModeView` stub; nothing opens it yet (W3) |
 | Server | **Fixture mode only** | `MODEL=faux pnpm server:dev` serves the canned place-card, discover, allergy-card and Mimo stream. The real model skills come in W7 (`MODEL=gmi` returns `model_error` until then) |
 
-**How to see it:** run `MODEL=faux pnpm server:dev`, build the `Ryoko` scheme on an iPhone simulator, then use Me → Developer → Preview a sample place.
+**How to see it:** run `MODEL=faux pnpm server:dev`, build the `Ryoko` scheme on an iPhone simulator, then use Me → Developer → Preview a sample place and open the Nearby tab.
+
+## UI test runs (Codex computer use)
+
+| Date | Build | Result | Findings |
+| --- | --- | --- | --- |
+| 2026-10-03 15:13 | `cb26c3f`, iPhone 17 Pro Max sim, faux server on :8793 | A–G pass, H fail | **Pass:** all tabs open; romanization toggle; Live ↔ Fixtures switch and base URL (POST /v1/place-card seen); Back to here; location Allow → nearest 3 → confirm → card, and Deny → "Location is off" with Open Settings; error state with retry; Reset (not red). **Fail (H):** at the largest accessibility text size in dark mode, Now's header hides the local time, and "Previewing", "PM" and "Ramen" break mid-word (→ W3.3). **Design gaps (expected, W3 not built):** banner has no place name and doesn't reopen the picker; no Show button, quick cards or mini map; Me has no allergy-card preview. Evidence: `/tmp/ryoko-codex-ui/` (local only) |
+
+**Device Hub workaround** (Xcode 27 ships no Simulator.app): if computer use times out selecting Device Hub (`-10005`), launch `/Applications/Xcode.app/Contents/Applications/DeviceHub.app/Contents/MacOS/DeviceHub` directly. Coordinate clicks can still fail intermittently (`noWindowsAvailable`); accessibility actions and screenshots work. See openai/codex#44717.
 
 ## 0. Setup before agents fan out (§12.2)
 
@@ -75,7 +83,7 @@ Write down what you find. The results may change the spec.
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| W2.1 | `TabView` (Now, Map, Translate, Mimo, Me), theme tokens, time-of-day `LinearGradient` | wf:ios-shell | done |  | Native 5-tab `TabView`, theme tokens, `TimeOfDayGradient` using the §9.3 hex values (light and dark) in the situation's time zone |
+| W2.1 | `TabView` (Translate, Nearby, Map, Mimo, Me; opens on Map), theme tokens, time-of-day `LinearGradient` | wf:ios-shell | done |  | Native 5-tab `TabView`, theme tokens, `TimeOfDayGradient` using the §9.3 hex values (light and dark) in the situation's time zone |
 | W2.2 | Codable `Situation`, `Profile`, `Phrase` mirroring `contracts/` | wf:ios-core | done |  | Codable mirrors of every §7 shape in `ios/Shared/Contracts/` (nonisolated, Sendable, Foundation only). Values the server sends tolerate unknown cases; `MimoEvent.unknown` |
 | W2.3 | `SituationStore`: live (nearest 3 + confirm) and preview (place + date-time); local-language derivation | wf:ios-shell | done |  | Real `SituationStore`: live (nearest 3 within 150 m + confirm, `placemarkNotFound` means no results), preview, local language derived on device, contract `Situation` with an offset `localTime`. DEBUG sample-place launch hooks |
 | W2.4 | `ProfileStore` with the bundled seed profile (§10) and content-hash version | wf:ios-shell | done |  | `ProfileStore`: seed profile, persisted edits, sha-256 canonical `version`, reset. Me: read-only profile, romanization toggle, developer section (fixtures or live server, base URL). Now wired to the place card (redacted, error, retry); verified against the faux server |
@@ -83,14 +91,14 @@ Write down what you find. The results may change the spec.
 | W2.6 | `PlaceResolver`, `SpeechService` protocols with fixtures; `LocalText`; stubs for `PhraseCardView`, `TipRow`, `ShowContent`; preview gallery | wf:ios-core | done |  | `PlaceResolver`, `SpeechService`, `SituationStore` protocols with fixtures; `LocalText`, `PhraseCardView`, `TipRow`, `ShowContent`; `FixtureSelfCheck` (DEBUG); `ios/scripts/sync-fixtures.sh` |
 | W2.7 | Review fixes: session lock held until the run stops; SSE escapes U+0085/2028/2029 (and iOS reads by LF bytes); live situation re-stamped every local hour and when the app becomes active; `AppRouter` + resolver/speech environment for cross-tab flows | wf:fix | done | | Server 34/34, iOS contract check 176/176 (180 live). Not yet seen at runtime: a real hour tick, and the router consumers (W3/W4/W6) |
 
-### W3. Now and cards
+### W3. Nearby and cards
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| W3.1 | Now: header, phrase cards with "because…", tips, quick cards, mini map | | todo | | |
-| W3.2 | Now: Mimo picks nearby row (from `discover`, background prefetch) | | todo | | |
-| W3.3 | Now special cases: no place, local language = home language, loading/error/offline | | todo | | |
-| W3.4 | Show mode (`ShowContent` .phrase / .allergy / .taxi): max brightness, idle timer, Flip, Done | | todo | | |
+| W3.1 | Nearby (renamed from Now): header, phrase cards with "because…", **Show button**, tips, quick cards, mini map; preview banner with the place name that reopens the picker |  | todo |  |  |
+| W3.2 | ~~Mimo picks row on Now~~: moved to the Map's bottom sheet (W4.5) |  | cut |  | Design change #43 |
+| W3.3 | Nearby special cases: no place ("Where are you?" opens the Map list), local language = home language, loading/error/offline; **fix the largest-text layout bug** (see UI test findings) |  | todo |  |  |
+| W3.4 | Show mode (`ShowContent` .phrase / .allergy / .taxi): max brightness, idle timer, Flip, Done |  | todo |  |  |
 | W3.5 | Allergy card: templates offline + `/v1/allergy-card` for free text ("not reviewed") | | todo | | |
 | W3.6 | Taxi card: `MKReverseGeocodingRequest` in the local locale, local name, fixed phrase, snapshot | | todo | | |
 
@@ -102,6 +110,7 @@ Write down what you find. The results may change the spec.
 | W4.2 | Place sheet: phrase cards, tips, Preview with date-time picker + chips, Taxi card, Ask Mimo about this place | | todo | | |
 | W4.3 | Layers: Food & drink and Washrooms (MapStyle filters), Hidden gems, From Mimo (numbered for plans) | | todo | | |
 | W4.4 | `PlaceResolver`: name → MKMapItem, local name first in China, 5 km cap, cache, throttle-safe | | todo | | |
+| W4.5 | **Map home bottom sheet** (Apple Maps style): Mimo picks first (from `discover`), then the nearest places; ~3 rows at the small detent, scroll for more; tapping a place makes it current and opens Nearby (`router.openNearby()`); place details shown in the same sheet | | todo | | Design #42/#43. A first pass, iterate on device |
 
 ### W5. Translate
 
@@ -182,3 +191,4 @@ Write down what you find. The results may change the spec.
 | 2026-10-03 | §7: allergy-card request adds `homeLanguage`; templates at `contracts/tables/`; `done.stopReason` values; `when` = HH:mm; `bestTime` label; free BCP-47 language strings; optional `place.id` | W1 contracts | yes |
 | 2026-10-03 | §7.8 mapping: >64 KB → 413 `invalid_request`, unknown route → 404 `invalid_request`, unhandled → 500 `model_error`. A failed Mimo run ends with one `error` event (terminal, no `done`) | W1 server | no (implementation detail) |
 | 2026-10-03 | Live situations are re-stamped hourly and when the app becomes active (only if the hour changed); cross-tab navigation goes through `AppRouter` | W1/W2 review | no (implementation; documented in AGENTS.md) |
+| 2026-10-03 | Map-first: tabs are Translate · Nearby · Map · Mimo · Me, opening on Map; Now → Nearby; Map bottom sheet with Mimo picks then nearby places; Mimo picks moved off Nearby | user | yes (#42, #43) |

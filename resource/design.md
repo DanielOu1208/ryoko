@@ -33,7 +33,7 @@ Languages: **Mandarin (Simplified, `zh-Hans`) and Japanese (`ja`)** are first-cl
 | --- | --- | --- |
 | App shell: five tabs, theme, gradient, situation state (live + preview), profile store with a bundled seed profile | Speak: ElevenLabs, audio cache, on-device fallback (§8.1) | Tiger Data: durable sessions + trip memory (§8.3) |
 | Place awareness (nearest three + confirm) and look-ahead (search or pin, plus date and time) | Live Activity: lock screen + Dynamic Island (§4.11) | Snowflake: travel guides that Mimo cites (§8.4) |
-| Now: phrases with "because…", tips, quick cards, Mimo picks nearby, mini map | Onboarding survey (§4.1) and editing in Me | Translate read-aloud |
+| Map (opens first): bottom sheet of Mimo picks and nearby places · Nearby: phrases with "because…", tips, quick cards, mini map | Onboarding survey (§4.1) and editing in Me | Translate read-aloud |
 | Show mode (no Speak yet) | Translate Type mode and tap-to-edit turns, `POST /v1/translate` | Menu scan with allergen flags |
 | Allergy card (reviewed templates) and taxi card | Bottom "Listening" accessory and tab-bar minimize | Offline pack for pinned places |
 | Map: search, place sheet, Preview, layers incl. Hidden gems and From Mimo | Server-minted Soniox keys | Listen mode (announcements, tour guides) |
@@ -62,20 +62,20 @@ Languages: **Mandarin (Simplified, `zh-Hans`) and Japanese (`ja`)** are first-cl
 
 ## 3. Navigation
 
-- A native SwiftUI `TabView` with five tabs. On iOS 26 and later this renders as the standard Liquid Glass tab bar. No custom tab bar.
+- A native SwiftUI `TabView` with five tabs, in the order Translate · Nearby · Map · Mimo · Me. **The app opens on Map**, the centre tab. On iOS 26 and later this renders as the standard Liquid Glass tab bar. No custom tab bar.
 
   | Tab | SF Symbol | Purpose |
   | --- | --- | --- |
-  | Now | `location.fill` | Where you are (or are previewing) and what to say there |
-  | Map | `map` | Search, layers, place sheets, Preview |
   | Translate | `character.bubble` | Live two-way translation |
+  | Nearby | `location.fill` | The place you're at (or previewing) and what to say there |
+  | Map | `map` | **Opens first.** The map with a bottom sheet of Mimo picks and nearby places; search, layers, place details, Preview |
   | Mimo | `bubble.left` (an avatar later) | Chat with Mimo: questions, places, plans |
   | Me | `person.crop.circle` | Profile and settings |
 
   The `translate` symbol is reserved for Apple's own Translate app, so it isn't used.
 - Native navigation bars with large titles (`navigationSubtitle` for secondary lines), native sheets with detents, and a native `fullScreenCover` for Show mode.
 - iPhone only, portrait only. All rotation (Flip, face-to-face) is done in SwiftUI.
-- Tier 2: `tabBarMinimizeBehavior(.onScrollDown)` on Now and Mimo. While Translate is listening, a `tabViewBottomAccessory` shows "Listening · English ⇄ Chinese" with a stop button.
+- Tier 2: `tabBarMinimizeBehavior(.onScrollDown)` on Nearby and Mimo. While Translate is listening, a `tabViewBottomAccessory` shows "Listening · English ⇄ Chinese" with a stop button.
 
 ## 4. Features
 
@@ -104,7 +104,7 @@ Built from native parts: a paged `NavigationStack` with large titles, bordered/p
   - A small override table handles exceptions: Quebec → `fr`; Hong Kong speech (Cantonese) is flagged as unsupported.
 - **Live:**
   - CoreLocation plus `MKLocalPointsOfInterestRequest` within about 100–150 m (POIs are sparse in Shanghai at 50 m).
-  - Now shows the three nearest places to pick from, with a one-tap confirm, because indoor GPS is fuzzy. A refresh control re-checks.
+  - The Map's bottom sheet (§4.7) lists nearby places: Mimo picks first, then the nearest places by distance. Tapping one makes it the current place (a one-tap confirm, because indoor GPS is fuzzy) and opens Nearby. A refresh control re-checks.
   - No automatic "clearly closest" detection and no movement re-checks (cut).
 - **Look-ahead:**
   - Search on the Map tab, tap any POI, or long-press anywhere. Each opens a place sheet with **Preview**.
@@ -112,12 +112,12 @@ Built from native parts: a paged `NavigationStack` with large titles, bordered/p
     - range: now to 7 days ahead
     - quick chips: Morning 9 AM, Afternoon 3 PM, Evening 7 PM
   - Content is generated only once a time is committed.
-  - While previewing, Now shows a banner like "Previewing · Heytea, Jing'an · Sat 3:00 PM" with **Back to here**. Tapping the banner reopens the picker.
-- **Everything follows the active situation**, live or previewed: the Now card, Mimo picks, Translate's language pair, Mimo's context, the Live Activity and the gradient. The device always sends the situation's local time with its offset (§7.1). The server never uses its own clock.
+  - While previewing, Nearby shows a banner like "Previewing · Heytea, Jing'an · Sat 3:00 PM" with **Back to here**. Tapping the banner reopens the picker.
+- **Everything follows the active situation**, live or previewed: the Nearby card, the Map sheet's Mimo picks, Translate's language pair, Mimo's context, the Live Activity and the gradient. The device always sends the situation's local time with its offset (§7.1). The server never uses its own clock.
 
-### 4.3 Now tab
+### 4.3 Nearby tab
 
-Now is first about the place you're at (or previewing). Top to bottom:
+Nearby (renamed from Now) is about the place you're at, or previewing. You usually arrive from the Map's sheet. Top to bottom:
 
 1. **Header:** city · local time (the place's time, not the device's). Below it, the place name as a large title and the category, plus the confirm/change control.
 2. **Phrase cards (2–3).** Each card has:
@@ -129,18 +129,17 @@ Now is first about the place you're at (or previewing). Top to bottom:
    Actions: **Show** (opens Show mode). **Speak** arrives in tier 2.
 3. **Cultural tips (1–2),** framed against your nationality where that helps ("No tipping, same as… / unlike Canada").
 4. **Quick cards row:** Allergy card, Taxi card.
-5. **Mimo picks nearby:** 3–5 places from `discover` (§6.5) that fit this time of day and your profile, each with a one-line why. They're generated in the background whenever the situation changes. Tapping one opens its place sheet.
-6. **Mini map tile:** live and non-interactive. Tapping it opens the Map tab centred here.
+5. **Mini map tile:** live and non-interactive. Tapping it opens the Map tab centred here.
 
 Special cases:
-- **No place known yet:** Now shows "Where are you?" with nearby places to pick and general tips for the city.
-- **The local language is one you speak** (e.g. live in Vancouver for an English speaker): no phrase cards. Now shows the header, tips, Mimo picks and a prominent **Preview a place** button that opens Map.
+- **No place known yet:** Nearby shows "Where are you?" with a button that opens the Map's nearby list, and general tips for the city.
+- **The local language is one you speak** (e.g. live in Vancouver for an English speaker): no phrase cards. Nearby shows the header, tips and a prominent **Preview a place** button that opens Map.
 - **Loading:** native `.redacted(reason: .placeholder)`, not a custom shimmer.
 
 ### 4.4 Show mode
 
 A full-screen cover meant to be handed to someone else. It takes a `ShowContent` value, never raw strings:
-- `.phrase(Phrase)`: from Now, place sheets and Mimo's phrase blocks (§6.2).
+- `.phrase(Phrase)`: from Nearby, place details and Mimo's phrase blocks (§6.2).
 - `.allergy(lines)`: a scrollable stack. Each line is in local script at `.title` with your language below at `.body`, and the severity is always written in words.
 - `.taxi(name, address, snapshot)`: the local name at `.largeTitle`, the address at `.title2`, the fixed phrase, then the map snapshot.
 
@@ -159,7 +158,7 @@ For all of them:
   - Life-threatening: "Even a trace of X can be life-threatening; please check every ingredient and use clean utensils."
 - **Free-text allergens** go to `POST /v1/allergy-card` and are marked "not reviewed" on the card.
 - The allergy list is cached per (language, allergen and severity pairs).
-- Reachable from Now's quick cards and from Me.
+- Reachable from Nearby's quick cards and from Me.
 - A Chinese reader and a Japanese reader must check the templates before they are trusted (§11).
 
 ### 4.6 Taxi card
@@ -173,7 +172,17 @@ For all of them:
 
 ### 4.7 Map tab
 
-- MapKit with the user's location, plus `.searchable` with `MKLocalSearchCompleter` suggestions. Queries can be in English or local script ("Heytea Jing'an", "喜茶 静安"). Picking a result moves the camera and opens the place sheet.
+**Map is the home screen: the app opens here.**
+
+- **Bottom sheet** (Apple Maps style). A persistent native sheet over the map, with small, medium and large detents and the map still usable above it:
+  - Header: "Near you · city · local time", or "Previewing · place · time" in preview.
+  - **Mimo picks** first: hidden gems and special spots from `discover` (§6.5), each with a one-line why.
+  - Then the **nearest places** by distance (`MKLocalPointsOfInterestRequest`).
+  - About 3 rows show at the small detent; scroll for more.
+  - Tapping a place makes it the current place and opens **Nearby** (`AppRouter.openNearby()`).
+  - Selecting a pin or search result, or long-pressing, shows that place's **details in the same sheet**, not a second sheet. A back control returns to the list.
+  - First pass: build it, look at it on a device, iterate.
+- MapKit with the user's location, plus `.searchable` with `MKLocalSearchCompleter` suggestions. Queries can be in English or local script ("Heytea Jing'an", "喜茶 静安"). Picking a result moves the camera and shows the place's details in the sheet.
 - **Interaction:**
   - POI tap: `Map(selection:)` with `MapSelection`, then `MKMapItemRequest(feature:)`.
   - Long-press: a `UIGestureRecognizerRepresentable` and `MapReader` to get a coordinate.
@@ -187,8 +196,9 @@ For all of them:
   - Take the nearest POI within 5 km and silently drop misses.
   - Cache by (normalized name, area). Keep under MapKit's throttle (about 50 requests a minute).
 - Every Shanghai coordinate comes from MapKit. Never mix in coordinates from other sources: China's offset coordinate systems put them hundreds of metres off.
-- **Place sheet** (medium/large detents) holds:
-  - the same phrase cards and tips as Now (generated on open, cached)
+- **Place details** (in the Map's bottom sheet) hold:
+  - the same phrase cards and tips as Nearby (generated on open, cached)
+  - **Make this my place**, which sets it as the current place and opens Nearby
   - **Preview** with the date and time picker
   - **Taxi card**
   - **Ask Mimo about this place**
@@ -234,7 +244,7 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
   - Replies stream in as 2–4 short plain sentences, with inline Markdown only.
   - Tool activity appears as one quiet line ("Searching the web…", "Finding places…").
 - A reply is an ordered list of segments: text, **phrase blocks**, place chips, and sources.
-- **Phrase blocks** (§6.2): every phrase Mimo suggests saying appears between paragraphs as a compact block showing script, romanization, gloss and a chevron, in the same look as Now's phrase cards. Tapping a block opens it in Show mode.
+- **Phrase blocks** (§6.2): every phrase Mimo suggests saying appears between paragraphs as a compact block showing script, romanization, gloss and a chevron, in the same look as Nearby's phrase cards. Tapping a block opens it in Show mode.
 - **Places:**
   - When an answer involves places, Mimo calls `show_places` with names and a one-line why for each. It never sends coordinates.
   - The device resolves each name with MapKit (§4.7). Chips appear for the ones it found, plus **Show on map**, which opens Map with the From Mimo layer.
@@ -318,12 +328,12 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
   - The stored transcript keeps the raw tag, so Mimo sees its earlier phrases.
 - Phrases are always in the active situation's local language. At most about 4 per reply. The allergen filter applies to phrase text too, but must allow allergens mentioned in a safety context ("I'm allergic to peanuts", 不要花生).
 - The prompt says to never write local script outside a phrase tag. The server still checks, and turns stray local-script runs into plain text. When text arrives both before and after a tool call, the adapter inserts a separator between them.
-- One shared `Phrase` type (§7.3) is used by Now's cards, place sheets, Mimo's blocks and Show mode.
+- One shared `Phrase` type (§7.3) is used by Nearby's cards, place details, Mimo's blocks and Show mode.
 
 ### 6.3 Models
 
 - **Per-skill model config:** `{provider, modelId, baseUrl?, reasoning}`, read from `server/.env`. Switching models is a config change.
-- **Now: GMI Cloud** (OpenAI-compatible, `https://api.gmi-serving.com/v1`). pi-ai 1.0.1 has no built-in GMI provider, so the server registers one with pi-ai's `createProvider` (`@earendil-works/pi-ai/models`) and `openAICompletionsApi` (`@earendil-works/pi-ai/api/openai-completions.lazy`). The model is `deepseek-ai/DeepSeek-V4.1-Flash` with **thinking off**: set `reasoning: true` and `thinkingLevelMap: {off: 'none'}` on the model definition, then use thinking level `off`. In the D3 spike its place cards took 2.9 s p50, JSON was 100% valid, and tool calls and phrase tags were 100% compliant. The fallback is `Qwen/Qwen3.8-Flash`. Drop thinking events anyway.
+- **Current model: GMI Cloud** (OpenAI-compatible, `https://api.gmi-serving.com/v1`). pi-ai 1.0.1 has no built-in GMI provider, so the server registers one with pi-ai's `createProvider` (`@earendil-works/pi-ai/models`) and `openAICompletionsApi` (`@earendil-works/pi-ai/api/openai-completions.lazy`). The model is `deepseek-ai/DeepSeek-V4.1-Flash` with **thinking off**: set `reasoning: true` and `thinkingLevelMap: {off: 'none'}` on the model definition, then use thinking level `off`. In the D3 spike its place cards took 2.9 s p50, JSON was 100% valid, and tool calls and phrase tags were 100% compliant. The fallback is `Qwen/Qwen3.8-Flash`. Drop thinking events anyway.
 - **Typed output is provider-agnostic.** The JSON schema goes in the prompt. The server parses the JSON, checks it with TypeBox `Value.Check`, retries once, then returns `invalid_model_output`. (GMI's `json_schema` response mode is staging-only.)
 - **Tier 2: switch to Gemini before submission**, so the Gemini track qualifies:
   - `gemini-3.8-flash` (GA) through pi-ai's built-in `google` provider, with reasoning `low` (thinking can't be turned off).
@@ -369,7 +379,7 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
   - in-flight de-duplication: later callers wait on the same generation, and one client disconnecting never cancels a shared generation
   - errors and invalid output are never cached
   - the keys are listed in §7
-- **Speed:** the place card and `discover` start generating as soon as the situation changes, before you open Now. The target is under 3 s for a place card.
+- **Speed:** the place card and `discover` start generating as soon as the situation changes, before you open the Map or Nearby. The target is under 3 s for a place card.
 - **Security** (the repo is public):
   - A bearer `APP_TOKEN` on every `/v1` route, compared in constant time.
   - Per-install and per-IP rate limits (about 60 a minute) and a 64 KB body limit.
@@ -398,7 +408,7 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
 
 - `POST /v1/discover` returns 5–8 places for an area: `{name, localName, why (≤ 60 chars), category, bestTime?}`.
 - It's cached by (geohash-6 area, hour bucket, profile version).
-- One result feeds both Now's **Mimo picks nearby** (the top 3–5) and the Map's **Hidden gems** layer.
+- One result feeds both the **Mimo picks** at the top of the Map's bottom sheet and the Map's **Hidden gems** layer.
 - Picks favour lesser-known places that fit the time of day, the profile's personality and the diet.
 - The device resolves each name with MapKit (§4.7) and silently drops misses.
 
@@ -558,7 +568,7 @@ All spoken output goes through ElevenLabs: Speak on phrase cards and in Show mod
 
 ### 8.2 Gemini: tier 2 switch
 
-Gemini becomes Mimo's model before submission (§6.3). The story for judges: the personalized-advice agent behind Now, discovery, the Mimo chat and the allergy card, plus translation of typed text that fits the place.
+Gemini becomes Mimo's model before submission (§6.3). The story for judges: the personalized-advice agent behind Nearby, discovery, the Mimo chat and the allergy card, plus translation of typed text that fits the place.
 
 - **Billing:**
   - The free tier for `gemini-3.8-flash` allows only about 20 requests a day.
@@ -612,7 +622,7 @@ Reference: Luma. Lots of whitespace, confident type, few controls, and colour th
 
 ### 9.3 Time-of-day gradient
 
-- A soft, static `LinearGradient` wash over the top ~45% of Now and of place sheets, fading into the system background. No animation.
+- A soft, static `LinearGradient` wash over the top ~45% of Nearby and of place details, fading into the system background. No animation.
 - It's driven by the active situation's local time, so a previewed 8 AM looks like morning.
 - **Starting values** (tune on device):
 
@@ -623,7 +633,7 @@ Reference: Luma. Lots of whitespace, confident type, few controls, and colour th
   | Evening 16–20 | `#FFC48A` → `#F9B9B0` | `#5C3524` → black |
   | Night 20–05 | `#C5CCE0` → `#E6E9F2` | `#1A1F3D` → black |
 
-- **Where it doesn't appear:** Show mode, Translate, Mimo, Me and the onboarding survey. Those use plain system backgrounds.
+- **Where it doesn't appear:** the Map, Show mode, Translate, Mimo, Me and the onboarding survey. Those use plain system backgrounds.
 
 ### 9.4 Surfaces
 
@@ -743,8 +753,8 @@ AGENTS.md    conventions for coding agents (CLAUDE.md points to it)
 
 1. **Contracts and fixture server.** `contracts/`, the Hono skeleton with auth, errors and SSE, `MODEL=faux` and Funnel.
 2. **App shell and shared pieces.** `TabView`, theme tokens from §9, the gradient, `SituationStore` (live and preview), `ProfileStore` with the seed profile, the API client and SSE reader, `LangCode`, `LocalText` and the shared types from §12.2.
-3. **Now and cards.** Now (phrases, tips, quick cards, Mimo picks, mini map), Show mode (`ShowContent`), the allergy card (templates) and the taxi card.
-4. **Map.** Search, POI selection and long-press, the place sheet, Preview with the date and time picker, layers, and resolving Mimo's place names with MapKit.
+3. **Nearby and cards.** Nearby (phrases, tips, quick cards, mini map), Show mode (`ShowContent`), the allergy card (templates) and the taxi card.
+4. **Map.** The home screen: the bottom sheet (Mimo picks + nearby places), search, POI selection and long-press, place details in the sheet, Preview with the date and time picker, layers, and resolving Mimo's place names with MapKit.
 5. **Translate.** The Soniox WebSocket client (there's no Swift SDK; 16 kHz mono PCM), turns and history, the pair from the situation, the face-to-face tilt and the manual toggle.
 6. **Mimo tab.** The chat over SSE, segments (text, phrase blocks, place chips, sources), plans, starters, New chat, and "Ask Mimo about this place".
 7. **Agent server and skills.**
@@ -780,7 +790,7 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 6 | The agent is **Mimo**: a core feature behind most of the app, a calm-local-friend persona, its own **Mimo** tab, and an avatar to explore later | user |
 | 7 | Mimo's server is built from scratch on the pi npm packages, pinned at 1.0.1 | user + research |
 | 8 | Model: GMI Cloud now, with provider-agnostic typed output. Switch to Gemini before submission | user + research |
-| 9 | Discovery in tier 1: Hidden gems layer, Mimo picks on Now, asking Mimo for places, planning a few hours | user |
+| 9 | Discovery in tier 1: Hidden gems layer, Mimo picks (now at the top of the Map's sheet, #43), asking Mimo for places, planning a few hours | user |
 | 10 | Mimo has Tavily web search with sources in tier 1 | user |
 | 11 | Mimo's suggested phrases are tappable phrase blocks that open Show mode. They're implemented as phrase tags turned into `phrase` events on the server | user + default |
 | 12 | The server runs on the dev Mac behind Tailscale Funnel (`:10000` → `127.0.0.1:8792`; `:443` and `:8443` belong to other services) | user |
@@ -802,7 +812,7 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 28 | Contracts in §7 are frozen first, with a fixture mode so iOS doesn't wait on the model | default |
 | 29 | Translate keeps an in-memory turn history with a History sheet. The turn rule is in §4.8. The pair never changes mid-session | default |
 | 30 | The preview picker covers date and time in the place's time zone, now to +7 days, with quick chips | default |
-| 31 | When the local language is your own, Now shows no phrase cards | default |
+| 31 | When the local language is your own, Nearby shows no phrase cards | default |
 | 32 | The allergy card uses reviewed templates for chip allergens. The LLM is used only for free text, marked "not reviewed" | default |
 | 33 | No LLM in the taxi card's display path. There's a fixed phrase per language | default |
 | 34 | One `discover` endpoint feeds both Mimo picks and Hidden gems | default |
@@ -813,3 +823,5 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 39 | Onboarding is tier 2; a seed profile drives personalization until then | default |
 | 40 | iPhone only, portrait only; `ShowContent` enum; `LocalText` with language tags | default |
 | 41 | Build setup: `.gitignore` first, the Xcode project created by hand, `AGENTS.md`, shared Swift pieces first | default |
+| 42 | Tabs are Translate · Nearby · Map · Mimo · Me; the app opens on Map (centre). "Now" is renamed **Nearby** | user |
+| 43 | The Map has an Apple Maps-style bottom sheet: Mimo picks (hidden gems, special spots) first, then the nearest places; about 3 rows visible, scroll for more. Tapping a place makes it current and opens Nearby. Place details show in the same sheet. A first pass, to iterate on | user |

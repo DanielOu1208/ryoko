@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// The Now tab, minimal: it proves the pipeline from the active situation to
+/// The Nearby tab, minimal: it proves the pipeline from the active situation to
 /// `api.placeCard` to phrase cards and tips over the time-of-day gradient.
-/// W3 builds the real Now (design §4.3) on top of this.
-struct NowView: View {
+/// W3 builds the real Nearby (design §4.3) on top of this.
+struct NearbyView: View {
     @Environment(AppSituationStore.self) private var situationStore
     @Environment(\.scenePhase) private var scenePhase
 
@@ -291,7 +291,7 @@ private struct NowNoSituationView: View {
 
     var body: some View {
         content
-            .navigationTitle("Now")
+            .navigationTitle("Nearby")
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.pageBackground)
     }
@@ -346,14 +346,14 @@ private struct NowNoSituationView: View {
 }
 
 #Preview("Previewing Tokyo") {
-    NowView()
+    NearbyView()
         .environment(AppSituationStore.preview(Fixtures.tokyo))
         .environment(ProfileStore.preview())
         .environment(APIStore())
 }
 
 #Preview("No place yet") {
-    NowView()
+    NearbyView()
         .environment(AppSituationStore(usesLocation: false))
         .environment(ProfileStore.preview())
         .environment(APIStore())

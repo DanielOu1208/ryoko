@@ -4,7 +4,7 @@ import Observation
 import os
 
 /// The app's real `SituationStore` (design §4.2, §7.1, W2.3). Everything follows
-/// its `situation`, live or previewed: the Now card, Mimo picks, Translate's
+/// its `situation`, live or previewed: the Nearby card, Mimo picks, Translate's
 /// pair, Mimo's context and the gradient.
 ///
 /// **Live:** `refresh()` gets one location fix (when-in-use), reverse-geocodes
@@ -118,7 +118,7 @@ final class AppSituationStore: SituationStore {
     }
 
     /// Starts live mode if permission was already given (no prompt). Call it
-    /// when Now appears and when the app becomes active (location may have
+    /// when Nearby appears and when the app becomes active (location may have
     /// been turned on in Settings); use `refresh()` from a button to ask.
     func startLiveIfAuthorized() {
         guard usesLocation, liveState == .idle || liveState == .denied else { return }

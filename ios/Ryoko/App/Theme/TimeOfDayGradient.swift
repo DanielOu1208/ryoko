@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The soft, static time-of-day wash from design §9.3: a `LinearGradient` over
-/// the top ~45% of Now and of place sheets, fading into the system background.
+/// the top ~45% of Nearby and of place sheets, fading into the system background.
 /// No animation. It follows the active situation's local time, so a previewed
 /// 8 AM looks like morning.
 ///

@@ -1,16 +1,16 @@
 import SwiftUI
 
-/// The five tabs (design §3).
+/// The five tabs, in tab-bar order (design §3). The app opens on Map, in the centre.
 enum AppTab: String, CaseIterable, Hashable {
-    case now
-    case map
     case translate
+    case nearby
+    case map
     case mimo
     case me
 
     var title: String {
         switch self {
-        case .now: "Now"
+        case .nearby: "Nearby"
         case .map: "Map"
         case .translate: "Translate"
         case .mimo: "Mimo"
@@ -21,7 +21,7 @@ enum AppTab: String, CaseIterable, Hashable {
     /// `translate` is reserved for Apple's Translate app, so Translate uses `character.bubble`.
     var systemImage: String {
         switch self {
-        case .now: "location.fill"
+        case .nearby: "location.fill"
         case .map: "map"
         case .translate: "character.bubble"
         case .mimo: "bubble.left"
@@ -40,14 +40,14 @@ struct RootTabView: View {
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.selectedTab) {
-            Tab(AppTab.now.title, systemImage: AppTab.now.systemImage, value: AppTab.now) {
-                NowView()
+            Tab(AppTab.translate.title, systemImage: AppTab.translate.systemImage, value: AppTab.translate) {
+                TranslateView()
+            }
+            Tab(AppTab.nearby.title, systemImage: AppTab.nearby.systemImage, value: AppTab.nearby) {
+                NearbyView()
             }
             Tab(AppTab.map.title, systemImage: AppTab.map.systemImage, value: AppTab.map) {
                 MapView()
-            }
-            Tab(AppTab.translate.title, systemImage: AppTab.translate.systemImage, value: AppTab.translate) {
-                TranslateView()
             }
             Tab(AppTab.mimo.title, systemImage: AppTab.mimo.systemImage, value: AppTab.mimo) {
                 MimoView()
@@ -62,12 +62,12 @@ struct RootTabView: View {
         }
     }
 
-    /// The tab to open on: Now, or `-RyokoInitialTab` in DEBUG.
+    /// The tab to open on: Map, or `-RyokoInitialTab` in DEBUG.
     static var launchTab: AppTab {
         #if DEBUG
-        DebugLaunchOptions.initialTab ?? .now
+        DebugLaunchOptions.initialTab ?? .map
         #else
-        .now
+        .map
         #endif
     }
 }

@@ -7,10 +7,11 @@ import SwiftUI
 ///
 ///     @Environment(AppRouter.self) private var router
 ///
-///     router.openMap(centeredOn: coordinate)   // Now's mini map (W3)
+///     router.openNearby()                      // Map sheet: a place became current (W4)
+///     router.openMap(centeredOn: coordinate)   // Nearby's mini map (W3)
 ///     router.askMimo(about: place)             // place sheet: dismiss it first (W4)
 ///     router.showOnMap(pins)                   // Mimo's "Show on map" (W6)
-///     router.show = .phrase(phrase)            // Show mode from Now or Mimo
+///     router.show = .phrase(phrase)            // Show mode from Nearby or Mimo
 ///
 /// The receiving tab reads its hand-off and clears what it has used: Map sets
 /// `mapFocus` back to nil once applied, so the same focus can be asked for
@@ -40,11 +41,17 @@ final class AppRouter {
     /// its own `.fullScreenCover`, because the root can't present over a sheet.
     var show: ShowContent?
 
-    init(selectedTab: AppTab = .now) {
+    init(selectedTab: AppTab = .map) {
         self.selectedTab = selectedTab
     }
 
-    /// Opens the Map centred on `coordinate` (Now's mini map tile).
+    /// Opens Nearby: the Map sheet calls this after a tapped place became the
+    /// current place (design §4.7).
+    func openNearby() {
+        selectedTab = .nearby
+    }
+
+    /// Opens the Map centred on `coordinate` (Nearby's mini map tile).
     func openMap(centeredOn coordinate: Coordinate) {
         mapFocus = .coordinate(coordinate)
         selectedTab = .map
@@ -77,7 +84,7 @@ final class AppRouter {
 
 /// Where the Map should go next.
 nonisolated enum MapFocus: Hashable, Sendable {
-    /// Centre on a point (Now's mini map: "opens the Map tab centred here").
+    /// Centre on a point (Nearby's mini map: "opens the Map tab centred here").
     case coordinate(Coordinate)
     /// Centre on a place and select it, opening its place sheet.
     case place(Place)
