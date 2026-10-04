@@ -49,12 +49,11 @@ Updated 2026-10-03 16:40. Update this section whenever a screen changes state.
 
 **Device Hub workaround** (Xcode 27 ships no Simulator.app): if computer use times out selecting Device Hub (`-10005`), launch `/Applications/Xcode.app/Contents/Applications/DeviceHub.app/Contents/MacOS/DeviceHub` directly. Coordinate clicks can still fail intermittently (`noWindowsAvailable`); accessibility actions and screenshots work. See openai/codex#44717.
 
-## Active branches and lanes (2026-10-03 18:05)
+## Active branches and lanes (2026-10-03 19:35)
 
 | Branch / worktree | Purpose | Owns |
 | --- | --- | --- |
-| `ui-refine` at `../stormhack26-ui` | The user's UI refinement pass | `ios/Ryoko/Map/`, `ios/Ryoko/Nearby/`, `ios/Ryoko/Mimo/`, `ios/Ryoko/App/Theme/Theme.swift` |
-| `main` | T2.2–T2.6 merged | Everything else. **Doesn't touch the ui-refine lanes** until ui-refine merges back |
+| `main` | T2.2–T2.6 and the UI refine pass (PR #2, `cd4365f`) merged | Everything. The `ui-refine` worktree at `../stormhack26-ui` is merged; its lanes are free again |
 
 The live server for the phone runs from `main` on `127.0.0.1:8792`, behind the Funnel on `:10000`. Don't stop it.
 
@@ -193,7 +192,7 @@ Write down what you find. The results may change the spec.
 | W8.1 | Port bloub's `src/bot/` engine to Swift (pure `sample(t)`, exact measured constants, MIT header + THIRD_PARTY_NOTICES.md) with a numeric exactness check against the TS engine | agent:avatar | done |  | 11 engine files ported with MIT headers; THIRD_PARTY_NOTICES.md. Exactness: 1199 frames / 113 cases / ~600k numbers + 2040 eye-fit entries vs the TS engine, max error 5.7e-14 (a doctored reference fails the check) |
 | W8.2 | `MimoAvatarView(mood:size:)` (Canvas + TimelineView, .primary body, eye cut-outs, Reduce Motion), `MimoMood` (idle/listening/thinking/talking/happy), Mimo's own style preset, `MimoAvatarIcon` template image, DEBUG gallery | agent:avatar | done |  | `.mimo` style = pebble body (galet) + attentive upright eyes (x.ai is a circle glancing up-right). MimoMood idle/listening/thinking/talking/happy, MimoAvatarView (Canvas+TimelineView, Reduce Motion holds a still pose), MimoAvatarIcon template image, DEBUG MimoAvatarGallery |
 | W8.3 | Integrate: Mimo tab header (mood follows the chat stream/tool/done), Map sheet "Mimo picks" header, Mimo tab icon in RootTabView, credits line in Me | lead | done |  | Mimo intro avatar + a toolbar avatar during chats (mood: thinking while a tool runs / before text, talking while streaming, listening while typing, happy after a reply); avatar beside "Mimo picks" in the Map sheet (thinking only until the first pick shows); Mimo tab icon = MimoAvatarIcon; DEBUG `-RyokoAvatarGallery 1`; Me → Credits links bloub (MIT) |
-| W8.4 | UI refine pass (design #48, #49): Map search/Layers, gradient on more tabs, Mimo header + history sidebar, inline phrases, places card, status pill and calmer streaming, Show tilt, Translate language pills | lead | review | `ui-refine`, PR #2 | Simulator-checked (screenshots); on the iPhone 18 Pro Max for hand testing (tilt, sidebar swipes, keyboard scroll). Prompt change (phrases after their sentence) needs the main server restarted. Commits cde32aa, 7102a20, ea2ab70, 40bd4d6, ce23d5a (search line held 2.5 s, one source pill per site), 09d07d3 (Translate language pills beside the mic; Type's keyboard button moved to the status row) |
+| W8.4 | UI refine pass (design #48, #49): Map search/Layers, gradient on more tabs, Mimo header + history sidebar, inline phrases, places card, status pill and calmer streaming, Show tilt, Translate language pills | lead | done | `ui-refine`, PR #2, merged `cd4365f` | Simulator-checked (screenshots); on the iPhone 18 Pro Max for hand testing (tilt, sidebar swipes, keyboard scroll). Prompt change (phrases after their sentence) is live: the main server was restarted after the merge. Merge check: every line the PR deletes was traced to its commit; none of T2.2–T2.6 is lost (only the old keyboard-button spot, now in the status row, and a stale Me comment). Commits cde32aa, 7102a20, ea2ab70, 40bd4d6, ce23d5a (search line held 2.5 s, one source pill per site), 09d07d3 (Translate language pills beside the mic; Type's keyboard button moved to the status row) |
 
 ## 3. Tier 2
 
