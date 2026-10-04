@@ -64,6 +64,15 @@ struct TranslateView: View {
         )
     }
 
+    /// The wash connects with the session and swells with the voice.
+    private var ambientMood: AmbientMood {
+        switch model.phase {
+        case .idle: .calm
+        case .starting, .finishing: .working
+        case .listening: .listening
+        }
+    }
+
     private var layout: TranslateLayout {
         switch layoutChoice {
         case .automatic: tilt.layout
@@ -105,7 +114,9 @@ struct TranslateView: View {
                 }
             }
             .animation(reduceMotion ? .easeInOut(duration: 0.2) : .smooth, value: composer.isOpen)
-            .background { SituationGradient(background: Color(uiColor: .systemBackground)) }
+            .background {
+                SituationGradient(background: Color(uiColor: .systemBackground), mood: ambientMood) { model.level }
+            }
             .navigationTitle(composer.isOpen ? composerTitle : "Translate")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }

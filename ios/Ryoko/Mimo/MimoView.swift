@@ -181,7 +181,7 @@ struct MimoView: View {
     private var chatScreen: some View {
         NavigationStack {
         transcript
-            .background { SituationGradient() }
+            .background { SituationGradient(mood: chat.turns.last?.isStreaming == true ? .working : .calm) }
             .safeAreaBar(edge: .top) {
                 VStack(spacing: Theme.grid) {
                     TimelineView(.everyMinute) { context in

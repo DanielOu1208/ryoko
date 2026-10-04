@@ -26,10 +26,10 @@ enum Theme {
 
     /// Solid card fill (design §9.4).
     static let cardFill = Color(uiColor: .secondarySystemGroupedBackground)
-    /// The page behind cards, and what the time-of-day gradient fades into.
+    /// The page behind cards, and what the blue wash fades into.
     static let pageBackground = Color(uiColor: .systemGroupedBackground)
 
-    /// Share of the screen height the time-of-day wash covers (design §9.3).
+    /// Share of the screen height the blue wash covers at rest (design §9.3).
     static let gradientHeightFraction: CGFloat = 0.45
 }
 
