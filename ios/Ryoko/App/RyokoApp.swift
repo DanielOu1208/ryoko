@@ -45,6 +45,7 @@ struct RyokoApp: App {
     var body: some Scene {
         WindowGroup {
             RootTabView()
+                .onboardingOnFirstLaunch() // the survey, full screen on first launch (ios/Ryoko/Onboarding/)
                 .environment(situationStore)
                 .environment(profileStore)
                 .environment(apiStore)
