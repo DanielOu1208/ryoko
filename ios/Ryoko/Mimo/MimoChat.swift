@@ -102,6 +102,40 @@ final class MimoChat {
     /// New chat: a new session id and an empty transcript. The old session
     /// stays on the device.
     func newChat() {
+        leaveCurrent()
+        transcript = MimoTranscript()
+        store.setCurrent(transcript.sessionId)
+        store.prune()
+        RyokoLog.mimo.info("New chat \(self.transcript.sessionId, privacy: .public)")
+    }
+
+    /// Opens a saved chat from the history. The one on screen stays on the device.
+    func open(sessionId: String) {
+        guard sessionId != transcript.sessionId,
+              let saved = store.loadSettled(sessionId: sessionId) else { return }
+        leaveCurrent()
+        transcript = saved
+        store.setCurrent(sessionId)
+        RyokoLog.mimo.info("Opened chat \(sessionId, privacy: .public)")
+    }
+
+    /// The saved chats, most recent first.
+    func history() -> [MimoChatSummary] {
+        store.history()
+    }
+
+    /// Deletes a saved chat. Deleting the one on screen starts a new chat.
+    func delete(sessionId: String) {
+        if sessionId == transcript.sessionId {
+            leaveCurrent()
+            transcript = MimoTranscript()
+            store.setCurrent(transcript.sessionId)
+        }
+        store.delete(sessionId: sessionId)
+    }
+
+    /// Stops any reply and lookups, and saves the chat before another replaces it.
+    private func leaveCurrent() {
         if let turnID = replyingTurn {
             update(turnID) { turn in
                 turn.toolLine = nil
@@ -116,10 +150,6 @@ final class MimoChat {
         lookupTasks = []
         lookupsInFlight = []
         save()
-        transcript = MimoTranscript()
-        store.setCurrent(transcript.sessionId)
-        store.prune()
-        RyokoLog.mimo.info("New chat \(self.transcript.sessionId, privacy: .public)")
     }
 
     /// Looks up places that were still being looked up when the app quit.

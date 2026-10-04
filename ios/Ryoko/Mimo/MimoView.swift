@@ -14,7 +14,6 @@ struct MimoView: View {
     @Environment(\.ryokoAPI) private var api
     @Environment(\.placeResolver) private var resolver
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @AppStorage(AppSettings.showsRomanizationKey) private var showsRomanization = true
 
     @State private var chat: MimoChat
     @State private var draft = ""
@@ -25,6 +24,11 @@ struct MimoView: View {
     /// True for a moment after a reply finishes, so the avatar's happy beat
     /// plays even while the composer keeps focus.
     @State private var celebrating = false
+    @State private var showsHistory = false
+    /// How far a swipe has moved the chat while opening or closing the sidebar.
+    @GestureState private var sidebarDrag: CGFloat = 0
+    /// The saved chats, read when the sidebar opens.
+    @State private var history: [MimoChatSummary] = []
     @FocusState private var isComposing: Bool
     #if DEBUG
     /// A segment to scroll to (`-RyokoMimoScrollTo places`).
@@ -39,27 +43,55 @@ struct MimoView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            TimelineView(.everyMinute) { context in
-                transcript
-                    .navigationTitle("Mimo")
-                    .mimoSubtitle(dynamicTypeSize.isAccessibilitySize ? nil : subtitle(at: context.date))
-            }
-            .background(Theme.pageBackground)
-            .safeAreaBar(edge: .top) { subjectBar }
-            .safeAreaBar(edge: .bottom) { composer }
-            .toolbar {
-                if !chat.isEmpty {
-                    ToolbarItem(placement: .topBarLeading) {
-                        MimoAvatarView(mood: avatarMood, size: 30)
+        GeometryReader { proxy in
+            let width = min(proxy.size.width * 0.7, 300)
+            let offset = min(max((showsHistory ? width : 0) + sidebarDrag, 0), width)
+            ZStack(alignment: .leading) {
+                MimoHistorySidebar(
+                    chats: history,
+                    currentID: chat.isEmpty ? nil : chat.sessionId,
+                    onOpen: openChat,
+                    onNewChat: {
+                        startNewChat()
+                        showsHistory = false
+                    },
+                    onDelete: deleteChat
+                )
+                .frame(width: width)
+                .accessibilityHidden(!showsHistory)
+
+                chatScreen
+                    .overlay {
+                        // The chat dims as it slides aside; tap it to come back.
+                        Color.black
+                            .opacity(0.12 * offset / width)
+                            .ignoresSafeArea()
+                            .allowsHitTesting(showsHistory)
+                            .onTapGesture { showsHistory = false }
+                            .accessibilityHidden(true)
                     }
-                    .sharedBackgroundVisibility(.hidden)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("New chat", systemImage: "square.and.pencil", action: startNewChat)
-                        .disabled(chat.isEmpty && router.mimoSubject == nil)
-                }
+                    .offset(x: offset)
+                    .simultaneousGesture(sidebarSwipe(width: width))
+
+                // The sidebar fades gently into the chat instead of ending at a hard edge.
+                LinearGradient(
+                    colors: [MimoHistorySidebar.background, MimoHistorySidebar.background.opacity(0)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: 48)
+                .ignoresSafeArea()
+                .offset(x: offset)
+                .opacity(offset / width)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
             }
+        }
+        .animation(.smooth(duration: 0.3), value: showsHistory)
+        .onChange(of: showsHistory, initial: true) { _, shows in
+            guard shows else { return }
+            isComposing = false
+            history = chat.history()
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: showCount)
         .onChange(of: chat.turns.last?.status) { old, new in
@@ -98,14 +130,92 @@ struct MimoView: View {
         return .idle
     }
 
+    /// The chat itself: header, transcript and composer.
+    private var chatScreen: some View {
+        NavigationStack {
+        transcript
+            .background { SituationGradient() }
+            .safeAreaBar(edge: .top) {
+                VStack(spacing: Theme.grid) {
+                    TimelineView(.everyMinute) { context in
+                        header(at: context.date)
+                    }
+                    subjectBar
+                }
+            }
+            .safeAreaBar(edge: .bottom) { composer }
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .navigationTitle("Mimo")
+            .toolbar(.hidden, for: .navigationBar)
+        }
+    }
+
+    /// Swipe right on the chat to open the sidebar, left to close it.
+    private func sidebarSwipe(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 20)
+            .updating($sidebarDrag) { value, drag, _ in
+                guard abs(value.translation.width) > abs(value.translation.height) * 1.5 else { return }
+                drag = value.translation.width
+            }
+            .onEnded { value in
+                guard abs(value.translation.width) > abs(value.translation.height) * 1.5 else { return }
+                let projected = (showsHistory ? width : 0) + value.predictedEndTranslation.width
+                showsHistory = projected > width / 2
+            }
+    }
+
+    // MARK: Header
+
+    /// Mimo centred at the top, as a contact in Messages: the animated avatar
+    /// with its name and where you are under it. History on the left, New chat
+    /// on the right.
+    private func header(at date: Date) -> some View {
+        HStack(alignment: .top) {
+            MimoHeaderButton(title: "History", systemImage: "sidebar.leading") { showsHistory = true }
+            Spacer(minLength: Theme.grid)
+            // The pill tucks up under the avatar, whose canvas has room around the body.
+            VStack(spacing: -Theme.grid) {
+                MimoAvatarView(mood: avatarMood, size: 82)
+                    .accessibilityHidden(true)
+                // In a glass pill, like a contact's name in Messages, so it
+                // stays readable over the chat scrolling under it.
+                VStack(spacing: 0) {
+                    Text("Mimo")
+                        .font(.subheadline.weight(.semibold))
+                    if !dynamicTypeSize.isAccessibilitySize, let subtitle = subtitle(at: date) {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, Theme.grid * 1.75)
+                .padding(.vertical, Theme.grid / 2)
+                .glassEffect(.regular, in: .capsule)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: Theme.grid)
+            MimoHeaderButton(title: "New chat", systemImage: "square.and.pencil", action: startNewChat)
+                .disabled(chat.isEmpty && router.mimoSubject == nil)
+        }
+        .pageMargins()
+        // Up into the status bar's band, clear of the Dynamic Island, to leave the chat more room.
+        .padding(.top, -Theme.grid * 1.5)
+    }
+
     // MARK: Transcript
 
     private var transcript: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.grid * 3) {
-                    MimoIntro(mood: avatarMood)
+                    Color.clear
+                        .frame(height: 0)
+                        .id(Self.topID)
+                        .accessibilityHidden(true)
                     if chat.isEmpty {
+                        MimoIntro()
                         if situationStore.situation == nil {
                             noPlace
                         } else {
@@ -115,7 +225,6 @@ struct MimoView: View {
                     ForEach(chat.turns) { turn in
                         MimoTurnView(
                             turn: turn,
-                            showsRomanization: showsRomanization,
                             canRetry: chat.canSend && situationStore.situation != nil,
                             onShowPhrase: openShow,
                             onSelectPlace: openOnMap,
@@ -130,10 +239,14 @@ struct MimoView: View {
                         .accessibilityHidden(true)
                 }
                 .pageMargins()
-                .padding(.vertical, Theme.grid * 2)
+                .padding(.top, Theme.grid)
+                .padding(.bottom, Theme.grid * 2)
             }
             .scrollDismissesKeyboard(.interactively)
             .defaultScrollAnchor(chat.isEmpty ? .top : .bottom, for: .initialOffset)
+            // When the keyboard comes up, keep the end of the chat above the
+            // composer instead of under its glass.
+            .defaultScrollAnchor(chat.isEmpty ? .top : .bottom, for: .sizeChanges)
             #if DEBUG
             .onChange(of: debugScrollTarget) {
                 guard let debugScrollTarget else { return }
@@ -141,16 +254,30 @@ struct MimoView: View {
             }
             #endif
             // Follow the reply as it streams in, and as its places are found.
-            .onChange(of: chat.turns.last) { old, new in
-                guard let new else { return }
-                let isNewTurn = old?.id != new.id
-                withAnimation(isNewTurn ? .smooth : nil) {
-                    proxy.scrollTo(Self.bottomID, anchor: .bottom)
-                }
+            .onChange(of: isComposing) { _, composing in
+                guard composing, !chat.isEmpty else { return }
+                withAnimation(.smooth) { proxy.scrollTo(Self.bottomID, anchor: .bottom) }
+            }
+            .onChange(of: chat.sessionId) {
+                proxy.scrollTo(chat.isEmpty ? Self.topID : Self.bottomID, anchor: chat.isEmpty ? .top : .bottom)
+            }
+            // A new message scrolls to it.
+            .onChange(of: chat.turns.last?.id) {
+                withAnimation(.smooth) { proxy.scrollTo(Self.bottomID, anchor: .bottom) }
+            }
+            // Stick to the bottom: as the reply grows (text easing in, a places
+            // card, the sources), follow it if you were at the end. Scroll up to
+            // read and it leaves you there.
+            .onScrollGeometryChange(for: MimoScrollPosition.self) { geometry in
+                MimoScrollPosition(geometry)
+            } action: { old, new in
+                guard new.contentHeight > old.contentHeight, old.isAtBottom else { return }
+                proxy.scrollTo(Self.bottomID, anchor: .bottom)
             }
         }
     }
 
+    private static let topID = "mimo-top"
     private static let bottomID = "mimo-bottom"
 
     /// Starter questions for the current place's category (design §4.9): fixed
@@ -205,6 +332,19 @@ struct MimoView: View {
     }
 
     private var composer: some View {
+        VStack(spacing: Theme.grid) {
+            if let status = chat.turns.last?.statusLine {
+                MimoStatusPill(text: status)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            composerField
+        }
+        .pageMargins()
+        .padding(.bottom, Theme.grid)
+        .animation(.smooth(duration: 0.3), value: chat.turns.last?.statusLine == nil)
+    }
+
+    private var composerField: some View {
         MimoComposer(
             draft: $draft,
             isComposing: $isComposing,
@@ -213,8 +353,6 @@ struct MimoView: View {
             onSend: { send(draft) },
             onStop: { chat.stop() }
         )
-        .pageMargins()
-        .padding(.bottom, Theme.grid)
     }
 
     // MARK: Actions
@@ -238,6 +376,20 @@ struct MimoView: View {
         // A new chat drops the subject and the Map's From Mimo layer (design §4.7, §4.9).
         router.mimoSubject = nil
         router.clearFromMimo()
+    }
+
+    private func openChat(_ sessionId: String) {
+        chat.open(sessionId: sessionId)
+        draft = ""
+        // Like a new chat, another chat drops the subject and the From Mimo layer.
+        router.mimoSubject = nil
+        router.clearFromMimo()
+        showsHistory = false
+    }
+
+    private func deleteChat(_ sessionId: String) {
+        chat.delete(sessionId: sessionId)
+        history.removeAll { $0.id == sessionId }
     }
 
     /// A phrase block opens Show mode (design §6.2).
@@ -322,6 +474,8 @@ extension MimoView {
             hasNearby: { nearby != nil },
             send: { send($0) },
             setDraft: { draft = $0 },
+            focusComposer: { isComposing = true },
+            openHistory: { showsHistory = true },
             scrollTo: { debugScrollTarget = $0 },
             starters: { MimoStarters.list(for: starterCategory, situation: situationStore.situation) },
             openShow: openShow,
@@ -334,20 +488,69 @@ extension MimoView {
 
 // MARK: - Pieces
 
-/// The top of the conversation: Mimo's avatar (design §4.9) and a one-line intro.
+/// The start of a new chat: a one-line intro under the header.
 private struct MimoIntro: View {
-    var mood: MimoMood
-    @ScaledMetric(relativeTo: .title) private var avatarSize: CGFloat = 56
+    var body: some View {
+        Text("Ask me what to order, how to say it, or where to go next.")
+            .font(.body)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// A round glass button in the header, the size of a navigation bar button.
+private struct MimoHeaderButton: View {
+    let title: String
+    let systemImage: String
+    var action: () -> Void
+
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.grid * 1.5) {
-            MimoAvatarView(mood: mood, size: min(avatarSize, 88))
-            Text("Ask me what to order, how to say it, or where to go next.")
-                .font(.body)
+        Button(title, systemImage: systemImage, action: action)
+            .labelStyle(.iconOnly)
+            .font(.body.weight(.medium))
+            .frame(width: 44, height: 44)
+            .contentShape(.circle)
+            .buttonStyle(.plain)
+            .foregroundStyle(isEnabled ? .primary : .tertiary)
+            .glassEffect(.regular.interactive(isEnabled), in: .circle)
+    }
+}
+
+/// The transcript's height and whether it's scrolled to the end, for sticking
+/// to the bottom while a reply grows.
+private struct MimoScrollPosition: Equatable {
+    var contentHeight: CGFloat
+    var isAtBottom: Bool
+
+    init(_ geometry: ScrollGeometry) {
+        contentHeight = geometry.contentSize.height
+        let maxOffset = geometry.contentSize.height + geometry.contentInsets.bottom - geometry.containerSize.height
+        isAtBottom = maxOffset - geometry.contentOffset.y < 80
+    }
+}
+
+/// What Mimo is doing while a reply streams, in one place just above the
+/// composer: a small thinking Mimo and a line ("Searching the web…").
+private struct MimoStatusPill: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: Theme.grid * 0.75) {
+            MimoAvatarView(mood: .thinking, size: 22)
+            Text(text)
+                .font(.footnote)
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.opacity)
+                .animation(.smooth, value: text)
         }
+        .padding(.leading, Theme.grid)
+        .padding(.trailing, Theme.grid * 1.5)
+        .padding(.vertical, Theme.grid / 2)
+        .glassEffect(.regular, in: .capsule)
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.updatesFrequently)
     }
 }
 
@@ -429,18 +632,6 @@ private struct MimoComposer: View {
         }
         .padding(Theme.grid / 2)
         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: buttonSize / 2 + Theme.grid / 2))
-    }
-}
-
-private extension View {
-    /// The navigation subtitle, when there is one.
-    @ViewBuilder
-    func mimoSubtitle(_ subtitle: String?) -> some View {
-        if let subtitle {
-            navigationSubtitle(subtitle)
-        } else {
-            self
-        }
     }
 }
 

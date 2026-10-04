@@ -42,8 +42,15 @@ nonisolated struct MimoTranscriptStore: Sendable {
     func loadCurrent() -> MimoTranscript {
         guard let defaultsKey,
               let sessionId = UserDefaults.standard.string(forKey: defaultsKey),
-              var transcript = load(sessionId: sessionId)
+              let transcript = loadSettled(sessionId: sessionId)
         else { return MimoTranscript() }
+        return transcript
+    }
+
+    /// A saved session to show again: a reply still marked streaming is
+    /// marked stopped, and tool lines are cleared.
+    func loadSettled(sessionId: String) -> MimoTranscript? {
+        guard var transcript = load(sessionId: sessionId) else { return nil }
         for index in transcript.turns.indices {
             transcript.turns[index].toolLine = nil
             if transcript.turns[index].isStreaming {
@@ -85,6 +92,25 @@ nonisolated struct MimoTranscriptStore: Sendable {
         }
     }
 
+    /// The saved chats, most recent first, for the history sidebar.
+    func history() -> [MimoChatSummary] {
+        guard let directory else { return [] }
+        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        return files
+            .filter { $0.pathExtension == "json" }
+            .compactMap { load(sessionId: $0.deletingPathExtension().lastPathComponent) }
+            .compactMap { transcript in
+                guard let first = transcript.turns.first else { return nil }
+                return MimoChatSummary(id: transcript.sessionId, title: first.message, updatedAt: transcript.updatedAt)
+            }
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func delete(sessionId: String) {
+        guard let url = fileURL(for: sessionId) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
     /// Deletes all but the `keeping` most recently saved sessions.
     func prune(keeping: Int = MimoFeature.keptSessions) {
         guard let directory else { return }
@@ -123,4 +149,12 @@ nonisolated struct MimoTranscriptStore: Sendable {
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }
+}
+
+/// A saved chat in the history sidebar: its first message and when it last changed.
+nonisolated struct MimoChatSummary: Identifiable, Hashable, Sendable {
+    /// The session id.
+    let id: String
+    let title: String
+    let updatedAt: Date
 }
