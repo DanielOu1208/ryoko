@@ -5,8 +5,12 @@ import SwiftUI
 /// toolbar. The caller picks the button style.
 struct SpeakButton: View {
     let phrase: Phrase
+    /// Whether playing it goes into trip memory (design §8.3). Show mode's
+    /// taxi card turns it off: it's an address, not a phrase.
+    var remembers = true
 
     @Environment(\.speechService) private var speech
+    @Environment(\.tripMemory) private var tripMemory
 
     var body: some View {
         let activity = speech.activity
@@ -15,6 +19,7 @@ struct SpeakButton: View {
             if isMine {
                 speech.stop()
             } else {
+                if remembers { tripMemory.spoken(phrase) }
                 Task { await speech.speak(phrase) }
             }
         } label: {

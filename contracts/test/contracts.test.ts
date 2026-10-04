@@ -43,6 +43,8 @@ const EXAMPLES: Record<string, TSchema> = {
   'translate.tokyo.request.json': C.TranslateRequest,
   'translate.tokyo.response.json': C.TranslateResponse,
   'soniox-key.response.json': C.SonioxKeyResponse,
+  'trip-events.request.json': C.TripEventsRequest,
+  'trip-events.response.json': C.TripEventsResponse,
   'mimo-message.request.json': C.MimoMessageRequest,
   'mimo-models.response.json': C.MimoModelsResponse,
   'error.invalid-request.response.json': C.ErrorEnvelope,

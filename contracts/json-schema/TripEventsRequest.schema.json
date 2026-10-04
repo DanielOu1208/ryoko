@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/TripEventsRequest.schema.json",
+  "title": "TripEventsRequest",
+  "type": "object",
+  "required": [
+    "events"
+  ],
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "at",
+          "text"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "place_confirmed",
+              "phrase_shown",
+              "phrase_spoken",
+              "typed_translation"
+            ],
+            "description": "place_confirmed: \"I'm here\" at a place; phrase_shown / phrase_spoken: a phrase opened in Show mode or played aloud; typed_translation: a typed turn in Translate"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})$",
+            "description": "ISO 8601 local time with offset, e.g. 2026-10-05T15:00:00+08:00"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "The phrase in local script, what was typed, or the place name (place_confirmed)"
+          },
+          "meaning": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "The other side: a phrase's meaning in the home language, or a typed text's translation"
+          },
+          "language": {
+            "type": "string",
+            "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$",
+            "description": "BCP-47 language tag, e.g. en, ja, zh-Hans"
+          },
+          "place": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "localName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "cafe",
+                  "tea",
+                  "restaurant",
+                  "ramen",
+                  "bar",
+                  "bakery",
+                  "convenience_store",
+                  "museum",
+                  "park",
+                  "temple_shrine",
+                  "shopping",
+                  "transit",
+                  "hotel",
+                  "other"
+                ],
+                "description": "Category slug from contracts/tables/categories.json"
+              }
+            },
+            "additionalProperties": false
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "countryCode": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "description": "ISO 3166-1 alpha-2 country code"
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 20
+    }
+  },
+  "additionalProperties": false
+}

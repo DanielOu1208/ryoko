@@ -54,6 +54,10 @@ nonisolated struct LiveRyokoAPI: RyokoAPI {
         try await getJSON("v1/mimo-models")
     }
 
+    func tripEvents(_ request: TripEventsRequest) async throws -> TripEventsResponse {
+        try await postJSON("v1/trip-events", body: request)
+    }
+
     func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error> {
         let session = self.session
         let configuration = self.configuration

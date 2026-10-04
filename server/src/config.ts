@@ -235,5 +235,6 @@ export function describeConfig(config: Config): string {
   }
   const soniox = config.soniox.configured ? `Soniox keys on (${config.soniox.perMinute}/min)` : 'Soniox keys off (no SONIOX_API_KEY)';
   const guides = config.model === 'faux' ? '' : snowflakeConfigFrom(config.env) ? ', travel guides on (Snowflake)' : ', travel guides off (no SNOWFLAKE_PAT)';
-  return `MODEL=${config.model}${models}${pace}, rate limit ${config.rateLimitPerMinute}/min, body limit ${config.bodyLimitBytes / 1024} KB, ${soniox}${guides}, APP_TOKEN set`;
+  const memory = config.model === 'faux' ? '' : config.env.TIGER_DATABASE_URL?.trim() ? ', trip memory on (Tiger)' : ', trip memory off (no TIGER_DATABASE_URL)';
+  return `MODEL=${config.model}${models}${pace}, rate limit ${config.rateLimitPerMinute}/min, body limit ${config.bodyLimitBytes / 1024} KB, ${soniox}${guides}${memory}, APP_TOKEN set`;
 }

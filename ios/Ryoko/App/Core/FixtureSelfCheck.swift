@@ -75,6 +75,8 @@ nonisolated enum FixtureSelfCheck {
             case .sonioxKeyResponse: try roundTrip(SonioxKeyResponse.self, data)
             case .mimoMessageRequest: try roundTrip(MimoMessageRequest.self, data)
             case .mimoModelsResponse: try roundTrip(MimoModelsResponse.self, data)
+            case .tripEventsRequest: try roundTrip(TripEventsRequest.self, data)
+            case .tripEventsResponse: try roundTrip(TripEventsResponse.self, data)
             case .errorInvalidRequest, .errorSessionBusy: try roundTrip(ErrorEnvelope.self, data)
             case .mimoStream, .mimoStreamZhHans: break
             }
@@ -85,10 +87,10 @@ nonisolated enum FixtureSelfCheck {
     /// Every endpoint response and transcript must be in a `FixtureVariants` table, for
     /// the language the server reads from it: its request's, or its phrases'.
     private static func checkVariantLanguage(_ file: FixtureFile, source: FixtureSource) throws {
-        // The Soniox key and the Mimo models have one example and no language: they aren't variants.
+        // The Soniox key, the Mimo models and trip events have one example and no language: they aren't variants.
         let isVariant = file.isTranscript
             || (file.fileName.hasSuffix(".response.json") && !file.fileName.hasPrefix("error.")
-                && file != .sonioxKeyResponse && file != .mimoModelsResponse)
+                && file != .sonioxKeyResponse && file != .mimoModelsResponse && file != .tripEventsResponse)
         guard isVariant else { return }
         guard let declared = FixtureVariants.all.flatMap(\.variants).first(where: { $0.file == file })?.language else {
             throw CheckError("not in any FixtureVariants table")

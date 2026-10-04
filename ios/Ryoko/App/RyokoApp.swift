@@ -11,11 +11,12 @@ import SwiftUI
 ///     @Environment(\.ryokoAPI) private var api              // the API to call
 ///     @Environment(\.placeResolver) private var resolver    // the one shared MapKit resolver
 ///     @Environment(\.speechService) private var speech
+///     @Environment(\.tripMemory) private var tripMemory     // what you did, for Mimo's trip memory
 ///
 /// Previews: `.environment(AppSituationStore.preview())`,
 /// `.environment(ProfileStore.preview())`, `.environment(APIStore())`,
 /// `.environment(AppRouter())`, `.environment(TranslateModel())`. `\.ryokoAPI`, `\.placeResolver` and
-/// `\.speechService` default to fixtures.
+/// `\.speechService` default to fixtures; `\.tripMemory` keeps nothing.
 ///
 /// **The situation's clock (W3, W4, W6).** `situationStore.situation` changes
 /// with the place, the preview and the local hour, so key `.task(id:)` work on
@@ -26,9 +27,9 @@ import SwiftUI
 /// `TimelineView(.everyMinute)` and `currentSituation(at: context.date)`.
 @main
 struct RyokoApp: App {
-    @State private var situationStore = AppSituationStore()
+    @State private var situationStore: AppSituationStore
     @State private var profileStore = ProfileStore()
-    @State private var apiStore = APIStore()
+    @State private var apiStore: APIStore
     @State private var router = AppRouter(selectedTab: RootTabView.launchTab)
     /// Translate's listening and turns. App-wide, so listening carries on when
     /// you switch tabs and the tab bar's Listening accessory can stop it (T2.5).
@@ -38,11 +39,18 @@ struct RyokoApp: App {
     @State private var placeResolver: any PlaceResolver = LivePlaceResolver()
     /// Speak (design §8.1): ElevenLabs, or the on-device voice without a key.
     @State private var speechService: any SpeechService
+    /// Trip memory (design §8.3): batches of what you did, through the current API.
+    @State private var tripMemory: TripMemoryLog
     /// The Live Activity for the active place (design §4.11), and its `ryoko://` links.
     @State private var liveActivities = LiveActivityCoordinator()
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        let situationStore = AppSituationStore()
+        let apiStore = APIStore()
+        _situationStore = State(initialValue: situationStore)
+        _apiStore = State(initialValue: apiStore)
+        _tripMemory = State(initialValue: TripMemoryLog(api: { apiStore.api }, situation: { situationStore.currentSituation() }))
         let translate = TranslateModel.forLaunch()
         _translateModel = State(initialValue: translate)
         _speechService = State(initialValue: LiveSpeechService(beforeSpeaking: { await translate.stopForSpeech() }))
@@ -63,6 +71,7 @@ struct RyokoApp: App {
                 .environment(\.ryokoAPI, apiStore.api)
                 .environment(\.placeResolver, placeResolver)
                 .environment(\.speechService, speechService)
+                .environment(\.tripMemory, tripMemory)
                 .task {
                     liveActivities.start(situationStore: situationStore, profileStore: profileStore, apiStore: apiStore)
                     #if DEBUG
@@ -82,7 +91,10 @@ struct RyokoApp: App {
             // Timers don't run while the app is suspended: catch up on the local hour.
             if phase == .active { situationStore.refreshClock() }
             // Listening stops when Ryoko leaves the screen (design §4.8), whichever tab is open.
-            if phase == .background { translateModel.stopAndForgetPause(.background) }
+            if phase == .background {
+                translateModel.stopAndForgetPause(.background)
+                tripMemory.flush() // don't leave a batch waiting while suspended
+            }
         }
     }
 }

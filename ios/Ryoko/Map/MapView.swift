@@ -31,6 +31,7 @@ private struct MapHomeScreen: View {
     @Environment(AppRouter.self) private var router
     @Environment(\.ryokoAPI) private var api
     @Environment(\.placeResolver) private var resolver
+    @Environment(\.tripMemory) private var tripMemory
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -522,6 +523,10 @@ private struct MapHomeScreen: View {
                 timeZone: place.timeZone ?? area?.timeZone,
                 area: area
             ))
+            // Confirmed (you're within 300 m), not previewed: trip memory keeps it.
+            if situationStore.previewSituation == nil, situationStore.confirmedPlace == place.place {
+                tripMemory.placeConfirmed(place.place)
+            }
             confirmations += 1
         }
     }

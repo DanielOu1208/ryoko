@@ -15,6 +15,8 @@ import Foundation
 /// - Soniox key: there's no key server, so it throws `.notConfigured` and
 ///   Translate falls back to the build's key, as it does offline.
 /// - Mimo models: the one example list, whatever the situation.
+/// - Trip events: accepted and not stored (`stored: 0`), like a server without
+///   Tiger, with no delay.
 /// - Mimo: by `situation.localLanguage`. Chinese replays `mimo.zh-hans.sse.txt`;
 ///   anything else `mimo.sse.txt`. Event by event, with the requested session id.
 nonisolated struct FixtureRyokoAPI: RyokoAPI {
@@ -65,6 +67,11 @@ nonisolated struct FixtureRyokoAPI: RyokoAPI {
     func mimoModels() async throws -> MimoModelsResponse {
         try await respond()
         return try load(MimoModelsResponse.self, .mimoModelsResponse)
+    }
+
+    func tripEvents(_ request: TripEventsRequest) async throws -> TripEventsResponse {
+        if let failure { throw failure }
+        return TripEventsResponse(stored: 0)
     }
 
     func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error> {

@@ -18,6 +18,8 @@ export const SCHEMAS: Record<string, TSchema> = {
   TranslateRequest: C.TranslateRequest,
   TranslateResponse: C.TranslateResponse,
   SonioxKeyResponse: C.SonioxKeyResponse,
+  TripEventsRequest: C.TripEventsRequest,
+  TripEventsResponse: C.TripEventsResponse,
   MimoMessageRequest: C.MimoMessageRequest,
   MimoModelsResponse: C.MimoModelsResponse,
   SseEvent: C.SseEvent,

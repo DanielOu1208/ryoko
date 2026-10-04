@@ -17,6 +17,7 @@ import { DISCOVER_PROMPT_VERSION, discoverGrounding, DiscoverModelOutput, discov
 import { createExaSearch, type WebSearch } from './mimo/exa.ts';
 import { createGuideSearch, snowflakeConfigFrom, type GuideHit, type GuideSearch } from '../guides/snowflake.ts';
 import { MimoSessions, type MimoRunEvent, type MimoRunStats } from './mimo/session.ts';
+import { sharedTiger, type Tiger } from '../memory/index.ts';
 import { finalizePlaceCard, normalizePlaceCard, PLACE_CARD_PROMPT_VERSION, placeCardGuideQuery, PlaceCardModelOutput, placeCardSystem, placeCardUser } from './place-card.ts';
 import {
   finalizeTranslate,
@@ -44,6 +45,8 @@ export interface ModelSkillsOptions {
   search?: WebSearch | null;
   /** The travel guides (Snowflake Cortex Search); by default from SNOWFLAKE_* when set. */
   guides?: GuideSearch | null;
+  /** Trip memory and saved chats (Tiger Data); by default from TIGER_DATABASE_URL when set. */
+  tiger?: Tiger | null;
   log?: (line: string) => void;
   onSkillStats?: (stats: SkillCallStats) => void;
   onMimoStats?: (stats: MimoRunStats) => void;
@@ -91,10 +94,12 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
   const snowflake = snowflakeConfigFrom(config.env);
   const guides = options.guides !== undefined ? options.guides : snowflake ? createGuideSearch(snowflake) : null;
   const log = options.log ?? (config.logRequests ? (line: string) => console.log(line) : () => {});
+  const tiger = options.tiger !== undefined ? options.tiger : sharedTiger(config.env);
   const timeoutMs = config.timeouts.skillMs;
 
   const onMimoStats = (stats: MimoRunStats) => {
-    log(`Mimo ${stats.runId} (${stats.model}): ${stats.stopReason}, ${stats.turns} turn(s), tools [${stats.toolCalls.join(', ')}], ${stats.phrases.phrases} phrase(s)${stats.phrases.dropped ? `, ${stats.phrases.dropped} dropped` : ''}${stats.phrases.malformed ? `, ${stats.phrases.malformed} malformed` : ''}, ${stats.latencyMs} ms, $${stats.costUsd.toFixed(5)}`);
+    const memory = stats.memory ? `, memory ${stats.memory.recent}+${stats.memory.similar} (${stats.memory.ms} ms)` : '';
+    log(`Mimo ${stats.runId} (${stats.model}): ${stats.stopReason}, ${stats.turns} turn(s), tools [${stats.toolCalls.join(', ')}], ${stats.phrases.phrases} phrase(s)${stats.phrases.dropped ? `, ${stats.phrases.dropped} dropped` : ''}${stats.phrases.malformed ? `, ${stats.phrases.malformed} malformed` : ''}${memory}, ${stats.latencyMs} ms, $${stats.costUsd.toFixed(5)}`);
     for (const dropped of stats.phrases.droppedPhrases) log(`  dropped phrase (${dropped})`);
     options.onMimoStats?.(stats);
   };
@@ -104,7 +109,18 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
     if (!mimoDefault || (!request.model && !request.effort)) return llm.forSkill('mimo');
     return llm.forSpec(await mimoSpec(request, llm, mimoDefault));
   };
-  const mimoSessions = new MimoSessions({ llm, budget, search, guides, timeoutMs: config.timeouts.mimoMs, pickModel, onRunStats: onMimoStats, onRunEvent: options.onMimoEvent });
+  const mimoSessions = new MimoSessions({
+    llm,
+    budget,
+    search,
+    guides,
+    tripMemory: tiger?.trips ?? null,
+    sessionStore: tiger?.sessions ?? null,
+    timeoutMs: config.timeouts.mimoMs,
+    pickModel,
+    onRunStats: onMimoStats,
+    onRunEvent: options.onMimoEvent,
+  });
 
   /** Guide excerpts for a place card. A slow or failed search means a card without them, never a failed card. */
   async function placeCardGuides(request: PlaceCardRequest): Promise<GuideHit[]> {
@@ -248,6 +264,19 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
       // Only tests run these skills without model settings (MODEL=faux on a ready-made Llm).
       if (!mimoDefault) throw new ApiError('model_error', 'Mimo has no model settings on this server.', { status: 503, retryable: false });
       return mimoModels(llm, mimoDefault);
+    },
+
+    async tripEvents(request, ctx) {
+      if (!tiger || !ctx.installId) return { stored: 0 };
+      try {
+        const stored = await tiger.trips.store(ctx.installId, request.events);
+        log(`trip events: ${stored} of ${request.events.length} stored`);
+        return { stored };
+      } catch (err) {
+        // Memory is best effort: the app never waits on it, so this is never an error for it.
+        console.error(`Tiger: couldn't store ${request.events.length} trip event(s): ${(err as Error).message}`);
+        return { stored: 0 };
+      }
     },
   };
 }

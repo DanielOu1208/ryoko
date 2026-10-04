@@ -10,7 +10,8 @@ import Foundation
 ///   the demo profile, then pinned; the coffee phrase uses the profile's iced coffee).
 /// - Mimo: a three-hour walking plan, streamed like the real thing.
 ///
-/// Everything else goes to the wrapped API. Names are typed by hand.
+/// Trip events are dropped. Everything else goes to the wrapped API. Names are
+/// typed by hand.
 nonisolated struct DemoScriptAPI: RyokoAPI {
     let base: any RyokoAPI
 
@@ -42,6 +43,11 @@ nonisolated struct DemoScriptAPI: RyokoAPI {
 
     func sonioxKey() async throws -> SonioxKeyResponse {
         try await base.sonioxKey()
+    }
+
+    /// Nothing reaches trip memory, so every take starts from the same Mimo.
+    func tripEvents(_ request: TripEventsRequest) async throws -> TripEventsResponse {
+        TripEventsResponse(stored: 0)
     }
 
     func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error> {

@@ -13,6 +13,8 @@ import type {
   StopReason,
   TranslateRequest,
   TranslateResponse,
+  TripEventsRequest,
+  TripEventsResponse,
 } from '@ryoko/contracts';
 import type { SseSink } from '../sse.ts';
 
@@ -59,4 +61,9 @@ export interface Skills {
   mimo(request: MimoMessageRequest, ctx: MimoContext): Promise<MimoRun>;
   /** The models and thinking levels Mimo's picker offers (GET /v1/mimo-models). */
   mimoModels(): Promise<MimoModelsResponse>;
+  /**
+   * Stores what the traveller did, for Mimo's trip memory (Tiger, design §8.3).
+   * Absent, or `{stored: 0}`, when trip memory is off: the app never waits on it.
+   */
+  tripEvents?(request: TripEventsRequest, ctx: SkillContext): Promise<TripEventsResponse>;
 }
