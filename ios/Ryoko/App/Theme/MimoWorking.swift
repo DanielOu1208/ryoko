@@ -3,13 +3,9 @@ import ThinkingOrbs
 
 /// What Mimo is working on, while it works (design §9.5, #65): a thinking orb
 /// (`ThinkingOrbs`, after Jakub Antalik's thinking-orbs, MIT) over a short
-/// line. Content only: the caller puts it on its card surface. The orb's
-/// design says what kind of work it is:
-///
-/// - `.weaving`: picking places (several steps).
-/// - `.composing`: writing (a place card's phrases and tips, an allergy card).
-/// - `.connecting`: putting a reply's places on the map.
-/// - `.searching`: finding where you are.
+/// line. Content only: the caller puts it on its card surface. Every place
+/// uses the same design, `.solving` (a cube whose bands scramble in quarter
+/// turns and click back solved, #70); the line says what the work is.
 ///
 /// Busy buttons (the mic, Taxi, translating) keep the system spinner, which
 /// fits inside a button.

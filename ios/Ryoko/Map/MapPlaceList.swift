@@ -226,7 +226,7 @@ struct MapPlaceList: View {
                     // Mimo's working card until the first pick, which it
                     // dissolves into; the rest rise in as they're found.
                     ArrivingStack(isLoading: isPicking && places.isEmpty, spacing: 0) {
-                        MimoWorking(design: .weaving, line: "Picking places for you")
+                        MimoWorking(design: .solving, line: "Picking places for you")
                     } content: {
                         ForEach(Array(places.enumerated()), id: \.element.id) { index, place in
                             VStack(spacing: 0) {
@@ -237,7 +237,7 @@ struct MapPlaceList: View {
                         if isPicking, !places.isEmpty {
                             VStack(spacing: 0) {
                                 MapListDivider()
-                                MapWorkingRow(design: .weaving, line: "Picking more places")
+                                MapWorkingRow(design: .solving, line: "Picking more places")
                             }
                         }
                     }
@@ -288,7 +288,7 @@ struct MapPlaceList: View {
             switch liveState {
             case .locating, .searching:
                 // The header says "Finding where you are".
-                MimoWorking(design: .searching)
+                MimoWorking(design: .solving)
             case .denied:
                 Text("Turn on location for Ryoko in Settings to see places near you. You can still search, or long-press the map to look around.")
                     .foregroundStyle(.secondary)

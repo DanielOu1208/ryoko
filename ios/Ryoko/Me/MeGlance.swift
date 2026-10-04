@@ -95,7 +95,7 @@ struct MeAllergySection: View {
                 }
                 Spacer(minLength: Theme.grid)
                 if presenter.isLoading {
-                    ThinkingOrb(.composing, size: .small)
+                    ThinkingOrb(.solving, size: .small)
                         .accessibilityLabel("Writing the allergy card")
                 } else {
                     Image(systemName: language == nil ? "chevron.up.chevron.down" : "arrow.up.left.and.arrow.down.right")

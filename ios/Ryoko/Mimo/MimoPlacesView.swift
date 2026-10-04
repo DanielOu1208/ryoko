@@ -16,7 +16,7 @@ struct MimoPlacesView: View {
         // While the names are looked up on the map, Mimo's working card,
         // which dissolves into the places card.
         ArrivingStack(isLoading: places.found == nil) {
-            MimoWorking(design: .connecting, line: "Finding places on the map")
+            MimoWorking(design: .solving, line: "Finding places on the map")
                 .background(Theme.cardFill, in: Theme.cardShape)
         } content: {
             content

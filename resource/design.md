@@ -711,12 +711,12 @@ Reference: Luma. Lots of whitespace, confident type, few controls, and colour th
 
 - SF Symbols only, monochrome or hierarchical rendering. The app icon is not built from SF Symbols; their licence doesn't allow it.
 - Native springs (`.smooth`, `.snappy`), symbol effects and `contentTransition` for changing text.
-- **Where Mimo is working** (#65), a dotted thinking orb (the `ThinkingOrbs` package, after Jakub Antalik's thinking-orbs, MIT; monochrome, still under Reduce Motion) with a short line, on a card:
-  - Mimo picks: "Picking places for you" (`.weaving`); once picks come in, a small orb row "Picking more places" until they're done.
-  - A place card: "Writing phrases and tips" or "Writing tips for this place" (`.composing`).
-  - Mimo's places: "Finding places on the map" (`.connecting`).
-  - Finding where you are: the orb alone (`.searching`; the header says it).
-  - The allergy card row: a small orb (`.composing`).
+- **Where Mimo is working** (#65), a dotted thinking orb (the `ThinkingOrbs` package, after Jakub Antalik's thinking-orbs, MIT; monochrome, still under Reduce Motion) with a short line, on a card. Every one is the Rubik's cube design (`.solving`: bands scramble in quarter turns, then click back solved; #70):
+  - Mimo picks: "Picking places for you"; once picks come in, a small orb row "Picking more places" until they're done.
+  - A place card: "Writing phrases and tips" or "Writing tips for this place".
+  - Mimo's places: "Finding places on the map".
+  - Finding where you are: the orb alone (the header says it).
+  - The allergy card row: a small orb.
   - Stacked results arrive from that one card: it dissolves (blur, a small swell, fade) into the first card in its place, and the rest rise in one by one. Content already at hand (a saved card) just appears.
   - Busy buttons (the mic, Taxi, translating) keep the system spinner, which fits inside a button. Nearby places keep `.redacted` rows (MapKit, not Mimo).
 - `sensoryFeedback` on confirming a place, opening Show mode, starting or stopping listening, and the face-to-face flip.
@@ -925,3 +925,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 67 | The wash is blue at every hour (no orange mornings or evenings), a little more saturated in light mode, and it reacts: it drifts while Mimo works or Translate connects, and swells with the voice while Translate listens. Still under Reduce Motion | user |
 | 68 | Translate's turns are manual: you say who's speaking by tapping their language, and everything heard stays in that turn until you tap the other. Soniox finalizes at each hand-over so last words stay put; strict language hints. Supersedes the automatic turn rule from #29 (kept for DEBUG) | user (auto switching too sensitive, text vanished on every switch) |
 | 69 | Me is a styled home instead of one long list: an avatar header (an SF Symbol you pick, kept on the device, not in the profile), where you're from, languages and this-or-that chips; the allergy card at a glance (local title, allergens with severity in words, tap for Show mode); Diet, Your usual and Home base; About me; and a Settings row that holds every profile page, the home base, Redo survey, romanization, credits and the developer section. §4.10 | user ("the Me screen looks like an afterthought") |
+| 70 | Every thinking orb is the Rubik's cube design (`.solving`) instead of one design per kind of work | user |

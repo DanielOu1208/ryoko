@@ -395,7 +395,7 @@ struct MapPlaceCard: View {
         } else {
             // Mimo's working card, which dissolves into the card's sections.
             ArrivingStack(isLoading: load.isLoading) {
-                MimoWorking(design: .composing, line: speaksLocal ? "Writing tips for this place" : "Writing phrases and tips")
+                MimoWorking(design: .solving, line: speaksLocal ? "Writing tips for this place" : "Writing phrases and tips")
                     .background(Theme.cardFill, in: Theme.cardShape)
             } content: {
                 loadedSections(speaksLocal: speaksLocal)

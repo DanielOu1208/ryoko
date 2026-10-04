@@ -88,7 +88,7 @@ struct AllergyCardPreviewRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             if presenter.isLoading {
                 // Mimo writing the card in the local language.
-                ThinkingOrb(.composing, size: .small)
+                ThinkingOrb(.solving, size: .small)
                     .accessibilityLabel("Writing the allergy card")
             } else if let symbol {
                 Image(systemName: symbol)
