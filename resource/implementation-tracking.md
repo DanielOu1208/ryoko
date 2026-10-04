@@ -16,7 +16,7 @@ A living tracker for the build. **Update it as you work.** When you start a task
 | Setup (§12.2) | done | S1–S5 done |
 | Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 done (desk) |
 | Tier 1: working core | doing | **All of W1–W7 built, end-to-end checked against real GMI, reviewed and fixed.** Open: mic and tilt on the phone, minor follow-ups (see Fix round). W8 avatar in progress |
-| Tier 2 | todo | |
+| Tier 2 | doing | T2.2–T2.6 done (merged, verified end to end on real GMI, reviewed, fixed). T2.1 Speak waits for an ElevenLabs key; T2.7 Gemini deferred |
 | After core | todo | |
 | Submission | todo | |
 
@@ -29,9 +29,11 @@ Updated 2026-10-03 16:40. Update this section whenever a screen changes state.
 | Tab bar | **Working** | Native Liquid Glass bar: Translate · Nearby · **Map (opens first)** · Mimo · Me |
 | Nearby (was Now) | **Working** (W3) | Phrase cards with Show, tips, Allergy and Taxi quick cards, mini map (opens Map), preview banner with tap-to-change-time, special cases with a way to the Map, saved card when offline. Large-text layout fixed |
 | Map | **Working** (W4), the launch tab | Opens on the map at your location with a floating sheet above the tab bar: Mimo picks with whys, then the nearest places; tap a row → it becomes your place → Nearby. ⓘ, a pin, a search result or a long-press opens details in the sheet (phrases, Preview, Taxi card, Ask Mimo, Make this my place). Layers: Food & drink, Washrooms, Hidden gems, From Mimo |
-| Translate | **Working on device** (W5) | Real mic speech on the iPhone 18 Pro Max, English ⇄ the place's language (or picked), live panes upright or face to face with **working tilt**, History, clear error messages. In the simulator use `-RyokoTranslateSource canned` (the sim mic aborts) |
+| Translate | **Working on device** (W5) | Real mic speech on the iPhone 18 Pro Max, English ⇄ the place's language (or picked), live panes upright or face to face with **working tilt**, History, clear error messages. In the simulator use `-RyokoTranslateSource canned` (the sim mic aborts) **T2:** Type mode with live preview, edit your turns, Listening bar on other tabs, server-minted Soniox keys. |
 | Mimo | **Working** (W6 UI + W7 real model) | Ask Mimo or tap a starter: streamed reply with tappable phrase blocks (open Show), place chips (open Map), Show on map, source links; Stop, New chat, Ask Mimo about this place; transcript kept on device. Mimo's animated avatar is in the header (it thinks, talks and reacts) and is the tab icon. |
-| Me | **Working** (minimal) | Read-only seed profile, home base (placeholder hotel), romanization toggle, developer section (Fixtures or Live server, base URL, profile hash, reset, sample preview) |
+| Me | **Working** (T2.3) | Every profile section editable (saves live), home base by search or map, Redo survey, allergy card, romanization toggle, Credits, Developer |
+| Onboarding | **Working** (T2.3) | 7-page survey on first launch (each page skippable); DEBUG builds offer 'Use demo profile' |
+| Live Activity | **Working** (T2.2) | Lock screen + Dynamic Island with the place and its top phrase; tap opens Show mode |
 | Show mode | **Working** (W3) | Full screen for phrases, the allergy card and the taxi card: Flip, Done, max brightness, screen stays awake |
 | Server | **Real Mimo on GMI** (W7) | `pnpm server:dev` runs the real skills on DeepSeek V4.1 Flash: place cards ~2.6 s, discover ~3 s, Mimo chat with show_places and Exa web search, streamed phrase events with pinyin. `MODEL=faux` still serves fixtures |
 
@@ -52,7 +54,7 @@ Updated 2026-10-03 16:40. Update this section whenever a screen changes state.
 | Branch / worktree | Purpose | Owns |
 | --- | --- | --- |
 | `ui-refine` at `../stormhack26-ui` | The user's UI refinement pass | `ios/Ryoko/Map/`, `ios/Ryoko/Nearby/`, `ios/Ryoko/Mimo/`, `ios/Ryoko/App/Theme/Theme.swift` |
-| `main` | The T2.2–T2.6 workflow (builders in isolated worktrees, merged into main) | Everything else. **Doesn't touch the ui-refine lanes** until ui-refine merges back |
+| `main` | T2.2–T2.6 merged | Everything else. **Doesn't touch the ui-refine lanes** until ui-refine merges back |
 
 The live server for the phone runs from `main` on `127.0.0.1:8792`, behind the Funnel on `:10000`. Don't stop it.
 
@@ -197,11 +199,11 @@ Write down what you find. The results may change the spec.
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
 | T2.1 | Speak: ElevenLabs client (restricted key via the MLH code or Starter), audio cache, `AVSpeechSynthesizer` fallback, `.playback` session, stop Translate first | | todo | | |
-| T2.2 | Live Activity: attributes in `Shared/`, lock screen, Dynamic Island, deep link to Show, one at a time | wf:live-activity | review | `worktree-wf_be317781-a93-1` | `LiveActivityCoordinator` (`App/LiveActivity/`) follows the situation: placeholder, then the card's top phrase (169–347 bytes); one at a time; ends at launch, on a new place, with no place, and after 2 h. Sim: island compact seen (screenshot with `--mask=black`), lock screen via `-RyokoActivityGallery` (the sim can't lock), cold-start `ryoko://show?phrase=` via `-RyokoOpenURL` (`simctl openurl` stops at "Open in Ryoko?"). Not yet seen on the phone |
-| T2.3 | Onboarding survey (7 pages) + editing in Me + redo survey | | todo | | |
-| T2.4 | Translate Type mode + tap-to-edit turns + `/v1/translate` | | todo | | |
-| T2.5 | Bottom Listening accessory + tab-bar minimize | | todo | | |
-| T2.6 | Server-minted Soniox keys (`/v1/soniox-key`) |  | todo |  | Feasible: D2 confirmed `POST /v1/auth/temporary-api-key` (transcribe_websocket, 60 s) works with this key |
+| T2.2 | Live Activity: attributes in `Shared/`, lock screen, Dynamic Island, deep link to Show, one at a time | wf:T2 | done | `worktree-wf_be317781-a93-1` | Starts on confirm/preview (only where there are phrases), one at a time, placeholder → real top phrase (≤ ~320 B), 2 h end + staleDate; lock screen + Dynamic Island (category symbol + short name, expanded phrase); ryoko://show deep link opens Show (cold start too); waits 2.5 s for profile edits to settle. Real tap on the phone still to try |
+| T2.3 | Onboarding survey (7 pages) + editing in Me + redo survey | wf:T2 | done |  | 7-page survey on first launch (skips → null), DEBUG 'Use demo profile'; Me: every section editable live (text saves after a 1 s pause), home base via search or pick on map, Redo survey; profile.version updates so the server regenerates cards |
+| T2.4 | Translate Type mode + tap-to-edit turns + `/v1/translate` | wf:T2 | done |  | Type mode with a live preview (500 ms pauses, stale requests cancelled), Done adds the turn; tap your turn (panes or History) to edit and re-translate; /v1/translate on GMI ~1.6–2.2 s cold, cached |
+| T2.5 | Bottom Listening accessory + tab-bar minimize | wf:T2 | done |  | App-wide TranslateModel; 'Listening · English ⇄ Japanese' accessory with stop on other tabs; tab bar minimizes on scroll on Nearby and Mimo only (design §3) |
+| T2.6 | Server-minted Soniox keys (`/v1/soniox-key`) | wf:T2 | done |  | /v1/soniox-key mints single-use 60 s keys (3600 s session cap, 10/min); each session uses one; falls back to the bundled key only when the server can't mint (kept for the hackathon, #46) |
 | T2.7 | Switch to Gemini: billed project + spend cap, `gemini-3.8-flash` (reasoning low), Flash-Lite for translate, rerun evals | | todo | | Required before submission (Gemini track) |
 
 ## 4. After core
@@ -244,3 +246,6 @@ Write down what you find. The results may change the spec.
 | 2026-10-03 | Web search provider Tavily → Exa (`EXA_API_KEY`) | user | yes (#44) |
 | 2026-10-03 | Map bottom sheet is an in-tab floating panel above the tab bar, not a native `.sheet` (inside TabView a sheet covers the tab bar). Tapping a far pick previews it at the current time; within 300 m it becomes the live place | W4 | no (implementation) |
 | 2026-10-03 | Map sheet stays translucent (material, Apple Maps style); the user is happy with it, which overrides §9.4's solid-surface note for this floating panel | user | no |
+| 2026-10-03 | The bundled Soniox key stays as a fallback when the server can't mint a key (hackathon robustness) | review default | yes (#46) |
+| 2026-10-03 | `/v1/localize-place` cut: the home base's local name/address are worked out on device with MapKit | T2.3 | yes (#47) |
+| 2026-10-03 | Tab bar minimize limited to Nearby and Mimo (design §3) | T2 review/fix | no (matches §3) |

@@ -368,7 +368,7 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
   | `POST /v1/allergy-card` | `allergy-card` (free-text allergens only) | 1 |
   | `POST /v1/sessions/:id/messages` (SSE) | `mimo` | 1 |
   | `POST /v1/translate` | `translate` (no tools) | 2 |
-  | `POST /v1/localize-place` | local-script name and address for a home base | 2 |
+  | ~~`POST /v1/localize-place`~~ | cut (#47): MapKit on device | — |
   | `POST /v1/soniox-key` | mints a short-lived Soniox key | 2 |
 
 - **Mimo's tools:**
@@ -843,3 +843,5 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 43 | The Map has an Apple Maps-style bottom sheet: Mimo picks (hidden gems, special spots) first, then the nearest places; about 3 rows visible, scroll for more. Tapping a place makes it current and opens Nearby. Place details show in the same sheet. A first pass, to iterate on | user |
 | 44 | Web search uses **Exa** rather than Tavily (the user already has an Exa key) | user |
 | 45 | Mimo avatar: Swift port of bloub's engine (MIT) with Mimo's own look; shown in the Mimo header, the Map sheet's Mimo picks and the Mimo tab icon | user |
+| 46 | The app keeps its bundled Soniox key as a fallback when the server can't mint a temporary key (one side-loaded demo phone; rotate after the event) | default |
+| 47 | `/v1/localize-place` is cut: the home base's local-script name and address come from MapKit on the device | default |
