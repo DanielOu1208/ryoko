@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/MimoModelsResponse.schema.json",
+  "title": "MimoModelsResponse",
+  "type": "object",
+  "required": [
+    "defaultModel",
+    "models"
+  ],
+  "properties": {
+    "defaultModel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "description": "The id used when a message names no model"
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "provider",
+          "providerName",
+          "efforts",
+          "defaultEffort"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "description": "`provider:modelId`, sent back as the message `model`"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Display name, e.g. \"Gemini 3.8 Flash\""
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "gmi",
+              "google"
+            ]
+          },
+          "providerName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "e.g. \"GMI Cloud\""
+          },
+          "efforts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "off",
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 5,
+            "description": "The levels this model takes, lowest first"
+          },
+          "defaultEffort": {
+            "type": "string",
+            "enum": [
+              "off",
+              "minimal",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 20
+    }
+  },
+  "additionalProperties": false
+}

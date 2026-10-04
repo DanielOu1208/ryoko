@@ -3,11 +3,12 @@
 // de-duplication and the daily cost kill switch.
 
 import { join } from 'node:path';
-import type { AllergyCardRequest, DiscoverRequest, PlaceCardRequest, TranslateRequest } from '@ryoko/contracts';
+import type { AllergyCardRequest, DiscoverRequest, MimoMessageRequest, PlaceCardRequest, TranslateRequest } from '@ryoko/contracts';
 import type { Config } from '../config.ts';
 import { cacheKey, ResponseCache, type CacheSource } from '../cache.ts';
-import { clientClosed } from '../errors.ts';
+import { ApiError, clientClosed } from '../errors.ts';
 import { Budget } from '../llm/budget.ts';
+import { mimoModels, mimoSpec } from '../llm/catalog.ts';
 import { createLlm, type Llm } from '../llm/registry.ts';
 import { generateTyped, type GenerationStats } from '../llm/typed.ts';
 import { ALLERGY_CARD_PROMPT_VERSION, allergyCardModelOutput, allergyCardSystem, allergyCardUser, finalizeAllergyCard } from './allergy-card.ts';
@@ -88,11 +89,17 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
   const timeoutMs = config.timeouts.skillMs;
 
   const onMimoStats = (stats: MimoRunStats) => {
-    log(`Mimo ${stats.runId}: ${stats.stopReason}, ${stats.turns} turn(s), tools [${stats.toolCalls.join(', ')}], ${stats.phrases.phrases} phrase(s)${stats.phrases.dropped ? `, ${stats.phrases.dropped} dropped` : ''}${stats.phrases.malformed ? `, ${stats.phrases.malformed} malformed` : ''}, ${stats.latencyMs} ms, $${stats.costUsd.toFixed(5)}`);
+    log(`Mimo ${stats.runId} (${stats.model}): ${stats.stopReason}, ${stats.turns} turn(s), tools [${stats.toolCalls.join(', ')}], ${stats.phrases.phrases} phrase(s)${stats.phrases.dropped ? `, ${stats.phrases.dropped} dropped` : ''}${stats.phrases.malformed ? `, ${stats.phrases.malformed} malformed` : ''}, ${stats.latencyMs} ms, $${stats.costUsd.toFixed(5)}`);
     for (const dropped of stats.phrases.droppedPhrases) log(`  dropped phrase (${dropped})`);
     options.onMimoStats?.(stats);
   };
-  const mimoSessions = new MimoSessions({ llm, budget, search, timeoutMs: config.timeouts.mimoMs, onRunStats: onMimoStats, onRunEvent: options.onMimoEvent });
+  // The app's pick for each message (design §4.9), checked against what the picker offers.
+  const mimoDefault = config.models?.mimo ?? null;
+  const pickModel = async (request: MimoMessageRequest) => {
+    if (!mimoDefault || (!request.model && !request.effort)) return llm.forSkill('mimo');
+    return llm.forSpec(await mimoSpec(request, llm, mimoDefault));
+  };
+  const mimoSessions = new MimoSessions({ llm, budget, search, timeoutMs: config.timeouts.mimoMs, pickModel, onRunStats: onMimoStats, onRunEvent: options.onMimoEvent });
 
   function report(skill: SkillCallStats['skill'], source: CacheSource, generation: GenerationStats | undefined): void {
     const stats: SkillCallStats = { skill, source, ...(generation ? { generation } : {}) };
@@ -216,5 +223,11 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
     },
 
     mimo: (request, ctx) => mimoSessions.prepare(request, ctx),
+
+    async mimoModels() {
+      // Only tests run these skills without model settings (MODEL=faux on a ready-made Llm).
+      if (!mimoDefault) throw new ApiError('model_error', 'Mimo has no model settings on this server.', { status: 503, retryable: false });
+      return mimoModels(llm, mimoDefault);
+    },
   };
 }

@@ -12,6 +12,7 @@ import {
   AllergyCardResponse,
   DiscoverRequest,
   DiscoverResponse,
+  MimoModelsResponse,
   PlaceCardRequest,
   PlaceCardResponse,
   SseEvent,
@@ -43,6 +44,8 @@ export interface FixtureSet {
   /** By the target language (`to`): typed text goes to the place's language. */
   translate: Fixture<TranslateResponse>[];
   mimo: Fixture<TranscriptItem[]>[];
+  /** The picker's models: one example, whatever the language. */
+  mimoModels: MimoModelsResponse;
 }
 
 export class FixtureError extends Error {
@@ -98,6 +101,13 @@ function loadPairs<Req extends TSchema, Res extends TSchema>(
   }
   if (fixtures.length === 0) throw new FixtureError(`No ${endpoint} example found in contracts/examples.`);
   return fixtures;
+}
+
+/** One example with no variants, checked against its schema. */
+function loadOne<T extends TSchema>(dir: string, file: string, schema: T): Static<T> {
+  const value = readJson(dir, file);
+  assertSchema(schema, value, file);
+  return value as Static<T>;
 }
 
 /** Parses an SSE transcript in §7.7 wire format. Throws on anything else. */
@@ -157,6 +167,7 @@ export function loadFixtures(dir = EXAMPLES_DIR): FixtureSet {
     mimo: loadTranscripts(dir),
     // Tier 2, loaded last so a broken tier 1 example is the error you see first.
     translate: loadPairs(dir, 'translate', TranslateRequest, TranslateResponse, (r) => r.to),
+    mimoModels: loadOne(dir, 'mimo-models.response.json', MimoModelsResponse),
   };
 }
 

@@ -50,6 +50,10 @@ nonisolated struct LiveRyokoAPI: RyokoAPI {
         try await postJSON("v1/soniox-key", body: SonioxKeyRequest(), timeout: Self.sonioxKeyTimeout)
     }
 
+    func mimoModels() async throws -> MimoModelsResponse {
+        try await getJSON("v1/mimo-models")
+    }
+
     func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error> {
         let session = self.session
         let configuration = self.configuration
@@ -88,6 +92,29 @@ nonisolated struct LiveRyokoAPI: RyokoAPI {
             accept: "application/json",
             timeout: timeout
         )
+        return try await perform(urlRequest, path: path)
+    }
+
+    @concurrent
+    private func getJSON<Response: Decodable & Sendable>(
+        _ path: String,
+        timeout: TimeInterval = LiveRyokoAPI.jsonTimeout
+    ) async throws -> Response {
+        let config = try configuration()
+        let urlRequest = try Self.makeRequest(
+            url: config.baseURL.appending(path: path),
+            config: config,
+            body: nil as SonioxKeyRequest?,
+            accept: "application/json",
+            timeout: timeout
+        )
+        return try await perform(urlRequest, path: path)
+    }
+
+    /// Sends a JSON request and decodes its response, or throws the typed error.
+    @concurrent
+    private func perform<Response: Decodable & Sendable>(_ urlRequest: URLRequest, path: String) async throws -> Response {
+        let method = urlRequest.httpMethod ?? "GET"
         let started = ContinuousClock.now
         let data: Data
         let response: URLResponse
@@ -97,14 +124,14 @@ nonisolated struct LiveRyokoAPI: RyokoAPI {
             throw Self.mapped(error)
         }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        RyokoLog.api.info("POST /\(path, privacy: .public) → \(status) in \(ContinuousClock.now - started, privacy: .public)")
+        RyokoLog.api.info("\(method, privacy: .public) /\(path, privacy: .public) → \(status) in \(ContinuousClock.now - started, privacy: .public)")
         guard (200..<300).contains(status) else {
             throw Self.error(status: status, body: data)
         }
         do {
             return try JSONDecoder().decode(Response.self, from: data)
         } catch {
-            RyokoLog.api.error("POST /\(path, privacy: .public) returned an off-contract body: \(String(describing: error), privacy: .public)")
+            RyokoLog.api.error("\(method, privacy: .public) /\(path, privacy: .public) returned an off-contract body: \(String(describing: error), privacy: .public)")
             throw RyokoAPIError.invalidResponse(String(describing: error))
         }
     }
@@ -157,21 +184,24 @@ nonisolated struct LiveRyokoAPI: RyokoAPI {
 
     // MARK: - Helpers
 
+    /// A POST with a JSON body, or a GET when `body` is nil.
     private static func makeRequest(
         url: URL,
         config: RyokoAPIConfiguration,
-        body: some Encodable,
+        body: (some Encodable)?,
         accept: String,
         timeout: TimeInterval
     ) throws -> URLRequest {
         var request = URLRequest(url: url, timeoutInterval: timeout)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpMethod = body == nil ? "GET" : "POST"
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(body)
+        }
         request.setValue(accept, forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(config.appToken)", forHTTPHeaderField: "Authorization")
         request.setValue(config.installId, forHTTPHeaderField: "X-Install-Id")
         request.setValue(config.clientVersion, forHTTPHeaderField: "X-Client-Version")
-        request.httpBody = try JSONEncoder().encode(body)
         return request
     }
 

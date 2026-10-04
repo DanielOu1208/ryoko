@@ -510,6 +510,9 @@ if let base = env["RYOKO_LIVE_BASE_URL"], let token = env["RYOKO_APP_TOKEN"], !t
             print("  note: this server has no SONIOX_API_KEY (503); the app falls back to its own key")
         }
 
+        let models = try await api.mimoModels()
+        expect(models.models.contains { $0.id == models.defaultModel }, "mimo-models lists its default, \(models.defaultModel) (\(models.models.count) models)")
+
         let request = try source.decode(MimoMessageRequest.self, from: .mimoMessageRequest)
         let sessionId = UUID().uuidString.lowercased()
         var kinds: [String] = []

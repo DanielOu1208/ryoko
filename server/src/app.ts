@@ -12,6 +12,7 @@ import {
   DiscoverRequest,
   DiscoverResponse,
   MimoMessageRequest,
+  MimoModelsResponse,
   PlaceCardRequest,
   PlaceCardResponse,
   SonioxKeyResponse,
@@ -144,6 +145,12 @@ export function createApp(config: Config, options: AppOptions = {}): RyokoApp {
     const title = `“${request.text}” ${request.from} → ${request.to}`;
     const response = await track('translate', title, () => runtime.skills.translate(request, skillContext(c)));
     return c.json(checkResponse(TranslateResponse, response, 'translate'));
+  });
+
+  // The models and thinking levels Mimo's picker offers (design §4.9).
+  app.get('/v1/mimo-models', async (c) => {
+    const response = await runtime.skills.mimoModels();
+    return c.json(checkResponse(MimoModelsResponse, response, 'mimo-models'));
   });
 
   // A short-lived, single-use Soniox key for one listening session (tier 2).

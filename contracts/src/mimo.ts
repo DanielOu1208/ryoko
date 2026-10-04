@@ -17,6 +17,11 @@ export const NearbyPlace = Strict({
 });
 export type NearbyPlace = Static<typeof NearbyPlace>;
 
+/** How much Mimo thinks before it answers: the model's reasoning level, lowest first (design §6.3). */
+export const MIMO_EFFORTS = ['off', 'minimal', 'low', 'medium', 'high'] as const;
+export const MimoEffort = StringEnum(MIMO_EFFORTS);
+export type MimoEffort = Static<typeof MimoEffort>;
+
 export const MimoMessageRequest = Strict({
   clientMessageId: Type.String({ minLength: 1, maxLength: 64 }),
   message: Type.String({ minLength: 1, maxLength: 2000 }),
@@ -24,8 +29,28 @@ export const MimoMessageRequest = Strict({
   situation: Situation,
   nearby: Type.Optional(Type.Array(NearbyPlace, { maxItems: 20 })),
   subjectPlace: Type.Optional(Place),
+  model: Type.Optional(Type.String({ minLength: 1, maxLength: 160, description: 'An id from GET /v1/mimo-models. Absent: the server default' })),
+  effort: Type.Optional(MimoEffort),
 });
 export type MimoMessageRequest = Static<typeof MimoMessageRequest>;
+
+// GET /v1/mimo-models: the models the app's picker offers for Mimo (design §4.9).
+
+export const MimoModel = Strict({
+  id: Type.String({ minLength: 1, maxLength: 160, description: '`provider:modelId`, sent back as the message `model`' }),
+  name: Type.String({ minLength: 1, maxLength: 60, description: 'Display name, e.g. "Gemini 3.8 Flash"' }),
+  provider: StringEnum(['gmi', 'google']),
+  providerName: Type.String({ minLength: 1, maxLength: 60, description: 'e.g. "GMI Cloud"' }),
+  efforts: Type.Array(MimoEffort, { minItems: 1, maxItems: 5, description: 'The levels this model takes, lowest first' }),
+  defaultEffort: MimoEffort,
+});
+export type MimoModel = Static<typeof MimoModel>;
+
+export const MimoModelsResponse = Strict({
+  defaultModel: Type.String({ minLength: 1, maxLength: 160, description: 'The id used when a message names no model' }),
+  models: Type.Array(MimoModel, { minItems: 1, maxItems: 20 }),
+});
+export type MimoModelsResponse = Static<typeof MimoModelsResponse>;
 
 // SSE events. Each is one `data: {json}` line plus a blank line; no `event:` lines.
 // Clients ignore event types they don't know.

@@ -24,6 +24,9 @@ nonisolated protocol RyokoAPI: Sendable {
     /// listening session (tier 2). The key is a secret: never log it.
     func sonioxKey() async throws -> SonioxKeyResponse
 
+    /// `GET /v1/mimo-models`: the models and thinking levels Mimo's picker offers.
+    func mimoModels() async throws -> MimoModelsResponse
+
     /// `POST /v1/sessions/:id/messages`: one Mimo run as a stream of events.
     ///
     /// - The stream throws `RyokoAPIError` if the request fails before streaming
@@ -35,9 +38,10 @@ nonisolated protocol RyokoAPI: Sendable {
     func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error>
 }
 
-/// Tier 2 endpoints that a stand-in API (a DEBUG script, a preview) may not
+/// Endpoints that a stand-in API (a DEBUG script, a preview) may not
 /// implement: they answer as if there's no server, so Translate falls back the
-/// way it does offline. `LiveRyokoAPI` and `FixtureRyokoAPI` implement both.
+/// way it does offline and Mimo hides its model picker. `LiveRyokoAPI` and
+/// `FixtureRyokoAPI` implement them all.
 nonisolated extension RyokoAPI {
     func translate(_ request: TranslateRequest) async throws -> TranslateResponse {
         throw RyokoAPIError.notConfigured("translate")
@@ -45,6 +49,10 @@ nonisolated extension RyokoAPI {
 
     func sonioxKey() async throws -> SonioxKeyResponse {
         throw RyokoAPIError.notConfigured("soniox-key")
+    }
+
+    func mimoModels() async throws -> MimoModelsResponse {
+        throw RyokoAPIError.notConfigured("mimo-models")
     }
 }
 

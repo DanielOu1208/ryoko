@@ -44,6 +44,7 @@ const EXAMPLES: Record<string, TSchema> = {
   'translate.tokyo.response.json': C.TranslateResponse,
   'soniox-key.response.json': C.SonioxKeyResponse,
   'mimo-message.request.json': C.MimoMessageRequest,
+  'mimo-models.response.json': C.MimoModelsResponse,
   'error.invalid-request.response.json': C.ErrorEnvelope,
   'error.session-busy.response.json': C.ErrorEnvelope,
 };

@@ -40,6 +40,7 @@ translate.tokyo.request.json
 translate.tokyo.response.json
 soniox-key.response.json
 mimo-message.request.json
+mimo-models.response.json
 mimo.sse.txt
 mimo.zh-hans.sse.txt
 error.invalid-request.response.json

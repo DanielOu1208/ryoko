@@ -12,19 +12,37 @@
 import { createModels, createProvider, type MutableModels } from '@earendil-works/pi-ai/models';
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import { envApiKeyAuth, type Api, type Model, type SimpleStreamOptions, type ThinkingLevel, type Usage } from '@earendil-works/pi-ai';
-import { describeModel, type Config, type ModelProvider, type SkillName } from '../config.ts';
+import { describeModel, type Config, type ModelProvider, type ModelSpec, type SkillName } from '../config.ts';
 import { ApiError } from '../errors.ts';
 
 export const GMI_BASE_URL = 'https://api.gmi-serving.com/v1';
 
-/** Per-million-token prices, from GMI's model list (spike D3). Unknown models get a deliberately high guess so the budget errs safe. */
+/**
+ * Per-million-token prices, from GMI's model list (spike D3; the rest from
+ * /v1/models on 2026-10-04, below the long-prompt tier). Unknown models get a
+ * deliberately high guess so the budget errs safe.
+ */
 const GMI_PRICES: Record<string, Model<'openai-completions'>['cost']> = {
   'deepseek-ai/DeepSeek-V4.1-Flash': { input: 0.3, output: 1.2, cacheRead: 0.006, cacheWrite: 0 },
   'Qwen/Qwen3.8-Flash': { input: 0.16, output: 0.47, cacheRead: 0.016, cacheWrite: 0.2 },
+  'openai/gpt-6.1-sol': { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
+  'openai/gpt-6-luna': { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+  'moonshotai/kimi-k3': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 0 },
 };
 /** The GMI models with known prices: the dashboard suggests these. */
 export const GMI_MODEL_IDS = Object.keys(GMI_PRICES);
 const UNKNOWN_PRICE = { input: 1, output: 4, cacheRead: 0, cacheWrite: 0 };
+
+/**
+ * The `reasoning_effort` values each GMI model takes, as pi-ai thinking maps
+ * (null: refused with a 400 in the 2026-10-04 probe). Thinking off is sent as
+ * "none"; the rest pass through. GPT-6.1 Sol takes only low, medium and high.
+ */
+const GMI_THINKING: Record<string, Model<'openai-completions'>['thinkingLevelMap']> = {
+  'openai/gpt-6.1-sol': { off: null, minimal: null },
+  'openai/gpt-6-luna': { off: 'none', minimal: null },
+};
+const DEFAULT_GMI_THINKING = { off: 'none' } as const;
 
 /** The env var holding each provider's key. */
 export const PROVIDER_KEY_ENV: Record<ModelProvider, string> = {
@@ -41,7 +59,7 @@ export function gmiModel(id: string, baseUrl = GMI_BASE_URL): Model<'openai-comp
     baseUrl,
     reasoning: true,
     // Thinking off is sent as reasoning_effort "none" (DeepSeek V4.1 Flash and Qwen3.8 Flash accept it).
-    thinkingLevelMap: { off: 'none' },
+    thinkingLevelMap: GMI_THINKING[id] ?? DEFAULT_GMI_THINKING,
     input: ['text'],
     cost: GMI_PRICES[id] ?? UNKNOWN_PRICE,
     contextWindow: 1_048_575,
@@ -80,6 +98,12 @@ export interface Llm {
   readonly models: MutableModels;
   /** The model for a skill. Throws ApiError model_error (503) when its provider isn't configured. */
   forSkill(skill: SkillName): Promise<SkillModel>;
+  /** Any model the server knows, e.g. one picked in the app (Mimo's model picker). Throws like forSkill. */
+  forSpec(spec: ModelSpec): Promise<SkillModel>;
+  /** Whether a provider's key is set. */
+  hasProvider(provider: ModelProvider): boolean;
+  /** The pi-ai definition of a model, registering its provider first; undefined if unknown. */
+  lookup(provider: ModelProvider, modelId: string): Promise<Model<Api> | undefined>;
 }
 
 /** Request options shared by every call: rate limits surface as errors fast instead of hanging (design §6.4). */
@@ -147,37 +171,59 @@ export function createLlm(config: Config): Llm {
     await googleReady;
   };
 
+  const hasProvider = (provider: ModelProvider) => Boolean(env[PROVIDER_KEY_ENV[provider]]?.trim());
+
+  async function build(spec: ModelSpec, unknownHint: string): Promise<SkillModel> {
+    if (!hasProvider(spec.provider)) throw unavailable(spec.provider);
+    await ensureProvider(spec.provider);
+    const model = models.getModel(spec.provider, spec.modelId);
+    if (!model) {
+      throw new ApiError('model_error', `${describeModel(spec)} isn't a model the server knows. ${unknownHint}`, { status: 503, retryable: false });
+    }
+    return {
+      model,
+      // With the thinking level, so changing it regenerates cached results.
+      key: describeModel(spec),
+      options: { ...BASE_REQUEST_OPTIONS, ...(spec.reasoning === 'off' ? {} : { reasoning: spec.reasoning as ThinkingLevel }) },
+    };
+  }
+
   return {
     models,
-    async forSkill(skill) {
-      const spec = specs[skill];
-      if (!env[PROVIDER_KEY_ENV[spec.provider]]?.trim()) throw unavailable(spec.provider);
-      await ensureProvider(spec.provider);
-      const model = models.getModel(spec.provider, spec.modelId);
-      if (!model) {
-        throw new ApiError('model_error', `${describeModel(spec)} isn't a model the server knows. Check ${skill}'s model setting in server/.env.`, { status: 503, retryable: false });
-      }
-      return {
-        model,
-        // With the thinking level, so changing it regenerates cached results.
-        key: describeModel(spec),
-        options: { ...BASE_REQUEST_OPTIONS, ...(spec.reasoning === 'off' ? {} : { reasoning: spec.reasoning as ThinkingLevel }) },
-      };
+    forSkill: (skill) => build(specs[skill], `Check ${skill}'s model setting in server/.env.`),
+    forSpec: (spec) => build(spec, 'Pick another model.'),
+    hasProvider,
+    async lookup(provider, modelId) {
+      await ensureProvider(provider);
+      return models.getModel(provider, modelId);
     },
   };
 }
 
-/** An Llm over a ready-made Models collection: tests use pi-ai's faux provider through this. */
+/**
+ * An Llm over a ready-made Models collection: tests use pi-ai's faux provider
+ * through this. A spec names a model in `models` by provider and id; its
+ * thinking level goes into the key and the options as it does for real.
+ */
 export function staticLlm(models: MutableModels, pick: (skill: SkillName) => Model<Api>): Llm {
+  const skillModel = (model: Model<Api>, reasoning: ModelSpec['reasoning'] = 'off'): SkillModel => ({
+    model,
+    key: `${model.provider}:${model.id}${reasoning === 'off' ? '' : `@${reasoning}`}`,
+    options: { ...BASE_REQUEST_OPTIONS, ...(reasoning === 'off' ? {} : { reasoning: reasoning as ThinkingLevel }) },
+  });
   return {
     models,
     async forSkill(skill) {
-      const model = pick(skill);
-      return {
-        model,
-        key: `${model.provider}:${model.id}`,
-        options: { ...BASE_REQUEST_OPTIONS },
-      };
+      return skillModel(pick(skill));
+    },
+    async forSpec(spec) {
+      const model = models.getModel(spec.provider, spec.modelId);
+      if (!model) throw new ApiError('model_error', `${describeModel(spec)} isn't a model the server knows.`, { status: 503, retryable: false });
+      return skillModel(model, spec.reasoning);
+    },
+    hasProvider: () => true,
+    async lookup(provider, modelId) {
+      return models.getModel(provider, modelId);
     },
   };
 }

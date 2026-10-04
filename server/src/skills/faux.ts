@@ -86,7 +86,12 @@ export function createFauxSkills(config: FauxConfig, fixtures: FixtureSet = load
       return structuredClone(pickFixture(fixtures.translate, request.to).response);
     },
     async mimo(request, ctx) {
+      // The model and level are the app's pick; fixtures replay the same script whatever they are.
       return replayTranscript(pickFixture(fixtures.mimo, request.situation.localLanguage).response, ctx, config.pace);
+    },
+    async mimoModels() {
+      await latency();
+      return structuredClone(fixtures.mimoModels);
     },
   };
 }

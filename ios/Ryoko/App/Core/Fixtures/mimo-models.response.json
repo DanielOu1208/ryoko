@@ -1,0 +1,97 @@
+{
+  "defaultModel": "gmi:deepseek-ai/DeepSeek-V4.1-Flash",
+  "models": [
+    {
+      "id": "gmi:deepseek-ai/DeepSeek-V4.1-Flash",
+      "name": "DeepSeek V4.1 Flash",
+      "provider": "gmi",
+      "providerName": "GMI Cloud",
+      "efforts": [
+        "off",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ],
+      "defaultEffort": "high"
+    },
+    {
+      "id": "gmi:Qwen/Qwen3.8-Flash",
+      "name": "Qwen3.8 Flash",
+      "provider": "gmi",
+      "providerName": "GMI Cloud",
+      "efforts": [
+        "off",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ],
+      "defaultEffort": "off"
+    },
+    {
+      "id": "gmi:openai/gpt-6.1-sol",
+      "name": "GPT-6.1 Sol",
+      "provider": "gmi",
+      "providerName": "GMI Cloud",
+      "efforts": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "defaultEffort": "low"
+    },
+    {
+      "id": "gmi:openai/gpt-6-luna",
+      "name": "GPT-6 Luna",
+      "provider": "gmi",
+      "providerName": "GMI Cloud",
+      "efforts": [
+        "off",
+        "low",
+        "medium",
+        "high"
+      ],
+      "defaultEffort": "off"
+    },
+    {
+      "id": "gmi:moonshotai/kimi-k3",
+      "name": "Kimi K3",
+      "provider": "gmi",
+      "providerName": "GMI Cloud",
+      "efforts": [
+        "off",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ],
+      "defaultEffort": "off"
+    },
+    {
+      "id": "google:gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "provider": "google",
+      "providerName": "Google Gemini",
+      "efforts": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "defaultEffort": "low"
+    },
+    {
+      "id": "google:gemini-3.5-flash-lite",
+      "name": "Gemini 3.5 Flash-Lite",
+      "provider": "google",
+      "providerName": "Google Gemini",
+      "efforts": [
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ],
+      "defaultEffort": "minimal"
+    }
+  ]
+}

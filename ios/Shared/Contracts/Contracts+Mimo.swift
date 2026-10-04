@@ -23,6 +23,46 @@ nonisolated struct MimoMessageRequest: Codable, Hashable, Sendable {
     var nearby: [NearbyPlace]?
     /// Set by "Ask Mimo about this place"; doesn't change the active situation.
     var subjectPlace: Place?
+    /// An id from `GET /v1/mimo-models`. nil: the server's default model.
+    var model: String?
+    /// How much the model thinks first. nil: the model's default.
+    var effort: MimoEffort?
+}
+
+/// How much Mimo thinks before it answers: the model's reasoning level (design
+/// §6.3). Open set: an unknown level still decodes.
+nonisolated struct MimoEffort: RawRepresentable, Codable, Hashable, Sendable {
+    var rawValue: String
+    init(rawValue: String) { self.rawValue = rawValue }
+
+    static let off = MimoEffort(rawValue: "off")
+    static let minimal = MimoEffort(rawValue: "minimal")
+    static let low = MimoEffort(rawValue: "low")
+    static let medium = MimoEffort(rawValue: "medium")
+    static let high = MimoEffort(rawValue: "high")
+}
+
+// MARK: - Models
+
+/// One model the picker offers (`GET /v1/mimo-models`).
+nonisolated struct MimoModel: Codable, Hashable, Sendable, Identifiable {
+    /// `provider:modelId`, sent back as the message's `model`.
+    var id: String
+    /// "Gemini 3.8 Flash".
+    var name: String
+    /// `gmi` or `google`.
+    var provider: String
+    /// "GMI Cloud".
+    var providerName: String
+    /// The levels this model takes, lowest first.
+    var efforts: [MimoEffort]
+    var defaultEffort: MimoEffort
+}
+
+nonisolated struct MimoModelsResponse: Codable, Hashable, Sendable {
+    /// The id used when a message names no model.
+    var defaultModel: String
+    var models: [MimoModel]
 }
 
 // MARK: - Tools

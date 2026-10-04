@@ -4,7 +4,9 @@
 // - a time limit (25–30 s), and abort when the client disconnects
 // - thinking events dropped, low retry delays (the request options)
 // - the profile and situation sections replaced before each message
-// The route holds the per-session lock, so a session never runs twice at once.
+// Each message runs on the model the app picked (or the configured default); a
+// chat that changes model keeps its history. The route holds the per-session
+// lock, so a session never runs twice at once.
 
 import { Agent, type AgentEvent, type AgentTool } from '@earendil-works/pi-agent-core';
 import type { AssistantMessage, SystemMessage } from '@earendil-works/pi-ai';
@@ -56,12 +58,16 @@ export interface MimoDeps {
   /** Exa search, or null when EXA_API_KEY isn't set (web_search is then not offered). */
   search: WebSearch | null;
   timeoutMs: number;
+  /** The model for one message: the app's pick (design §4.9). Defaults to the mimo skill's configured model. */
+  pickModel?: (request: MimoMessageRequest) => Promise<SkillModel>;
   onRunStats?: (stats: MimoRunStats) => void;
   onRunEvent?: (runId: string, event: MimoRunEvent) => void;
 }
 
 interface Session {
   agent: Agent;
+  /** The model the next turn runs on. */
+  skillModel: SkillModel;
   modelKey: string;
   lastUsed: number;
 }
@@ -120,7 +126,7 @@ export class MimoSessions {
   /** Throws before any byte is streamed (budget, missing key); otherwise returns the run. */
   async prepare(request: MimoMessageRequest, ctx: MimoContext): Promise<MimoRun> {
     this.deps.budget.assertAvailable();
-    const skillModel = await this.deps.llm.forSkill('mimo');
+    const skillModel = await (this.deps.pickModel?.(request) ?? this.deps.llm.forSkill('mimo'));
     const session = this.session(ctx.sessionId, skillModel);
     return (sink) => this.run(session, skillModel, request, ctx, sink);
   }
@@ -128,9 +134,15 @@ export class MimoSessions {
   private session(sessionId: string, skillModel: SkillModel): Session {
     const now = Date.now();
     let session = this.sessions.get(sessionId);
-    if (session && session.modelKey !== skillModel.key) session = undefined; // never switch a session's model
+    if (session && session.modelKey !== skillModel.key) {
+      // Another model (or level) picked mid-chat: the next turn runs on it, with
+      // the history so far. pi-ai converts the earlier turns for the new provider.
+      session.agent.state.model = skillModel.model;
+      session.skillModel = skillModel;
+      session.modelKey = skillModel.key;
+    }
     if (!session) {
-      session = { agent: this.createAgent(skillModel), modelKey: skillModel.key, lastUsed: now };
+      session = this.createSession(skillModel, now);
       this.sessions.set(sessionId, session);
       this.evict(now);
     }
@@ -150,15 +162,23 @@ export class MimoSessions {
     }
   }
 
-  private createAgent(skillModel: SkillModel): Agent {
+  private createSession(skillModel: SkillModel, now: number): Session {
     const tools: AgentTool<any>[] = [showPlacesTool()];
     if (this.deps.search) tools.push(webSearchTool(this.deps.search, this.deps.budget));
     const { llm } = this.deps;
-    return new Agent({
-      initialState: { systemPrompt: MIMO_SYSTEM, model: skillModel.model, thinkingLevel: 'off', tools },
-      streamFn: (model, context, options) => llm.models.streamSimple(model, context, { ...options, ...skillModel.options, maxTokens: outputBudget(MIMO_LIMITS.maxTokens, skillModel.options) }),
-      toolExecution: 'sequential',
-    });
+    const session: Session = {
+      // Reads the session's current model options, so a switch applies to the next turn.
+      agent: new Agent({
+        initialState: { systemPrompt: MIMO_SYSTEM, model: skillModel.model, thinkingLevel: 'off', tools },
+        streamFn: (model, context, options) =>
+          llm.models.streamSimple(model, context, { ...options, ...session.skillModel.options, maxTokens: outputBudget(MIMO_LIMITS.maxTokens, session.skillModel.options) }),
+        toolExecution: 'sequential',
+      }),
+      skillModel,
+      modelKey: skillModel.key,
+      lastUsed: now,
+    };
+    return session;
   }
 
   /** Replaces the profile/situation/nearby/subject sections of the leading system message. */

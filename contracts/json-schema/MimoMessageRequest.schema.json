@@ -664,6 +664,22 @@
         }
       },
       "additionalProperties": false
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "description": "An id from GET /v1/mimo-models. Absent: the server default"
+    },
+    "effort": {
+      "type": "string",
+      "enum": [
+        "off",
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ]
     }
   },
   "additionalProperties": false

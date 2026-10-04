@@ -7,6 +7,7 @@ import type {
   DiscoverRequest,
   DiscoverResponse,
   MimoMessageRequest,
+  MimoModelsResponse,
   PlaceCardRequest,
   PlaceCardResponse,
   StopReason,
@@ -56,4 +57,6 @@ export interface Skills {
    * to answer with a JSON error envelope instead of a stream.
    */
   mimo(request: MimoMessageRequest, ctx: MimoContext): Promise<MimoRun>;
+  /** The models and thinking levels Mimo's picker offers (GET /v1/mimo-models). */
+  mimoModels(): Promise<MimoModelsResponse>;
 }
