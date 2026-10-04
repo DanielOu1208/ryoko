@@ -24,6 +24,12 @@ nonisolated protocol RyokoAPI: Sendable {
     /// listening session (tier 2). The key is a secret: never log it.
     func sonioxKey() async throws -> SonioxKeyResponse
 
+    /// `POST /v1/place-photos`: a photo url per place (Foursquare), for the
+    /// thumbnails and the place card's header. A place with no url has no
+    /// photo; show Look Around instead. Batch places through `PlacePhotoStore`
+    /// rather than calling this per row.
+    func placePhotos(_ request: PlacePhotosRequest) async throws -> PlacePhotosResponse
+
     /// `POST /v1/sessions/:id/messages`: one Mimo run as a stream of events.
     ///
     /// - The stream throws `RyokoAPIError` if the request fails before streaming
@@ -35,9 +41,10 @@ nonisolated protocol RyokoAPI: Sendable {
     func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error>
 }
 
-/// Tier 2 endpoints that a stand-in API (a DEBUG script, a preview) may not
+/// Endpoints that a stand-in API (a DEBUG script, a preview) may not
 /// implement: they answer as if there's no server, so Translate falls back the
-/// way it does offline. `LiveRyokoAPI` and `FixtureRyokoAPI` implement both.
+/// way it does offline, and thumbnails show Look Around. `LiveRyokoAPI` and
+/// `FixtureRyokoAPI` implement all three.
 nonisolated extension RyokoAPI {
     func translate(_ request: TranslateRequest) async throws -> TranslateResponse {
         throw RyokoAPIError.notConfigured("translate")
@@ -45,6 +52,10 @@ nonisolated extension RyokoAPI {
 
     func sonioxKey() async throws -> SonioxKeyResponse {
         throw RyokoAPIError.notConfigured("soniox-key")
+    }
+
+    func placePhotos(_ request: PlacePhotosRequest) async throws -> PlacePhotosResponse {
+        throw RyokoAPIError.notConfigured("place-photos")
     }
 }
 

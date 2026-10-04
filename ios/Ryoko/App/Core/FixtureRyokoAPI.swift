@@ -14,6 +14,8 @@ import Foundation
 ///   café order, whatever was typed. The same language comes back as typed.
 /// - Soniox key: there's no key server, so it throws `.notConfigured` and
 ///   Translate falls back to the build's key, as it does offline.
+/// - Place photos: every place has none, as on a server without a Foursquare
+///   key, so thumbnails show Look Around or a satellite tile.
 /// - Mimo: by `situation.localLanguage`. Chinese replays `mimo.zh-hans.sse.txt`;
 ///   anything else `mimo.sse.txt`. Event by event, with the requested session id.
 nonisolated struct FixtureRyokoAPI: RyokoAPI {
@@ -59,6 +61,14 @@ nonisolated struct FixtureRyokoAPI: RyokoAPI {
     func sonioxKey() async throws -> SonioxKeyResponse {
         try await respond()
         throw RyokoAPIError.notConfigured("fixtures have no Soniox key server")
+    }
+
+    func placePhotos(_ request: PlacePhotosRequest) async throws -> PlacePhotosResponse {
+        try await respond()
+        var seen = Set<String>()
+        return PlacePhotosResponse(photos: request.places.compactMap { place in
+            seen.insert(place.key).inserted ? PlacePhoto(key: place.key) : nil
+        })
     }
 
     func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error> {

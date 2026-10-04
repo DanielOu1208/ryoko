@@ -43,6 +43,8 @@ const EXAMPLES: Record<string, TSchema> = {
   'translate.tokyo.request.json': C.TranslateRequest,
   'translate.tokyo.response.json': C.TranslateResponse,
   'soniox-key.response.json': C.SonioxKeyResponse,
+  'place-photos.request.json': C.PlacePhotosRequest,
+  'place-photos.response.json': C.PlacePhotosResponse,
   'mimo-message.request.json': C.MimoMessageRequest,
   'error.invalid-request.response.json': C.ErrorEnvelope,
   'error.session-busy.response.json': C.ErrorEnvelope,
@@ -143,6 +145,23 @@ test('translate examples: one per target language, in its script, with the situa
 test('the soniox-key example is a placeholder, never a real key', () => {
   const key = readJson('examples/soniox-key.response.json') as C.SonioxKeyResponse;
   assert.match(key.apiKey, /^fixture-/, 'the example key must stay an obvious placeholder');
+});
+
+test('place-photos: one entry per requested key, in order, with placeholder urls only', () => {
+  const request = readJson('examples/place-photos.request.json') as C.PlacePhotosRequest;
+  const response = readJson('examples/place-photos.response.json') as C.PlacePhotosResponse;
+  assert.deepEqual(response.photos.map((p) => p.key), request.places.map((p) => p.key));
+  assert.ok(response.photos.some((p) => p.url === undefined), 'shows a place with no photo');
+  for (const photo of response.photos) {
+    // Hand-written: never a real Foursquare response.
+    if (photo.url) assert.match(photo.url, /^https:\/\/example\.com\//, `${photo.key}: the example url must stay a placeholder`);
+  }
+  const place = request.places[0]!;
+  const many = { places: Array.from({ length: C.PLACE_PHOTOS_MAX + 1 }, (_, i) => ({ ...place, key: `k${i}` })) };
+  assert.equal(Value.Check(C.PlacePhotosRequest, many), false, 'more than 25 places is refused');
+  assert.equal(Value.Check(C.PlacePhotosRequest, { places: [] }), false, 'no places is refused');
+  assert.equal(Value.Check(C.PlacePhotosRequest, { places: [{ ...place, key: 'k'.repeat(121) }] }), false, 'a key over 120 characters is refused');
+  assert.equal(Value.Check(C.PlacePhotosResponse, { photos: [{ key: 'k', url: 'http://example.com/a.jpg' }] }), false, 'urls are https only');
 });
 
 test('allergy-card examples are unreviewed and their Chinese has no Latin letters', () => {

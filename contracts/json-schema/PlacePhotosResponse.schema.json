@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/PlacePhotosResponse.schema.json",
+  "title": "PlacePhotosResponse",
+  "type": "object",
+  "required": [
+    "photos"
+  ],
+  "properties": {
+    "photos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "maxLength": 2048,
+            "description": "Absent when there is no photo"
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Pixels, when known"
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 25
+    }
+  },
+  "additionalProperties": false
+}

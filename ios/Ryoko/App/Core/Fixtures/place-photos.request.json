@@ -1,0 +1,21 @@
+{
+  "places": [
+    {
+      "key": "Omoide Yokocho@35.6930,139.6995",
+      "name": "Omoide Yokocho",
+      "localName": "思い出横丁",
+      "coordinate": { "lat": 35.693, "lon": 139.6995 }
+    },
+    {
+      "key": "BEAMS@35.6889,139.7006",
+      "name": "BEAMS",
+      "coordinate": { "lat": 35.6889, "lon": 139.7006 }
+    },
+    {
+      "key": "Menya Kaze@35.6912,139.6978",
+      "name": "Menya Kaze",
+      "localName": "麺屋 風",
+      "coordinate": { "lat": 35.6912, "lon": 139.6978 }
+    }
+  ]
+}

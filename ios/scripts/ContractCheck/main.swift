@@ -457,6 +457,12 @@ do {
     } catch let error as RyokoAPIError {
         expect(error == .notConfigured("fixtures have no Soniox key server"), "fixtures have no key server, so Translate falls back")
     }
+    let photoRequest = try source.decode(PlacePhotosRequest.self, from: .placePhotosRequest)
+    var doubled = photoRequest
+    doubled.places += photoRequest.places
+    let photos = try await fixtureAPI.placePhotos(doubled).photos
+    expect(photos.map(\.key) == photoRequest.places.map(\.key) && photos.allSatisfy { $0.url == nil },
+           "fixture place photos: one entry per key, none with a photo (Look Around shows)")
     let stand_in = ScriptOnlyAPI()
     do {
         _ = try await stand_in.translate(typedTokyo)
@@ -499,6 +505,9 @@ if let base = env["RYOKO_LIVE_BASE_URL"], let token = env["RYOKO_APP_TOKEN"], !t
         expect(!picks.places.isEmpty, "discover returns places (\(picks.places.count))")
         let allergy = try await api.allergyCard(source.decode(AllergyCardRequest.self, from: .allergyCardRequest))
         expect(!allergy.items.isEmpty && !allergy.reviewed, "allergy-card returns unreviewed items")
+        let photoRequest = try source.decode(PlacePhotosRequest.self, from: .placePhotosRequest)
+        let photos = try await api.placePhotos(photoRequest).photos
+        expect(photos.map(\.key) == photoRequest.places.map(\.key), "place-photos answers each key once (\(photos.filter { $0.url != nil }.count) with a photo)")
         let typedStarted = ContinuousClock.now
         let typed = try await api.translate(source.decode(TranslateRequest.self, from: .translateTokyoRequest))
         expect(!typed.translation.isEmpty, "translate returns text (\(typed.translation), \(ContinuousClock.now - typedStarted))")

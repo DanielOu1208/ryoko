@@ -18,6 +18,8 @@ export const SCHEMAS: Record<string, TSchema> = {
   TranslateRequest: C.TranslateRequest,
   TranslateResponse: C.TranslateResponse,
   SonioxKeyResponse: C.SonioxKeyResponse,
+  PlacePhotosRequest: C.PlacePhotosRequest,
+  PlacePhotosResponse: C.PlacePhotosResponse,
   MimoMessageRequest: C.MimoMessageRequest,
   SseEvent: C.SseEvent,
   ErrorEnvelope: C.ErrorEnvelope,

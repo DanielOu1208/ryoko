@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/PlacePhotosRequest.schema.json",
+  "title": "PlacePhotosRequest",
+  "type": "object",
+  "required": [
+    "places"
+  ],
+  "properties": {
+    "places": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "coordinate"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "The app's key for the place, echoed back (MapKit identifier, or name@lat,lon)"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "localName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Local-script name; may match instead of name"
+          },
+          "coordinate": {
+            "type": "object",
+            "required": [
+              "lat",
+              "lon"
+            ],
+            "properties": {
+              "lat": {
+                "type": "number",
+                "minimum": -90,
+                "maximum": 90
+              },
+              "lon": {
+                "type": "number",
+                "minimum": -180,
+                "maximum": 180
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 25
+    }
+  },
+  "additionalProperties": false
+}

@@ -11,6 +11,7 @@ export * from './discover.ts';
 export * from './allergy-card.ts';
 export * from './translate.ts';
 export * from './soniox-key.ts';
+export * from './place-photos.ts';
 export * from './tools.ts';
 export * from './mimo.ts';
 export * from './errors.ts';

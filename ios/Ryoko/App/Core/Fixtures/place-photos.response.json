@@ -1,0 +1,19 @@
+{
+  "photos": [
+    {
+      "key": "Omoide Yokocho@35.6930,139.6995",
+      "url": "https://example.com/place-photos/fixture-omoide-yokocho-960x720.jpg",
+      "width": 960,
+      "height": 720
+    },
+    {
+      "key": "BEAMS@35.6889,139.7006",
+      "url": "https://example.com/place-photos/fixture-beams-720x960.jpg",
+      "width": 720,
+      "height": 960
+    },
+    {
+      "key": "Menya Kaze@35.6912,139.6978"
+    }
+  ]
+}

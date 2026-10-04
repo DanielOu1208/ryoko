@@ -18,6 +18,10 @@ nonisolated struct LiveRyokoAPI: RyokoAPI {
     /// Seconds to wait for a Soniox key before listening falls back to the
     /// build's key: starting to listen shouldn't hang on a slow server.
     static let sonioxKeyTimeout: TimeInterval = 6
+    /// Seconds to wait for place photos. The server answers within about 12 s,
+    /// leaving out places it's still looking up; thumbnails show the category
+    /// icon meanwhile.
+    static let placePhotosTimeout: TimeInterval = 20
     /// Seconds a Mimo stream may go without a byte. The server pings every 15 s
     /// and gives up on a run after 25–30 s.
     static let streamIdleTimeout: TimeInterval = 45
@@ -48,6 +52,10 @@ nonisolated struct LiveRyokoAPI: RyokoAPI {
 
     func sonioxKey() async throws -> SonioxKeyResponse {
         try await postJSON("v1/soniox-key", body: SonioxKeyRequest(), timeout: Self.sonioxKeyTimeout)
+    }
+
+    func placePhotos(_ request: PlacePhotosRequest) async throws -> PlacePhotosResponse {
+        try await postJSON("v1/place-photos", body: request, timeout: Self.placePhotosTimeout)
     }
 
     func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error> {
