@@ -167,7 +167,7 @@ For all of them:
   - **Header:** "You're at <place> ›" with city · local time (the place's time); tapping it opens that place's card. "Near you" when there's no place. Preview is subtle: the previewed place and time, a small "Previewing" badge and a small **Back to here**. Live, **Check again** re-checks nearby places.
   - **Mimo picks** first: hidden gems and special spots from `discover` (§6.5), picked from the real places nearby (#54), each with a one-line why.
   - Then the **nearest places** by distance (`MKLocalPointsOfInterestRequest`).
-  - Each row has a place thumbnail (below).
+  - Each row starts with its category icon (#61).
 - **Tapping any place opens its card in the sheet:** a pin, a POI, a list row, a search result, a long-press pin, a Mimo pick, a From Mimo pin, the header, `router.openMap(selecting:)` or the Live Activity (§4.11). Opening a card never changes the situation, and you stay on Map.
 - **Framing:** a card opens almost full, leaving a strip of map with the place's pin centred and highlighted. If your location is within 1 km and fits, it's framed too. The search field and map buttons step aside meanwhile.
 - **Place card**, top to bottom:
@@ -181,12 +181,8 @@ For all of them:
   - The address.
   - Where you speak the local language: tips only (no phrases and no Allergy).
   - Loading is `.redacted`; an error offers **Try again**; the saved card is the fallback, marked as saved.
-- **Place thumbnails** (#60). MapKit has no public API for Apple Maps listing photos (checked against the iOS 27 SDK), so:
-  - A 56 pt rounded Look Around snapshot (`MKLookAroundSceneRequest` + `MKLookAroundSnapshotter`) shows in the Map's list, pick and search rows and in Mimo's places rows (§4.9).
-  - With no scene (e.g. mainland China) it falls back to a satellite map tile with a monochrome pin. The category icon shows while it loads.
-  - At most 2 load at once, and queued work is dropped when a row disappears. A throttled response pauses loading for 60 s.
-  - Images are cached in memory and on disk (Caches, 14 days). Only real Look Around results and "no scene" fallbacks are kept; after a temporary failure the next load tries again.
-  - Thumbnails are hidden at accessibility text sizes. They're decorative, so VoiceOver skips them.
+- **Look Around only in the place card** (#60, #61). MapKit has no public API for Apple Maps listing photos (checked against the iOS 27 SDK). Look Around is the street in front of a place, so every shop in one building shared a picture as a row thumbnail: rows went back to category icons. The card's `LookAroundPreview` stays.
+  - `PlaceThumbnail` and its loader remain in `Map/` (the card's scene comes from the loader); the row thumbnail view is unused. Foursquare photos are parked on `feature/foursquare-photos` (tracker W8.15).
 - MapKit with the user's location, plus `.searchable` with `MKLocalSearchCompleter` suggestions. Queries can be in English or local script ("Heytea Jing'an", "喜茶 静安"). Picking a result moves the camera and opens the place's card.
 - **Interaction:**
   - POI tap: `Map(selection:)` with `MapSelection`, then `MKMapItemRequest(feature:)`.
@@ -248,8 +244,7 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
 - **Phrase blocks** (§6.2): every phrase Mimo suggests saying appears inside the reply, right after the sentence it belongs to, as a quiet line set off by a bar on its leading edge: script, gloss and an expand icon. Tapping it opens Show mode (#49).
 - **Places:**
   - When an answer involves places, Mimo calls `show_places` with names and a one-line why for each. It never sends coordinates.
-  - The device resolves each name with MapKit (§4.7). The ones it found show as one card after Mimo's first sentence: a small map of their pins (tap it, or its **Show on map** pill, for the Map's From Mimo layer), then a row per place like the Map sheet's: a 56 pt place thumbnail (§4.7, #60), name and local name, why (after the time for a plan stop), distance. Tap a row to open that place's card on the Map.
-  - In a plan, the stop number is a badge on the thumbnail's corner. At accessibility text sizes there's no thumbnail: the stop number becomes a small leading badge, and the local name and distance move under the name and why.
+  - The device resolves each name with MapKit (§4.7). The ones it found show as one card after Mimo's first sentence: a small map of their pins (tap it, or its **Show on map** pill, for the Map's From Mimo layer), then a row per place like the Map sheet's: its category icon (or, in a plan, its stop number), name and local name, why (after the time for a plan stop), distance. Tap a row to open that place's card on the Map.
 - **Plan a few hours:**
   - "What should I do this afternoon?" returns an ordered set of stops, each with a suggested time.
   - They're rendered as numbered chips and shown as numbered pins on the map.
@@ -894,3 +889,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 58 | Model thinking levels on DeepSeek V4.1 Flash (GMI): Mimo high, place cards low, discover, translate and allergy cards off (`MODEL_<SKILL>_REASONING`). The levels act like on/off. Thinking adds 4,096 output tokens (Mimo replies were cut off without them); the model key in cache keys includes the level; the Mimo timeout is 60 s; discover stays off (it took over 25 s with thinking). §6.3 | user + research |
 | 59 | Compact Mimo header: a 64 pt avatar as high as it can go clear of the Dynamic Island, one glass pill "<place> · <local time>" (none before there's a place), 44 pt sidebar and New chat buttons centred on the avatar, read by VoiceOver as one heading. §4.9 | user |
 | 60 | Place thumbnails: MapKit has no public API for Apple Maps listing photos (checked against the iOS 27 SDK), so rows show a 56 pt Look Around snapshot, falling back to a satellite tile with a pin; at most 2 load at once, cached in memory and on disk for 14 days, hidden at accessibility sizes. The place card has a 150 pt Look Around preview that opens the full viewer. §4.7, §4.9 | user + research |
+| 61 | List rows (Map picks, nearby, search; Mimo's places card) go back to category icons and stop numbers: Look Around thumbnails repeated one picture for every shop in a building. The place card keeps its Look Around preview | user |
