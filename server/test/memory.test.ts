@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createModels } from '@earendil-works/pi-ai/models';
-import { fauxAssistantMessage, fauxProvider, getSystemMessageText, type FauxResponseStep, type TranscriptContext } from '@earendil-works/pi-ai';
+import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall, getSystemMessageText, type AssistantMessage, type FauxResponseStep, type SystemMessage, type TranscriptContext } from '@earendil-works/pi-ai';
 import { Value } from 'typebox/value';
 import { SseEvent, TripEventsResponse, type MimoMessageRequest, type Situation, type TripEvent, type TripEventsRequest } from '@ryoko/contracts';
 import { createApp } from '../src/app.ts';
@@ -17,7 +17,7 @@ import { EXAMPLES_DIR } from '../src/fixtures.ts';
 import { Budget } from '../src/llm/budget.ts';
 import { staticLlm } from '../src/llm/registry.ts';
 import { tripMemorySection } from '../src/memory/section.ts';
-import { embeddingText, type Recall, type RecalledEvent, type SavedSession, type TripMemory, type SessionStore } from '../src/memory/tiger.ts';
+import { embeddingText, type MemoryKind, type Recall, type RecalledEvent, type SavedSession, type StoredEvent, type TripMemory, type SessionStore } from '../src/memory/tiger.ts';
 import type { Tiger } from '../src/memory/index.ts';
 import { createModelSkills, type ModelSkills } from '../src/skills/model.ts';
 import type { SseSink } from '../src/sse.ts';
@@ -41,14 +41,27 @@ const event = (changes: Partial<RecalledEvent>): RecalledEvent => ({
 });
 
 /** A Tiger stand-in that records what it's asked. */
-function fakeTiger(options: { recall?: (installId: string, message: string | null) => Promise<Recall>; saved?: Map<string, SavedSession & { installId: string | null }> } = {}) {
-  const stored: { installId: string; events: readonly TripEvent[] }[] = [];
+type SearchFilter = { kind?: MemoryKind; days?: number; limit?: number };
+
+function fakeTiger(
+  options: {
+    recall?: (installId: string, message: string | null) => Promise<Recall>;
+    search?: (query: string, filter: SearchFilter) => Promise<RecalledEvent[]>;
+    saved?: Map<string, SavedSession & { installId: string | null }>;
+  } = {},
+) {
+  const stored: { installId: string; events: readonly (TripEvent | StoredEvent)[] }[] = [];
+  const searches: { installId: string; query: string; filter: SearchFilter }[] = [];
   const recalls: { installId: string; message: string | null }[] = [];
   const saved = options.saved ?? new Map<string, SavedSession & { installId: string | null }>();
   const trips = {
-    async store(installId: string, events: readonly TripEvent[]) {
+    async store(installId: string, events: readonly (TripEvent | StoredEvent)[]) {
       stored.push({ installId, events });
       return events.length;
+    },
+    async search(installId: string, query: string, filter: SearchFilter = {}) {
+      searches.push({ installId, query, filter });
+      return options.search ? options.search(query, filter) : [event({})];
     },
     async recall(installId: string, message: string | null) {
       recalls.push({ installId, message });
@@ -65,15 +78,15 @@ function fakeTiger(options: { recall?: (installId: string, message: string | nul
     },
   };
   const tiger = { trips: trips as unknown as TripMemory, sessions: sessions as unknown as SessionStore, ready: Promise.resolve(true) } satisfies Tiger;
-  return { tiger, stored, recalls, saved };
+  return { tiger, stored, recalls, searches, saved };
 }
 
-function harness(tiger: Tiger | null) {
+function harness(tiger: Tiger | null, env: Record<string, string> = {}) {
   const faux = fauxProvider({ provider: 'faux-test', models: [{ id: 'faux-1' }], tokenSize: { min: 1, max: 2 } });
   const models = createModels();
   models.setProvider(faux.provider);
   const contexts: TranscriptContext[] = [];
-  const skills = createModelSkills(configFromEnv({ APP_TOKEN: TOKEN, MODEL: 'faux', LOG_REQUESTS: '0', CACHE_DIR: 'off' }), {
+  const skills = createModelSkills(configFromEnv({ APP_TOKEN: TOKEN, MODEL: 'faux', LOG_REQUESTS: '0', CACHE_DIR: 'off', ...env }), {
     llm: staticLlm(models, () => faux.getModel()),
     budget: new Budget({ limitUsd: 5, file: null }),
     cache: new ResponseCache({ file: null }),
@@ -82,14 +95,15 @@ function harness(tiger: Tiger | null) {
     tiger,
     log: () => {},
   });
-  const script = (...replies: string[]) =>
+  const script = (...replies: (string | AssistantMessage)[]) =>
     faux.setResponses(
       replies.map((reply): FauxResponseStep => (context) => {
         contexts.push(context);
+        if (typeof reply !== 'string') return reply;
         return reply === 'ERROR' ? fauxAssistantMessage([], { stopReason: 'error', errorMessage: 'upstream 500' }) : fauxAssistantMessage(reply);
       }),
     );
-  return { skills, contexts, script };
+  return { skills, contexts, script, faux };
 }
 
 function sink(): SseSink & { events: SseEvent[] } {
@@ -119,6 +133,10 @@ const systemText = (context: TranscriptContext) => {
   const first = context.messages[0];
   return first && first.role === 'system' ? getSystemMessageText(first) : '';
 };
+const toolNames = (context: TranscriptContext) => ((context.messages[0] as SystemMessage).toolsAdded ?? []).map((tool) => tool.name);
+const toolResults = (context: TranscriptContext) =>
+  context.messages.flatMap((m) => (m.role === 'toolResult' ? [m.content.map((c) => ('text' in c ? c.text : '')).join('')] : []));
+const live: Situation = { ...tokyo, mode: 'live' };
 const userTexts = (context: TranscriptContext) =>
   context.messages.flatMap((m) => (m.role === 'user' ? [typeof m.content === 'string' ? m.content : m.content.map((c) => ('text' in c ? c.text : '')).join('')] : []));
 
@@ -289,5 +307,96 @@ describe('POST /v1/trip-events', () => {
     const bad = { events: [{ ...tripEvents.events[0], kind: 'ate_lunch' }] };
     assert.equal((await post(app, bad)).status, 400);
     assert.equal((await post(app, { events: [] })).status, 400);
+  });
+});
+
+describe('Mimo memory tools', () => {
+  test('with Tiger, Mimo is offered recall_trip and remember; without, neither', async () => {
+    const withTiger = harness(fakeTiger().tiger);
+    withTiger.script('Hi.');
+    await ask(withTiger.skills, mimoRequest, 'install-a');
+    assert.deepEqual(toolNames(withTiger.contexts[0]!).filter((n) => n === 'recall_trip' || n === 'remember'), ['recall_trip', 'remember']);
+
+    const without = harness(null);
+    without.script('Hi.');
+    await ask(without.skills, mimoRequest, 'install-a');
+    assert.equal(toolNames(without.contexts[0]!).some((n) => n === 'recall_trip' || n === 'remember'), false);
+  });
+
+  test('remember in the same reply as the answer saves the note and ends the run there', async () => {
+    const fake = fakeTiger();
+    const h = harness(fake.tiger);
+    h.script(fauxAssistantMessage([fauxText("Noted, I'll keep that in mind."), fauxToolCall('remember', { note: "Doesn't like spicy food" }, { id: 'r1' })], { stopReason: 'toolUse' }));
+    const { stopReason, events } = await ask(h.skills, { ...mimoRequest, situation: live, message: "I can't do spicy food." }, 'install-a');
+    assert.equal(stopReason, 'stop');
+    assert.equal(h.faux.state.callCount, 1, 'no second turn just to say nothing');
+    assert.equal(events.some((e) => e.type === 'tool_start'), false, 'the app gets no event for it');
+    const note = fake.stored[0]?.events[0];
+    assert.equal(fake.stored[0]?.installId, 'install-a');
+    assert.deepEqual(note, { kind: 'told_mimo', at: live.localTime, text: "Doesn't like spicy food", place: { name: 'Menya Kaze', localName: '麺屋 風', category: 'ramen' }, city: 'Tokyo', countryCode: 'JP' });
+  });
+
+  test('remember on its own gets the answer on the next turn; in a preview it keeps no place', async () => {
+    const fake = fakeTiger();
+    const h = harness(fake.tiger);
+    h.script(fauxAssistantMessage([fauxToolCall('remember', { note: 'Wants a quiet bar tonight' }, { id: 'r2' })], { stopReason: 'toolUse' }), 'Golden Gai has a few quiet ones.');
+    const { stopReason } = await ask(h.skills, { ...mimoRequest, message: 'I want somewhere quiet tonight.' }, 'install-a');
+    assert.equal(stopReason, 'stop');
+    assert.equal(h.faux.state.callCount, 2);
+    const note = fake.stored[0]?.events[0];
+    assert.equal(note?.place, undefined, "a previewed place is somewhere they aren't");
+    assert.equal(note?.city, 'Tokyo');
+  });
+
+  test('remember without an install id saves nothing', async () => {
+    const fake = fakeTiger();
+    const h = harness(fake.tiger);
+    h.script(fauxAssistantMessage([fauxText('Sure.'), fauxToolCall('remember', { note: 'Likes tea' }, { id: 'r3' })], { stopReason: 'toolUse' }));
+    await ask(h.skills, mimoRequest, null);
+    assert.equal(fake.stored.length, 0);
+  });
+
+  test("recall_trip searches with Mimo's query and filters and hands back the moments", async () => {
+    const fake = fakeTiger();
+    const h = harness(fake.tiger);
+    h.script(
+      fauxAssistantMessage([fauxToolCall('recall_trip', { query: 'phrase about noodles', kind: 'phrase_shown', days: 3 }, { id: 'q1' })], { stopReason: 'toolUse' }),
+      'You asked for firm noodles.',
+    );
+    const { stopReason } = await ask(h.skills, mimoRequest, 'install-a');
+    assert.equal(stopReason, 'stop');
+    assert.deepEqual(fake.searches, [{ installId: 'install-a', query: 'phrase about noodles', filter: { kind: 'phrase_shown', days: 3, limit: 8 } }]);
+    assert.match(toolResults(h.contexts[1]!).join('\n'), /"did":"showed a phrase","text":"麺かためでお願いします。","meaning":"Firm noodles, please."/);
+  });
+
+  test('independent tools run in parallel', async () => {
+    const order: string[] = [];
+    const fake = fakeTiger({
+      search: async (query) => {
+        order.push(`start ${query}`);
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        order.push(`end ${query}`);
+        return [];
+      },
+    });
+    const h = harness(fake.tiger);
+    h.script(fauxAssistantMessage([fauxToolCall('recall_trip', { query: 'a' }, { id: 'p1' }), fauxToolCall('recall_trip', { query: 'b' }, { id: 'p2' })], { stopReason: 'toolUse' }), 'Nothing yet.');
+    await ask(h.skills, mimoRequest, 'install-a');
+    assert.deepEqual(order.slice(0, 2).sort(), ['start a', 'start b'], `ran one after the other: ${order.join(', ')}`);
+  });
+
+  test('past the tool budget, lookups are refused and Mimo answers with what it has', async () => {
+    // Budget: 55% of a 1 s limit. The first lookup takes 0.6 s, so the second is refused.
+    const fake = fakeTiger({ search: () => new Promise((resolve) => setTimeout(() => resolve([]), 600)) });
+    const h = harness(fake.tiger, { MIMO_TIMEOUT_MS: '1000' });
+    h.script(
+      fauxAssistantMessage([fauxToolCall('recall_trip', { query: 'first' }, { id: 't1' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage([fauxToolCall('recall_trip', { query: 'second' }, { id: 't2' })], { stopReason: 'toolUse' }),
+      'Here is what I have.',
+    );
+    const { stopReason } = await ask(h.skills, mimoRequest, 'install-a');
+    assert.equal(stopReason, 'tool_limit');
+    assert.equal(fake.searches.length, 1);
+    assert.match(toolResults(h.contexts[2]!).join('\n'), /Out of time to look things up/);
   });
 });

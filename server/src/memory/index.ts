@@ -5,9 +5,9 @@
 import { createGeminiEmbed } from './embed.ts';
 import { createTigerPool, migrate, SessionStore, tigerConfigFrom, TripMemory } from './tiger.ts';
 
-export { tripMemorySection } from './section.ts';
-export type { Recall, RecalledEvent, SavedSession } from './tiger.ts';
-export { SessionStore, TripMemory } from './tiger.ts';
+export { memoryLine, tripMemorySection } from './section.ts';
+export type { MemoryKind, Recall, RecalledEvent, SavedSession, StoredEvent } from './tiger.ts';
+export { MEMORY_KINDS, SessionStore, TripMemory } from './tiger.ts';
 
 export interface Tiger {
   trips: TripMemory;

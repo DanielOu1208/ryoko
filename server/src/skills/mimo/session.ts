@@ -1,7 +1,10 @@
 // The mimo skill (design §4.9, §6.4): one pi-agent-core Agent per chat session,
 // kept in memory (and in Tiger when it's set up, design §8.3, so a chat survives
 // a restart), with the guardrails pi doesn't have built in:
-// - at most 4 model turns and 3 tool calls per message (finishTurn, beforeToolCall)
+// - at most 5 model turns and 4 tool calls per message (finishTurn, beforeToolCall);
+//   independent tools run in parallel, and past 55% of the time limit no more lookups, so a slow
+//   chain of tools answers with what it has instead of timing out
+// - an answer that only also called remember ends there, without a second turn
 // - a time limit (25–30 s), and abort when the client disconnects
 // - thinking events dropped, low retry delays (the request options)
 // - the profile and situation sections replaced before each message, with the
@@ -22,13 +25,20 @@ import type { MimoContext, MimoRun } from '../types.ts';
 import type { WebSearch } from './exa.ts';
 import { PhraseStream, type PhraseStreamStats } from './phrase-stream.ts';
 import { MIMO_SYSTEM, mimoSections } from './prompt.ts';
-import { isMimoTool, searchGuidesTool, showPlacesTool, TOOL_LABELS, webSearchTool } from './tools.ts';
+import { isMimoTool, recallTripTool, rememberTool, searchGuidesTool, showPlacesTool, TOOL_LABELS, webSearchTool, type MemoryContext, type MemoryTools } from './tools.ts';
 import type { GuideSearch } from '../../guides/snowflake.ts';
 import { tripMemorySection, type Recall, type SavedSession } from '../../memory/index.ts';
 
 export const MIMO_LIMITS = {
-  maxTurns: 4,
-  maxToolCalls: 3,
+  maxTurns: 5,
+  /** The prompt asks for at most three; one spare, so a stray remember doesn't cut an answer short. */
+  maxToolCalls: 4,
+  /**
+   * After this share of the time limit a run gets no more lookups (remember still
+   * runs) and answers with what it has: about 15 s of the default 28 s, 33 s of the
+   * dev server's 60 s with thinking on.
+   */
+  toolBudgetShare: 0.55,
   maxTokens: 1200,
   /** Sessions idle longer than this are forgotten. */
   idleMs: 6 * 3600_000,
@@ -71,7 +81,9 @@ export interface MimoDeps {
   guides?: GuideSearch | null;
   timeoutMs: number;
   /** The traveller's trip memory (Tiger, design §8.3), or null when it isn't set up. */
-  tripMemory?: { recall(installId: string, message: string | null, signal?: AbortSignal): Promise<Recall> } | null;
+  tripMemory?: ({ recall(installId: string, message: string | null, signal?: AbortSignal): Promise<Recall> } & MemoryTools) | null;
+  /** Overrides the tool budget (MIMO_LIMITS.toolBudgetShare of timeoutMs). */
+  toolBudgetMs?: number;
   /** Where chats are kept across restarts (Tiger), or null to keep them in memory only. */
   sessionStore?: {
     load(sessionId: string, installId: string | null): Promise<SavedSession | null>;
@@ -91,6 +103,8 @@ interface Session {
   lastUsed: number;
   /** The latest message's country, for search_guides. */
   countryCode?: string;
+  /** The latest message's install id and situation, for remember and recall_trip. */
+  memory: MemoryContext;
 }
 
 type RunState = {
@@ -234,6 +248,10 @@ export class MimoSessions {
     // The guides search in the country of the session's latest message.
     if (this.deps.guides) tools.push(searchGuidesTool(this.deps.guides, () => session.countryCode));
     if (this.deps.search) tools.push(webSearchTool(this.deps.search, this.deps.budget));
+    if (this.deps.tripMemory) {
+      tools.push(recallTripTool(this.deps.tripMemory, () => session.memory));
+      tools.push(rememberTool(this.deps.tripMemory, () => session.memory));
+    }
     const { llm } = this.deps;
     const session: Session = {
       // Reads the session's current model options, so a switch applies to the next turn.
@@ -242,11 +260,13 @@ export class MimoSessions {
         initialState: { systemPrompt: MIMO_SYSTEM, model: skillModel.model, thinkingLevel: 'off', tools, ...(saved ? { messages: saved as AgentMessage[] } : {}) },
         streamFn: (model, context, options) =>
           llm.models.streamSimple(model, context, { ...options, ...session.skillModel.options, maxTokens: outputBudget(MIMO_LIMITS.maxTokens, session.skillModel.options) }),
-        toolExecution: 'sequential',
+        // Lookups that don't depend on each other (guides and web) run at once.
+        toolExecution: 'parallel',
       }),
       skillModel,
       modelKey: skillModel.key,
       lastUsed: now,
+      memory: { installId: null, situation: null },
     };
     return session;
   }
@@ -263,7 +283,9 @@ export class MimoSessions {
   private async run(session: Session, skillModel: SkillModel, request: MimoMessageRequest, ctx: MimoContext, sink: SseSink): Promise<StopReason> {
     const { agent } = session;
     session.countryCode = request.situation.countryCode;
+    session.memory = { installId: ctx.installId, situation: request.situation };
     const started = performance.now();
+    const toolBudgetMs = this.deps.toolBudgetMs ?? Math.round(this.deps.timeoutMs * MIMO_LIMITS.toolBudgetShare);
     this.deps.onRunEvent?.(ctx.runId, { type: 'model', key: skillModel.key });
     const state: RunState = { turns: 0, toolCalls: [], toolLimit: false, turnLimit: false };
     let firstTextMs: number | null = null;
@@ -294,7 +316,11 @@ export class MimoSessions {
     agent.finishTurn = ({ message }) => {
       if (message.stopReason === 'error' || message.stopReason === 'aborted') return;
       state.turns++;
-      const wantsMore = message.content.some((block) => block.type === 'toolCall');
+      const calls = message.content.filter((block) => block.type === 'toolCall');
+      const answered = message.content.some((block) => block.type === 'text' && block.text.trim().length > 0);
+      // An answer that also saved a note is done: no second turn just to say nothing.
+      if (calls.length > 0 && answered && calls.every((call) => call.name === 'remember')) return { action: 'end' };
+      const wantsMore = calls.length > 0;
       if (wantsMore && state.turns >= MIMO_LIMITS.maxTurns) {
         state.turnLimit = true;
         return { action: 'end' };
@@ -305,6 +331,10 @@ export class MimoSessions {
       if (state.toolCalls.length >= MIMO_LIMITS.maxToolCalls) {
         state.toolLimit = true;
         return { block: true, reason: 'No more tool calls for this message. Answer now with what you have.' };
+      }
+      if (toolCall.name !== 'remember' && performance.now() - started > toolBudgetMs) {
+        state.toolLimit = true;
+        return { block: true, reason: 'Out of time to look things up. Answer now with what you have.' };
       }
       state.toolCalls.push(toolCall.name);
       return undefined;

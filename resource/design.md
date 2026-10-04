@@ -430,8 +430,10 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
 - **Mimo's tools:**
   - `show_places` returns `{places: [{name, localName?, why, order?, when?}]}`, at most 5 places (or stops). `order` is 1–5. `when` is a local 24-hour `HH:mm`.
   - `web_search` is backed by **Exa** (`POST https://api.exa.ai/search`, header `x-api-key`) and returns `details.sources [{title, url}]`.
+  - `recall_trip` and `remember` (#78, with Tiger): Mimo searches the traveller's trip memory with its own query (optional kind and days), and saves what the traveller tells it about themselves as a `told_mimo` event. Both run on the server only: the app gets no tool events for them.
 - **Guardrails** (pi's Agent has none built in):
-  - at most 4 model turns and 3 tool calls per run, via `finishTurn` and `beforeToolCall`
+  - at most 5 model turns and 4 tool calls per run (the prompt asks for 3), via `finishTurn` and `beforeToolCall` (#78)
+  - tools that don't depend on each other run in parallel; past 55% of the time limit, lookups are refused and Mimo answers with what it has; an answer that only also called `remember` ends without a second turn
   - a timeout: 25 s for the JSON skills; for Mimo `MIMO_TIMEOUT_MS`, 28 s by default and 60 s on the dev server with thinking on (#58)
   - abort when the client disconnects
   - one run per session at a time: a second message gets 409 `session_busy`
@@ -975,3 +977,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 74 | Translate locks Soniox to the speaker's language: each session listens for one language (strict hint), and a hand-over finalizes it and opens a new session locked to the other language. A strong bias, not a filter (best effort per Soniox), but better than detecting between the pair, which mixed languages. Key limit 10 → 30 a minute (a key per session). §4.8 | user ("sometimes u still mix languages") |
 | 75 | Where Mimo's answers come from: situation, map data, profile and (later) trip memory are always in the prompt; the travel guides (`search_guides`, Snowflake Cortex Search) and the web (`web_search`) are tools Mimo picks; places it names are checked against the map. The most specific source wins. Place cards fetch the guides before their one call, and tips can cite them (`Tip.source`). §6.6, §8.4 | user (a hierarchy for how Mimo uses its sources) |
 | 76 | Trip memory on Tiger Data: the app reports places confirmed, phrases shown or spoken and typed translations (`POST /v1/trip-events`); the server stores them in a Timescale hypertable with Gemini embeddings and gives Mimo the latest and the most similar as `<trip_memory>` before each message; Mimo chats are saved to Postgres and survive a restart. §6.4, §6.6, §8.3 | user |
+| 78 | A slightly more agentic Mimo: `recall_trip` (search trip memory with its own query) and `remember` (save what the traveller says about themselves), parallel tools, up to 3 tool calls per message (hard cap 4, 5 turns), and a tool budget of 55% of the time limit. Trip memory stays in the prompt too, for quiet personalization. §6.4, §8.3 | user |

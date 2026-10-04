@@ -949,22 +949,24 @@ describe('mimo skill', () => {
     assert.doesNotMatch(JSON.stringify(events), /secret/);
   });
 
-  test('at most 3 tool calls: the 4th is blocked and the run ends with tool_limit', async () => {
+  test('at most 4 tool calls: the 5th is blocked and the run ends with tool_limit', async () => {
     const h = harness();
     const call = (i: number) => fauxToolCall('show_places', places, { id: `call_${i}` });
-    h.script(fauxAssistantMessage([call(1), call(2), call(3), call(4)], { stopReason: 'toolUse' }), fauxAssistantMessage('Here you go.'));
+    h.script(fauxAssistantMessage([call(1), call(2), call(3), call(4), call(5)], { stopReason: 'toolUse' }), fauxAssistantMessage('Here you go.'));
     const { stopReason, events } = await runMimo(h.skills, mimoRequest);
     assert.equal(stopReason, 'tool_limit');
-    const ends = events.filter((e) => e.type === 'tool_end');
-    assert.deepEqual(ends.map((e) => e.type === 'tool_end' && e.ok), [true, true, true, false]);
+    // Tools run in parallel, so they can end in any order.
+    const ends = events.flatMap((e) => (e.type === 'tool_end' ? [[e.id, e.ok] as const] : [])).sort(([a], [b]) => a.localeCompare(b));
+    assert.deepEqual(ends, [['call_1', true], ['call_2', true], ['call_3', true], ['call_4', true], ['call_5', false]]);
   });
 
-  test('at most 4 turns: a 4th turn that still wants tools ends with turn_limit', async () => {
+  test('at most 5 turns: a 5th turn that still wants tools ends with turn_limit', async () => {
     const h = harness();
-    h.script(...[1, 2, 3, 4, 5].map((i) => fauxAssistantMessage([fauxToolCall(i === 4 ? 'web_search' : 'show_places', i === 4 ? { query: 'q' } : places, { id: `c${i}` })], { stopReason: 'toolUse' })));
+    h.script(...[1, 2, 3, 4, 5, 6].map((i) => fauxAssistantMessage([fauxToolCall(i === 5 ? 'web_search' : 'show_places', i === 5 ? { query: 'q' } : places, { id: `c${i}` })], { stopReason: 'toolUse' })));
     const { stopReason } = await runMimo(h.skills, mimoRequest);
+    // Turn 5's call is also over the 4-call limit; the turn limit is what's reported.
     assert.equal(stopReason, 'turn_limit');
-    assert.equal(h.faux.state.callCount, 4);
+    assert.equal(h.faux.state.callCount, 5);
   });
 
   test('the time limit aborts the run with a timeout error and forgets the exchange', async () => {

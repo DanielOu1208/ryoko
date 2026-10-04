@@ -1,12 +1,15 @@
 // Mimo's tools (design §6.4). Mimo names places and the device locates them, so
 // show_places carries names and a why, never coordinates. web_search is Exa;
 // search_guides is the travel guides in Snowflake Cortex Search (design §8.4).
+// remember and recall_trip are the traveller's trip memory in Tiger (design §8.3,
+// #78); they run on the server alone, so the app gets no tool events for them.
 
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { Type } from 'typebox';
-import { Strict, type ShowPlacesDetails, type WebSearchDetails } from '@ryoko/contracts';
+import { StringEnum, Strict, type ShowPlacesDetails, type Situation, type WebSearchDetails } from '@ryoko/contracts';
 import { guideSourcesOf, guidesForModel, type GuideSearch } from '../../guides/snowflake.ts';
 import type { Budget } from '../../llm/budget.ts';
+import { MEMORY_KINDS, memoryLine, type MemoryKind, type RecalledEvent, type StoredEvent } from '../../memory/index.ts';
 import { resultsForModel, sourcesOf, type WebSearch } from './exa.ts';
 
 /** The contract's ShowPlacesParams (contracts/src/tools.ts), with descriptions for the model. */
@@ -151,6 +154,84 @@ export function searchGuidesTool(search: GuideSearch, countryCode: () => string 
         content: [{ type: 'text', text: guideResultsForModel(params.query, hits) }],
         details: { sources: guideSourcesOf(hits) },
       };
+    },
+  };
+}
+
+/** Who's asking and where they are, for the memory tools: the latest message's. */
+export interface MemoryContext {
+  installId: string | null;
+  situation: Situation | null;
+}
+
+export interface MemoryTools {
+  store(installId: string, events: readonly StoredEvent[]): Promise<number>;
+  search(installId: string, query: string, filter?: { kind?: MemoryKind; days?: number; limit?: number }, signal?: AbortSignal): Promise<RecalledEvent[]>;
+}
+
+export const RememberToolParams = Strict({
+  note: Type.String({
+    minLength: 1,
+    maxLength: 160,
+    description: 'One short line about the traveller, in their home language and the third person, e.g. "Doesn\'t like spicy food"',
+  }),
+});
+
+/** Saves what the traveller tells Mimo about themselves, so trip memory learns from the chat too. */
+export function rememberTool(memory: MemoryTools, context: () => MemoryContext): AgentTool<typeof RememberToolParams, { saved: boolean }> {
+  return {
+    name: 'remember',
+    label: 'Remembering…',
+    description:
+      "Save something lasting the traveller just told you about themselves for this trip: a like, a dislike, a need, an allergy or diet, or a plan. Not questions, not facts about places, not what's already in their profile or trip_memory.",
+    parameters: RememberToolParams,
+    prepareArguments: (args) => {
+      const note = (args as { note?: unknown })?.note;
+      return (typeof note === 'string' ? { note: clip(note, 160) } : args) as never;
+    },
+    execute: async (_id, params) => {
+      const { installId, situation } = context();
+      if (!installId) return { content: [{ type: 'text', text: "Not saved: there's no trip memory for this traveller. Answer as usual." }], details: { saved: false } };
+      const live = situation?.mode === 'live' ? situation.place : null;
+      await memory.store(installId, [
+        {
+          kind: 'told_mimo',
+          // A preview's local time is when they're looking ahead to, not now.
+          at: situation?.mode === 'live' ? situation.localTime : new Date().toISOString(),
+          text: params.note,
+          ...(live ? { place: { name: live.name, ...(live.localName ? { localName: live.localName } : {}), ...(live.category ? { category: live.category } : {}) } } : {}),
+          ...(situation ? { city: situation.city, countryCode: situation.countryCode } : {}),
+        },
+      ]);
+      return { content: [{ type: 'text', text: "Saved. Don't mention saving it; if you haven't answered yet, answer now." }], details: { saved: true } };
+    },
+  };
+}
+
+export const RecallTripToolParams = Strict({
+  query: Type.String({ minLength: 1, maxLength: 200, description: 'What to look for, e.g. "what I ate in Shinjuku" or "the phrase about noodles"' }),
+  kind: Type.Optional(StringEnum(MEMORY_KINDS, { description: 'Only this kind of moment' })),
+  days: Type.Optional(Type.Integer({ minimum: 1, maximum: 30, description: 'Only the last this many days' })),
+});
+
+/** Searches the traveller's trip memory with Mimo's own query, past what trip_memory shows. */
+export function recallTripTool(memory: MemoryTools, context: () => MemoryContext): AgentTool<typeof RecallTripToolParams, { count: number }> {
+  return {
+    name: 'recall_trip',
+    label: 'Looking back…',
+    description:
+      'Search what the traveller did earlier on this trip: places they were at, phrases they showed or said, what they typed in Translate, and what they told you. Use it when they ask about their trip and trip_memory doesn\'t already answer it. Returns up to 8 moments, closest first.',
+    parameters: RecallTripToolParams,
+    prepareArguments: (args) => {
+      const query = (args as { query?: unknown })?.query;
+      return (typeof query === 'string' ? { ...(args as object), query: clip(query, 200) } : args) as never;
+    },
+    execute: async (_id, params, signal) => {
+      const { installId, situation } = context();
+      if (!installId || !situation) return { content: [{ type: 'text', text: 'Nothing to look back on for this traveller.' }], details: { count: 0 } };
+      const events = await memory.search(installId, params.query, { ...(params.kind ? { kind: params.kind } : {}), ...(params.days ? { days: params.days } : {}), limit: 8 }, signal);
+      const text = events.length === 0 ? `Nothing on this trip matches "${params.query}".` : JSON.stringify(events.map((event) => memoryLine(event, situation)));
+      return { content: [{ type: 'text', text }], details: { count: events.length } };
     },
   };
 }

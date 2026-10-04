@@ -2,14 +2,15 @@
 // the older ones most like the message, with times relative to the traveller's
 // local "now", so "yesterday at the ramen shop" means something to the model.
 
-import type { Situation, TripEventKind } from '@ryoko/contracts';
-import type { Recall, RecalledEvent } from './tiger.ts';
+import type { Situation } from '@ryoko/contracts';
+import type { MemoryKind, Recall, RecalledEvent } from './tiger.ts';
 
-const DID: Record<TripEventKind, string> = {
+const DID: Record<MemoryKind, string> = {
   place_confirmed: 'was at',
   phrase_shown: 'showed a phrase',
   phrase_spoken: 'said a phrase',
   typed_translation: 'typed in Translate',
+  told_mimo: 'told you',
 };
 
 /** `2026-10-05` from a local ISO time, as a day number for comparing dates. */
@@ -37,7 +38,8 @@ export function when(event: RecalledEvent, situation: Situation): string {
   return event.localTime!.slice(0, 10);
 }
 
-function line(event: RecalledEvent, situation: Situation): Record<string, string> {
+/** One event as the model reads it. */
+export function memoryLine(event: RecalledEvent, situation: Situation): Record<string, string> {
   const out: Record<string, string> = { when: when(event, situation), did: DID[event.kind], text: event.text };
   if (event.meaning) out.meaning = event.meaning;
   if (event.placeName && event.kind !== 'place_confirmed') out.at = event.category ? `${event.placeName} (${event.category})` : event.placeName;
@@ -51,10 +53,10 @@ export function tripMemorySection(recall: Recall, situation: Situation): string 
   if (recall.recent.length === 0 && recall.similar.length === 0) return null;
   const parts = ['<trip_memory>'];
   if (recall.recent.length > 0) {
-    parts.push('Latest on this trip, newest first:', JSON.stringify(recall.recent.map((e) => line(e, situation))));
+    parts.push('Latest on this trip, newest first:', JSON.stringify(recall.recent.map((e) => memoryLine(e, situation))));
   }
   if (recall.similar.length > 0) {
-    parts.push('Earlier moments like this message:', JSON.stringify(recall.similar.map((e) => line(e, situation))));
+    parts.push('Earlier moments like this message:', JSON.stringify(recall.similar.map((e) => memoryLine(e, situation))));
   }
   parts.push('</trip_memory>');
   return parts.join('\n');

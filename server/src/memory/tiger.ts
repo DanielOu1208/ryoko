@@ -88,9 +88,16 @@ export async function migrate(pool: pg.Pool): Promise<void> {
   }
 }
 
+/** The app's events, plus what the traveller told Mimo (the `remember` tool). */
+export const MEMORY_KINDS = ['place_confirmed', 'phrase_shown', 'phrase_spoken', 'typed_translation', 'told_mimo'] as const satisfies readonly (TripEventKind | 'told_mimo')[];
+export type MemoryKind = (typeof MEMORY_KINDS)[number];
+
+/** An event to store: the app's (`TripEvent`) or one of Mimo's notes. */
+export type StoredEvent = Omit<TripEvent, 'kind'> & { kind: MemoryKind };
+
 /** One remembered event, as Mimo's prompt shows it. */
 export interface RecalledEvent {
-  kind: TripEventKind;
+  kind: MemoryKind;
   /** When it happened (UTC). */
   time: Date;
   /** The device's local time then, e.g. 2026-10-05T19:42:00+09:00. */
@@ -122,15 +129,16 @@ export const RECALL = {
 } as const;
 
 /** The text an event is embedded as: kind, place and both sides, so a question in either language finds it. */
-export function embeddingText(event: TripEvent): string {
+export function embeddingText(event: StoredEvent): string {
   const place = event.place ? `${event.place.name}${event.place.category ? ` (${event.place.category})` : ''}` : null;
   const city = event.city ? `, ${event.city}` : '';
   if (event.kind === 'place_confirmed') return `Was at ${place ?? event.text}${city}`;
   const where = place ? ` at ${place}${city}` : event.city ? ` in ${event.city}` : '';
-  const lead: Record<Exclude<TripEventKind, 'place_confirmed'>, string> = {
+  const lead: Record<Exclude<MemoryKind, 'place_confirmed'>, string> = {
     phrase_shown: 'Showed a phrase',
     phrase_spoken: 'Said a phrase',
     typed_translation: 'Typed in Translate',
+    told_mimo: 'Told Mimo',
   };
   return `${lead[event.kind]}${where}: ${event.meaning ? `${event.text} = ${event.meaning}` : event.text}`;
 }
@@ -142,7 +150,7 @@ function eventTime(at: string, now: number): Date {
 }
 
 type Row = {
-  kind: TripEventKind;
+  kind: MemoryKind;
   time: Date;
   local_time: string | null;
   text: string;
@@ -184,7 +192,7 @@ export class TripMemory {
   }
 
   /** Stores a batch, skipping repeats. Without embeddings (no key, or Gemini failed) events are still kept for "recent". */
-  async store(installId: string, events: readonly TripEvent[], now = Date.now()): Promise<number> {
+  async store(installId: string, events: readonly StoredEvent[], now = Date.now()): Promise<number> {
     await whenReady(this.ready);
     const seen = new Set<string>();
     const unique = events.filter((event) => {
@@ -259,6 +267,26 @@ export class TripMemory {
       .slice(0, RECALL.similar)
       .map(recalled);
     return { recent, similar };
+  }
+
+  /**
+   * Mimo's own search (recall_trip): the events closest to `query`, optionally of
+   * one kind or from the last `days`. Without embeddings, the latest that match the filters.
+   */
+  async search(installId: string, query: string, filter: { kind?: MemoryKind; days?: number; limit?: number } = {}, signal?: AbortSignal): Promise<RecalledEvent[]> {
+    await whenReady(this.ready);
+    const days = Math.min(Math.max(filter.days ?? RECALL.days, 1), RECALL.days);
+    const limit = Math.min(Math.max(filter.limit ?? 8, 1), 20);
+    const vector = this.embed ? await this.embed([query], 'RETRIEVAL_QUERY', signal).then((v) => v[0] ?? null, () => null) : null;
+    const where = 'install_id = $1 AND time > now() - make_interval(days => $2) AND ($3::text IS NULL OR kind = $3)';
+    const result = vector
+      ? await this.pool.query<Row>(
+          `SELECT ${COLUMNS}, embedding <=> $4::vector AS distance FROM trip_events
+           WHERE ${where} AND embedding IS NOT NULL ORDER BY embedding <=> $4::vector LIMIT $5`,
+          [installId, days, filter.kind ?? null, vectorLiteral(vector), limit],
+        )
+      : await this.pool.query<Row>(`SELECT ${COLUMNS} FROM trip_events WHERE ${where} ORDER BY time DESC LIMIT $4`, [installId, days, filter.kind ?? null, limit]);
+    return result.rows.map(recalled);
   }
 }
 
