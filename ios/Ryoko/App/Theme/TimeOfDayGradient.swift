@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// The soft, static time-of-day wash from design §9.3: a `LinearGradient` over
-/// the top ~45% of Nearby and of place sheets, fading into the system background.
+/// the top ~45% of Nearby, Translate, Mimo, Me and place sheets, fading into the
+/// system background.
 /// No animation. It follows the active situation's local time, so a previewed
 /// 8 AM looks like morning.
 ///
@@ -10,7 +11,7 @@ import SwiftUI
 ///     ScrollView { … }
 ///         .background { TimeOfDayGradient(date: date, timeZone: zone) }
 ///
-/// It doesn't appear in Show mode, Translate, Mimo, Me or onboarding.
+/// It doesn't appear on the Map, in Show mode or in onboarding.
 struct TimeOfDayGradient: View {
     let partOfDay: PartOfDay
     /// What the wash fades into, and what fills the rest of the screen.
@@ -88,4 +89,31 @@ extension TimeOfDayGradient {
         }
     }
     .tabViewStyle(.page)
+}
+
+/// The time-of-day wash for the active situation, as a tab's background; the
+/// plain background until there's a situation. Translate, Mimo and Me use it.
+/// It starts live mode (without a prompt), so a tab opened first still gets
+/// its wash.
+struct SituationGradient: View {
+    var background: Color = Theme.pageBackground
+
+    @Environment(AppSituationStore.self) private var situationStore
+
+    var body: some View {
+        Group {
+            if let situation = situationStore.situation {
+                TimeOfDayGradient(
+                    date: situation.date ?? .now,
+                    timeZone: situation.zone ?? .current,
+                    background: background
+                )
+            } else {
+                background
+                    .ignoresSafeArea()
+                    .accessibilityHidden(true)
+            }
+        }
+        .task { situationStore.startLiveIfAuthorized() }
+    }
 }
