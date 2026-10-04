@@ -38,6 +38,9 @@ nonisolated struct DiscoverRequest: Codable, Hashable, Sendable {
     var area: DiscoverArea
     var profile: Profile
     var situation: Situation
+    /// The real places MapKit knows around the area, nearest first, at most
+    /// 40 (design #54). Mimo picks from these.
+    var nearby: [NearbyPlace]? = nil
 }
 
 nonisolated struct DiscoverPlace: Codable, Hashable, Sendable {

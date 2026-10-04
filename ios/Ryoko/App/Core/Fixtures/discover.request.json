@@ -70,5 +70,37 @@
     "district": "Jing'an",
     "countryCode": "CN",
     "localLanguage": "zh-Hans"
-  }
+  },
+  "nearby": [
+    {
+      "name": "Wutong Coffee",
+      "localName": "梧桐咖啡",
+      "category": "cafe",
+      "distanceMeters": 40
+    },
+    {
+      "name": "Jing'an Temple",
+      "localName": "静安寺",
+      "category": "temple_shrine",
+      "distanceMeters": 650
+    },
+    {
+      "name": "Jing'an Park",
+      "localName": "静安公园",
+      "category": "park",
+      "distanceMeters": 700
+    },
+    {
+      "name": "Wujiang Road snack street",
+      "localName": "吴江路小吃街",
+      "category": "restaurant",
+      "distanceMeters": 1200
+    },
+    {
+      "name": "Fuxing Park",
+      "localName": "复兴公园",
+      "category": "park",
+      "distanceMeters": 1450
+    }
+  ]
 }

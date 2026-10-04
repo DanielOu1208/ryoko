@@ -573,6 +573,56 @@
         }
       },
       "additionalProperties": false
+    },
+    "nearby": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "category",
+          "distanceMeters"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "localName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "cafe",
+              "tea",
+              "restaurant",
+              "ramen",
+              "bar",
+              "bakery",
+              "convenience_store",
+              "museum",
+              "park",
+              "temple_shrine",
+              "shopping",
+              "transit",
+              "hotel",
+              "other"
+            ],
+            "description": "Category slug from contracts/tables/categories.json"
+          },
+          "distanceMeters": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50000
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 40
     }
   },
   "additionalProperties": false

@@ -1,6 +1,7 @@
 import { Type, type Static } from 'typebox';
 import { Strict } from './helpers.ts';
 import { CategorySlug, Coordinate } from './common.ts';
+import { NearbyPlace } from './mimo.ts';
 import { Profile } from './profile.ts';
 import { Situation } from './situation.ts';
 
@@ -18,6 +19,9 @@ export const DiscoverRequest = Strict({
   area: DiscoverArea,
   profile: Profile,
   situation: Situation,
+  // The real places MapKit knows around the area, nearest first (design #54).
+  // Mimo picks from these; it may add a well-known place it's sure of.
+  nearby: Type.Optional(Type.Array(NearbyPlace, { maxItems: 40 })),
 });
 export type DiscoverRequest = Static<typeof DiscoverRequest>;
 
