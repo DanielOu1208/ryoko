@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 
 // Profile.version = sha-256 (lowercase hex) of the canonical JSON of the profile
 // with `version` removed. Canonical JSON: object keys sorted by UTF-16 code unit,
-// no whitespace, JSON.stringify string escaping. The server treats the version as an
+// no whitespace, JSON.stringify string escaping. An absent optional key (such as an
+// empty `aboutMe`) is left out, never written as null. The server treats the version as an
 // opaque cache key; only the device needs to compute it consistently.
 
 export function canonicalJson(value: unknown): string {

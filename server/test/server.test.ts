@@ -213,6 +213,16 @@ describe('fixture mode (MODEL=faux)', () => {
     assert.equal(card.reviewed, false);
   });
 
+  test('a profile may carry aboutMe; an empty or null one is rejected (it is absent instead)', async () => {
+    const withAboutMe = (aboutMe: unknown) => ({ ...placeCardShanghai, profile: { ...placeCardShanghai.profile, aboutMe } });
+    assert.equal((await call(app, '/v1/place-card', { body: withAboutMe('Chemistry teacher, loves jazz bars.') })).status, 200);
+    const mimo = await call(app, '/v1/sessions/s-about/messages', { body: { ...mimoRequest, profile: { ...mimoRequest.profile, aboutMe: 'First time in Japan.' } } });
+    assert.equal(mimo.status, 200);
+    await mimo.text(); // let the replayed stream finish
+    await assertError(await call(app, '/v1/place-card', { body: withAboutMe('') }), 400, 'invalid_request');
+    await assertError(await call(app, '/v1/place-card', { body: withAboutMe(null) }), 400, 'invalid_request');
+  });
+
   test('an invalid body gets invalid_request with the field named', async () => {
     const error = await assertError(await call(app, '/v1/place-card', { body: example('error.invalid-request.request.json') }), 400, 'invalid_request');
     assert.match(error.message, /place-card contract/);
