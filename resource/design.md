@@ -272,7 +272,12 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
   - Under it, one glass pill on one line: "<place> · <local time>" (the place's time). A long place name truncates before the time. Before there's a place, there's no pill.
   - The sidebar button (left) and New chat (right) are 44 pt and centred on the avatar. The pill and buttons stop growing at accessibility text sizes, like bar items.
   - VoiceOver reads it as one heading: "Mimo, <place>, <time>" (just "Mimo" before there's a place).
-  - **Ask Mimo** on a place card opens the tab on a new chat that asks "Tell me more about <place>." at once, with the place attached as the subject (#66), without changing the active situation. The Map's From Mimo layer stays. With no situation yet, the question waits in the composer.
+  - **Ask Mimo** on a place card opens the tab on a new chat that asks "Tell me more about <place>." at once, with the place as the chat's subject (#66), without changing the active situation. The Map's From Mimo layer stays. With no situation yet, the question waits in the composer.
+  - The place shows as a **preview above that first message**, like a location shared in Messages: a small map with its pin, its name, and its category and address. Tap it to open the place's card on the Map. There is no "About <place>" chip at the top (#72). The subject belongs to the chat: every message in it carries `subjectPlace`, and it comes back when the chat is reopened from History.
+- **Model picker** (#73), like Codex's effort button: a small "<level> ⌄" button in the composer, beside Send. The button is centred on Send. It opens a popover with the level in large type, the model under it, a reset arrow back to the server's default, and a slider with a stop per level the model takes. Tapping the model turns the popover to the list of models under their provider, with a checkmark at the right of the one in use. The levels are Instant (thinking off), Minimal, Low, Medium and High.
+  - The level's title and the slider's fill are coloured, warm to cool as Mimo thinks longer: Instant orange, Minimal green, Low teal, Medium blue, High indigo, with a white knob. This is the one exception to monochrome controls (§9).
+  - The list comes from `GET /v1/mimo-models` each time the tab opens. The pick is kept on the device and sent with each message (`model`, `effort`); until you pick, messages name no model and the server uses its default. A model that doesn't take the current level moves to the nearest one it does (GPT-6.1 Sol and Gemini have no Instant).
+  - A chat can change model between messages and keeps its history. Without the list (an older server, offline), the button hides.
 - **Avatar:** Mimo has an animated avatar: a single monochrome blob with two eyes that morphs between states.
   - **Engine:** ported to Swift from [bloub](https://github.com/jeremy-prt/bloub) (MIT; see THIRD_PARTY_NOTICES.md). Its motion is measured from the x.ai bot avatar.
   - **Look:** Mimo uses its own preset (a different body shape and rest expression), so it isn't a replica of xAI's mascot.
@@ -396,6 +401,7 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
   - Never send temperature or top_p. Never use `-latest` aliases.
   - Gemini's native `responseJsonSchema` (via pi's `onPayload`) is an optional optimization added at switch time, never the only path.
   - This needs a billed Gemini project (§8.2).
+- **Mimo's model picker** (#73): the app can pick Mimo's model and level per message from a fixed catalog (`server/src/llm/catalog.ts`); the server runs nothing else. The `MODEL_MIMO` default comes first at its configured level. On GMI: DeepSeek V4.1 Flash, Qwen3.8 Flash, GPT-6.1 Sol (`openai/gpt-6.1-sol`, low/medium/high only) and GPT-6 Luna; the two GPTs answer well but slowly on GMI (6–30 s a turn). With `GEMINI_API_KEY`: Gemini 3.8 Flash (low and up) and Gemini 3.5 Flash-Lite (minimal and up), the newest Flash and Flash-Lite on 2026-10-04, through pi-ai's `google` provider. A probe on 2026-10-04 checked each GMI model's tool calls and `reasoning_effort` values; GLM-5.3 (a tool tag in its text), Grok 4.6 (20–28 s) and Kimi K3 (cut off at Mimo's token limit with thinking off) were left out.
 - Moving any skill to Cerebras would need its own account and key. It is not a config-only change.
 
 ### 6.4 Server
@@ -417,6 +423,7 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
   | `POST /v1/translate` | `translate` (no tools) | 2 |
   | ~~`POST /v1/localize-place`~~ | cut (#47): MapKit on device | — |
   | `POST /v1/soniox-key` | mints a short-lived Soniox key | 2 |
+  | `GET /v1/mimo-models` | the models Mimo's picker offers (#73) | 2 |
 
 - **Mimo's tools:**
   - `show_places` returns `{places: [{name, localName?, why, order?, when?}]}`, at most 5 places (or stops). `order` is 1–5. `when` is a local 24-hour `HH:mm`.
@@ -577,7 +584,9 @@ Swift `Codable` types in `ios/Shared/` mirror the schemas by hand. Changes go th
 
 ### 7.7 Mimo messages (SSE)
 
-**Request:** `POST /v1/sessions/:id/messages` with `{ clientMessageId, message (≤ 2,000 chars), profile, situation, nearby?: [{ name, localName?, category, distanceMeters }] (≤ 20), subjectPlace? }`.
+**Request:** `POST /v1/sessions/:id/messages` with `{ clientMessageId, message (≤ 2,000 chars), profile, situation, nearby?: [{ name, localName?, category, distanceMeters }] (≤ 20), subjectPlace?, model?, effort? }`. `model` is an id from `GET /v1/mimo-models` and `effort` is `off | minimal | low | medium | high`; absent means the server's default. A model the list doesn't offer gets 400 `invalid_request`.
+
+**Models:** `GET /v1/mimo-models` returns `{ defaultModel, models: [{ id ("provider:modelId"), name, provider (gmi | google), providerName, efforts (lowest first), defaultEffort }] }`.
 
 **Stream format:**
 - Each event is exactly one `data: {json}` line followed by a blank line. No `event:` lines.
@@ -926,3 +935,5 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 68 | Translate's turns are manual: you say who's speaking by tapping their language, and everything heard stays in that turn until you tap the other. Soniox finalizes at each hand-over so last words stay put; strict language hints. Supersedes the automatic turn rule from #29 (kept for DEBUG) | user (auto switching too sensitive, text vanished on every switch) |
 | 69 | Me is a styled home instead of one long list: an avatar header (an SF Symbol you pick, kept on the device, not in the profile), where you're from, languages and this-or-that chips; the allergy card at a glance (local title, allergens with severity in words, tap for Show mode); Diet, Your usual and Home base; About me; and a Settings row that holds every profile page, the home base, Redo survey, romanization, credits and the developer section. §4.10 | user ("the Me screen looks like an afterthought") |
 | 70 | Every thinking orb is the Rubik's cube design (`.solving`) instead of one design per kind of work | user |
+| 72 | Ask Mimo shows the place as a preview above the first message (a small map with its pin, name, category and address) that opens its card on the Map; the "About <place>" chip at the top is removed. The subject is kept with the chat. §4.9 | user |
+| 73 | Mimo's model picker, like Codex's effort button: a level button in the composer opens a popover with the level, the model (menu by provider), a reset arrow and a slider. `GET /v1/mimo-models` and `model`/`effort` on Mimo messages; a fixed server catalog (GMI: DeepSeek V4.1 Flash, Qwen3.8 Flash, GPT-6.1 Sol, GPT-6 Luna; Gemini 3.8 Flash and 3.5 Flash-Lite once a Gemini key is set); a chat keeps its history across a model change. §4.9, §6.3, §6.4, §7.7 | user |

@@ -21,16 +21,17 @@ export interface CatalogModel {
 }
 
 /**
- * GMI models were probed on 2026-10-04 for tool calls and each reasoning_effort
- * (GLM-5.3 put a tool tag in its text and Grok 4.6 took 20–28 s, so they're
- * left out). Gemini can't turn thinking off, so its lowest level is the default.
+ * GMI models were probed on 2026-10-04 for tool calls and each reasoning_effort.
+ * Left out: GLM-5.3 (a tool tag in its text), Grok 4.6 (20–28 s a turn) and
+ * Kimi K3 (cut off at Mimo's token limit with thinking off). GPT-6.1 Sol and
+ * GPT-6 Luna answer well but slowly on GMI (6–30 s a turn). Gemini can't turn
+ * thinking off, so its lowest level is the default.
  */
 export const MIMO_CATALOG: readonly CatalogModel[] = [
   { provider: 'gmi', modelId: 'deepseek-ai/DeepSeek-V4.1-Flash', name: 'DeepSeek V4.1 Flash', defaultEffort: 'off' },
   { provider: 'gmi', modelId: 'Qwen/Qwen3.8-Flash', name: 'Qwen3.8 Flash', defaultEffort: 'off' },
   { provider: 'gmi', modelId: 'openai/gpt-6.1-sol', name: 'GPT-6.1 Sol', defaultEffort: 'low' },
   { provider: 'gmi', modelId: 'openai/gpt-6-luna', name: 'GPT-6 Luna', defaultEffort: 'off' },
-  { provider: 'gmi', modelId: 'moonshotai/kimi-k3', name: 'Kimi K3', defaultEffort: 'off' },
   { provider: 'google', modelId: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', defaultEffort: 'low' },
   { provider: 'google', modelId: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite', defaultEffort: 'minimal' },
 ];

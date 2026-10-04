@@ -27,7 +27,6 @@ const GMI_PRICES: Record<string, Model<'openai-completions'>['cost']> = {
   'Qwen/Qwen3.8-Flash': { input: 0.16, output: 0.47, cacheRead: 0.016, cacheWrite: 0.2 },
   'openai/gpt-6.1-sol': { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
   'openai/gpt-6-luna': { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
-  'moonshotai/kimi-k3': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 0 },
 };
 /** The GMI models with known prices: the dashboard suggests these. */
 export const GMI_MODEL_IDS = Object.keys(GMI_PRICES);

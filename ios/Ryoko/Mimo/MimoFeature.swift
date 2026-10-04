@@ -3,8 +3,9 @@ import os
 
 /// The Mimo tab (design §4.9, §6.2, §7.7, W6).
 ///
-/// - `MimoView`: the tab. Header (room for the avatar, the subject chip),
-///   transcript, starters and the composer.
+/// - `MimoView`: the tab. Header (the avatar, where and when), transcript,
+///   starters and the composer with the model picker (`MimoModelButton`).
+/// - `MimoModelStore`: the server's models and your pick, sent with each message.
 /// - `MimoChat`: one conversation. Sends messages over SSE, turns events into
 ///   ordered segments, resolves `show_places` names with the shared
 ///   `PlaceResolver`, and saves the transcript.
@@ -13,8 +14,8 @@ import os
 ///
 /// Cross-tab hand-offs go through `AppRouter` only: `router.show = .phrase(_)`
 /// for a phrase block, `router.openMap(selecting:)` for a place chip,
-/// `router.showOnMap(_)` for "Show on map", and `router.mimoSubject` for
-/// "Ask Mimo about this place".
+/// `router.showOnMap(_)` for "Show on map", and `router.mimoQuestion` for
+/// "Ask Mimo about this place" (the chat keeps the place as its subject).
 nonisolated enum MimoFeature {
     /// The contract's limit on one message (design §7.7).
     static let messageLimit = 2_000

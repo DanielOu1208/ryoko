@@ -14,11 +14,11 @@ struct MimoSendContext {
     var situation: Situation
     /// Up to 20 MapKit POIs around the place, when they've been looked up.
     var nearby: [NearbyPlace]?
-    /// `router.mimoSubject`.
-    var subjectPlace: Place?
-    /// Where to look up the names Mimo gives: the subject place, the active
+    /// Where to look up the names Mimo gives: the chat's subject, the active
     /// place, or the last location fix. nil means none can be found.
     var anchor: Coordinate?
+    /// The model picker's choice; nil leaves both to the server.
+    var model: MimoModelChoice?
 }
 
 /// One Mimo conversation (W6.1–W6.4): sends messages over SSE, turns the
@@ -60,6 +60,8 @@ final class MimoChat {
     var sessionId: String { transcript.sessionId }
     var turns: [MimoTurn] { transcript.turns }
     var isEmpty: Bool { transcript.isEmpty }
+    /// The place this chat is about, from "Ask Mimo" on a place's card.
+    var subject: Place? { transcript.subject }
 
     /// Whether a new message can go now.
     var canSend: Bool { !isReplying && !isCoolingDown }
@@ -70,7 +72,8 @@ final class MimoChat {
     func send(_ text: String, context: MimoSendContext) {
         let message = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(MimoFeature.messageLimit))
         guard !message.isEmpty, canSend else { return }
-        let turn = MimoTurn(message: message)
+        // The chat's first message carries its subject as a preview.
+        let turn = MimoTurn(message: message, place: transcript.isEmpty ? transcript.subject : nil)
         transcript.turns.append(turn)
         save()
         start(turn.id, message: message, context: context)
@@ -99,11 +102,11 @@ final class MimoChat {
         RyokoLog.mimo.info("Stopped the reply")
     }
 
-    /// New chat: a new session id and an empty transcript. The old session
-    /// stays on the device.
-    func newChat() {
+    /// New chat: a new session id and an empty transcript, about `subject`
+    /// when "Ask Mimo" started it. The old session stays on the device.
+    func newChat(about subject: Place? = nil) {
         leaveCurrent()
-        transcript = MimoTranscript()
+        transcript = MimoTranscript(subject: subject)
         store.setCurrent(transcript.sessionId)
         store.prune()
         RyokoLog.mimo.info("New chat \(self.transcript.sessionId, privacy: .public)")
@@ -173,13 +176,15 @@ final class MimoChat {
             profile: context.profile,
             situation: context.situation,
             nearby: nearby?.isEmpty == false ? nearby : nil,
-            subjectPlace: context.subjectPlace
+            subjectPlace: transcript.subject,
+            model: context.model?.model,
+            effort: context.model?.effort
         )
         let stream = context.api.mimoMessages(sessionId: sessionId, request: request)
         isReplying = true
         replyingTurn = turnID
         RyokoLog.mimo.info(
-            "Sending to \(self.sessionId, privacy: .public): \(request.situation.localLanguage, privacy: .public), \(nearby?.count ?? 0) nearby, subject \(context.subjectPlace?.name ?? "none", privacy: .public)"
+            "Sending to \(self.sessionId, privacy: .public): \(request.situation.localLanguage, privacy: .public), \(nearby?.count ?? 0) nearby, subject \(request.subjectPlace?.name ?? "none", privacy: .public), model \(request.model ?? "default", privacy: .public) \(request.effort?.rawValue ?? "", privacy: .public)"
         )
         runTask = Task { [weak self] in
             await self?.consume(stream, turnID: turnID, context: context)

@@ -54,7 +54,6 @@ describe('the Mimo model catalog', () => {
         ['gmi:Qwen/Qwen3.8-Flash', 'off minimal low medium high', 'off'],
         ['gmi:openai/gpt-6.1-sol', 'low medium high', 'low'],
         ['gmi:openai/gpt-6-luna', 'off low medium high', 'off'],
-        ['gmi:moonshotai/kimi-k3', 'off minimal low medium high', 'off'],
       ],
     );
     assert.ok(listing.models.every((m) => m.providerName === 'GMI Cloud'));
@@ -147,7 +146,7 @@ describe('GET /v1/mimo-models', () => {
     const res = await call(app);
     assert.equal(res.status, 200);
     const listing = (await res.json()) as MimoModelsResponse;
-    assert.equal(listing.models.length, 5);
+    assert.equal(listing.models.length, 4);
 
     const sent = await app.request('/v1/sessions/s-pick/messages', {
       method: 'POST',

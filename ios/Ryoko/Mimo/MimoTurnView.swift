@@ -9,11 +9,19 @@ struct MimoTurnView: View {
     var onShowPhrase: (Phrase) -> Void
     var onSelectPlace: (MimoFoundPlace) -> Void
     var onShowOnMap: (MimoPlaces) -> Void
+    /// The asked-about place's preview was tapped.
+    var onOpenPlace: (Place) -> Void
     var onRetry: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.grid * 2) {
-            MimoUserBubble(text: turn.message)
+            VStack(alignment: .trailing, spacing: Theme.grid * 0.75) {
+                if let place = turn.place {
+                    MimoPlacePreview(place: place, onOpen: { onOpenPlace(place) })
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                MimoUserBubble(text: turn.message)
+            }
             VStack(alignment: .leading, spacing: Theme.grid * 1.5) {
                 ForEach(displayOrder, id: \.self) { index in
                     segmentView(turn.segments[index])

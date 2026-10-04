@@ -7,12 +7,16 @@ nonisolated struct MimoTranscript: Codable, Hashable, Sendable {
     var sessionId: String
     var createdAt: Date
     var updatedAt: Date
+    /// The place "Ask Mimo" started this chat about (design §4.9). Every
+    /// message carries it as `subjectPlace`; the first shows it as a preview.
+    var subject: Place?
     var turns: [MimoTurn]
 
-    init(sessionId: String = UUID().uuidString.lowercased(), createdAt: Date = .now, turns: [MimoTurn] = []) {
+    init(sessionId: String = UUID().uuidString.lowercased(), createdAt: Date = .now, subject: Place? = nil, turns: [MimoTurn] = []) {
         self.sessionId = sessionId
         self.createdAt = createdAt
         self.updatedAt = createdAt
+        self.subject = subject
         self.turns = turns
     }
 
@@ -24,6 +28,9 @@ nonisolated struct MimoTurn: Codable, Hashable, Sendable, Identifiable {
     var id: UUID
     /// What you asked.
     var message: String
+    /// The place the message is about, shown above it as a preview that opens
+    /// the Map: the chat's subject, on its first message.
+    var place: Place?
     var sentAt: Date
     /// Mimo's reply as ordered segments, appended in SSE order.
     var segments: [MimoSegment]
@@ -42,9 +49,10 @@ nonisolated struct MimoTurn: Codable, Hashable, Sendable, Identifiable {
         case failed(MimoFailure)
     }
 
-    init(message: String, sentAt: Date = .now) {
+    init(message: String, place: Place? = nil, sentAt: Date = .now) {
         id = UUID()
         self.message = message
+        self.place = place
         self.sentAt = sentAt
         segments = []
         status = .streaming

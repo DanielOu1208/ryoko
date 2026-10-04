@@ -30,13 +30,10 @@ final class AppRouter {
     /// `.onChange(of: router.mapFocus, initial: true)` and then sets it to nil.
     var mapFocus: MapFocus?
 
-    /// The place "Ask Mimo about this place" attached (design §4.9). Mimo sends
-    /// it as `subjectPlace` until it clears it (the subject's close button, or
-    /// New chat). It never changes the active situation.
-    var mimoSubject: Place?
-
     /// "Ask Mimo" on a place's card (design §4.9): Mimo starts a new chat
-    /// about this place and asks about it straight away, then clears it.
+    /// about this place and asks about it straight away, then clears it. The
+    /// chat keeps the place as its subject (sent as `subjectPlace` with every
+    /// message); it never changes the active situation.
     var mimoQuestion: Place?
 
     /// The Map's From Mimo layer (design §4.7): places, or a plan's numbered

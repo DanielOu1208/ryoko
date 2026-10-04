@@ -4,9 +4,10 @@ import os
 /// The Mimo tab (design §4.9): a chat with Mimo about places, phrases and plans.
 ///
 /// Every message carries the profile, the active situation (re-stamped to
-/// now), up to 20 nearby MapKit places and, after "Ask Mimo about this place",
-/// the subject place. Replies stream in as text, phrase blocks (tap for Show
-/// mode), place chips (tap for the Map, or Show on map) and sources.
+/// now), up to 20 nearby MapKit places, the model picker's choice and, in a
+/// chat "Ask Mimo" started, its place (shown on the first message as a
+/// preview that opens the Map). Replies stream in as text, phrase blocks (tap
+/// for Show mode), place chips (tap for the Map, or Show on map) and sources.
 struct MimoView: View {
     @Environment(AppSituationStore.self) private var situationStore
     @Environment(ProfileStore.self) private var profileStore
@@ -17,6 +18,8 @@ struct MimoView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var chat: MimoChat
+    /// The model picker's list and your pick, shared by every chat.
+    @State private var models = MimoModelStore.shared
     @State private var draft = ""
     /// The places around `nearbyAnchor`, once MapKit has answered.
     @State private var nearby: [NearbyPlace]?
@@ -156,6 +159,8 @@ struct MimoView: View {
             let places = await MimoNearby.places(around: anchor)
             if !Task.isCancelled { nearby = places }
         }
+        // Each visit refreshes the picker's list: the server's models can change.
+        .task { await models.load(api: effectiveAPI) }
         .task {
             situationStore.startLiveIfAuthorized()
             chat.resumeLookups(resolver: resolver)
@@ -183,11 +188,8 @@ struct MimoView: View {
         transcript
             .background { SituationGradient(mood: chat.turns.last?.isStreaming == true ? .working : .calm) }
             .safeAreaBar(edge: .top) {
-                VStack(spacing: Theme.grid) {
-                    TimelineView(.everyMinute) { context in
-                        header(at: context.date)
-                    }
-                    subjectBar
+                TimelineView(.everyMinute) { context in
+                    header(at: context.date)
                 }
             }
             .safeAreaBar(edge: .bottom) {
@@ -302,7 +304,7 @@ struct MimoView: View {
             .accessibilityAddTraits(.isHeader)
             Spacer(minLength: Theme.grid)
             MimoHeaderButton(title: "New chat", systemImage: "square.and.pencil", action: unlessSwiping(startNewChat))
-                .disabled(chat.isEmpty && router.mimoSubject == nil)
+                .disabled(chat.isEmpty && chat.subject == nil)
         }
         .pageMargins()
         // A little into the status bar's band, to leave the chat more room,
@@ -336,6 +338,7 @@ struct MimoView: View {
                                 onShowPhrase: unlessSwiping(openShow),
                                 onSelectPlace: unlessSwiping(openOnMap),
                                 onShowOnMap: unlessSwiping(showOnMap),
+                                onOpenPlace: unlessSwiping(openPlace),
                                 onRetry: unlessSwiping { retry(turn.id) }
                             )
                             .id(turn.id)
@@ -495,19 +498,7 @@ struct MimoView: View {
         .cardSurface()
     }
 
-    // MARK: Subject and composer
-
-    /// "Ask Mimo about this place" (design §4.9): the subject rides along with
-    /// every message until it's closed or a new chat starts.
-    @ViewBuilder
-    private var subjectBar: some View {
-        if let subject = router.mimoSubject {
-            MimoSubjectChip(place: subject) { router.mimoSubject = nil }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .pageMargins()
-                .padding(.bottom, Theme.grid)
-        }
-    }
+    // MARK: Composer
 
     private var composer: some View {
         VStack(spacing: Theme.grid) {
@@ -530,7 +521,9 @@ struct MimoView: View {
             canSend: chat.canSend && situationStore.situation != nil,
             onSend: { send(draft) },
             onStop: { chat.stop() }
-        )
+        ) { height in
+            MimoModelButton(store: models, height: height)
+        }
         .task {
             // The corner button opened it: the field takes focus once it exists.
             guard focusesComposerOnOpen else { return }
@@ -619,13 +612,12 @@ struct MimoView: View {
     }
 
     /// "Ask Mimo" from a place's card: a new chat about the place, asked at
-    /// once, with the place as its subject. The Map's From Mimo layer stays:
-    /// you're looking at it. With no situation yet, the question waits in the
-    /// composer.
+    /// once, with the place as its subject (a preview on the first message).
+    /// The Map's From Mimo layer stays: you're looking at it. With no situation
+    /// yet, the question waits in the composer.
     private func ask(about place: Place) {
         router.mimoQuestion = nil
-        chat.newChat()
-        router.mimoSubject = place
+        chat.newChat(about: place)
         let question = "Tell me more about \(place.name)."
         if sendContext() == nil {
             draft = question
@@ -638,16 +630,14 @@ struct MimoView: View {
     private func startNewChat() {
         chat.newChat()
         draft = ""
-        // A new chat drops the subject and the Map's From Mimo layer (design §4.7, §4.9).
-        router.mimoSubject = nil
+        // A new chat drops the Map's From Mimo layer (design §4.7, §4.9).
         router.clearFromMimo()
     }
 
     private func openChat(_ sessionId: String) {
         chat.open(sessionId: sessionId)
         draft = ""
-        // Like a new chat, another chat drops the subject and the From Mimo layer.
-        router.mimoSubject = nil
+        // Like a new chat, another chat drops the From Mimo layer.
         router.clearFromMimo()
         showsHistory = false
     }
@@ -662,6 +652,12 @@ struct MimoView: View {
         router.show = .phrase(phrase)
         showCount += 1
         RyokoLog.mimo.info("router.show = .phrase(\(phrase.id, privacy: .public)) \(phrase.lang, privacy: .public)")
+    }
+
+    /// The asked-about place's preview opens the Map on it, selected.
+    private func openPlace(_ place: Place) {
+        router.openMap(selecting: place)
+        RyokoLog.mimo.info("router.openMap(selecting: \(place.name, privacy: .public)) from the preview → tab \(router.selectedTab.rawValue, privacy: .public)")
     }
 
     /// A place chip opens the Map on that place, selected.
@@ -691,8 +687,8 @@ struct MimoView: View {
             profile: profileStore.profile,
             situation: situation,
             nearby: nearby,
-            subjectPlace: router.mimoSubject,
-            anchor: router.mimoSubject?.coordinate ?? situation.place?.coordinate ?? situationStore.lastFix
+            anchor: chat.subject?.coordinate ?? situation.place?.coordinate ?? situationStore.lastFix,
+            model: models.choice
         )
     }
 
@@ -709,9 +705,9 @@ struct MimoView: View {
         situationStore.situation?.place?.coordinate ?? situationStore.lastFix
     }
 
-    /// Starters follow the subject place when there is one, else the active place.
+    /// Starters follow the chat's subject place when there is one, else the active place.
     private var starterCategory: CategorySlug {
-        router.mimoSubject?.category ?? situationStore.situation?.place?.category ?? .other
+        chat.subject?.category ?? situationStore.situation?.place?.category ?? .other
     }
 
     /// Where you are and the time there ("Menya Kaze", "8:00 PM"), in the
@@ -842,44 +838,16 @@ private struct MimoStatusPill: View {
     }
 }
 
-/// The subject place, with a close button.
-private struct MimoSubjectChip: View {
-    let place: Place
-    var onClose: () -> Void
-
-    var body: some View {
-        HStack(spacing: Theme.grid) {
-            Image(systemName: place.category.sfSymbol)
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            Text("About \(place.name)")
-                .lineLimit(2)
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.footnote.weight(.semibold))
-                    .padding(Theme.grid / 2)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .accessibilityLabel("Stop asking about \(place.name)")
-        }
-        .font(.subheadline)
-        .padding(.leading, Theme.grid * 2)
-        .padding(.trailing, Theme.grid)
-        .padding(.vertical, Theme.grid)
-        .glassEffect(.regular, in: .capsule)
-    }
-}
-
-/// The text field with Send, or Stop while a reply streams.
-private struct MimoComposer: View {
+/// The text field with the model button (`accessory`, given the Send
+/// button's height) and Send, or Stop while a reply streams.
+private struct MimoComposer<Accessory: View>: View {
     @Binding var draft: String
     var isComposing: FocusState<Bool>.Binding
     let isReplying: Bool
     let canSend: Bool
     var onSend: () -> Void
     var onStop: () -> Void
+    @ViewBuilder var accessory: (CGFloat) -> Accessory
 
     @ScaledMetric(relativeTo: .body) private var buttonSize: CGFloat = 36
 
@@ -897,29 +865,38 @@ private struct MimoComposer: View {
                         draft = String(draft.prefix(MimoFeature.messageLimit))
                     }
                 }
-            if isReplying {
-                Button(action: onStop) {
-                    Image(systemName: "stop.fill")
-                        .font(.footnote.weight(.bold))
-                        .frame(width: buttonSize, height: buttonSize)
-                }
-                .buttonStyle(.monochromeProminent)
-                .buttonBorderShape(.circle)
-                .accessibilityLabel("Stop")
-            } else {
-                Button(action: onSend) {
-                    Image(systemName: "arrow.up")
-                        .font(.body.weight(.semibold))
-                        .frame(width: buttonSize, height: buttonSize)
-                }
-                .buttonStyle(.monochromeProminent)
-                .buttonBorderShape(.circle)
-                .disabled(!canSend || !hasText)
-                .accessibilityLabel("Send")
+            // The model button sits centred on Send, which stays at the bottom as the field grows.
+            HStack(alignment: .center, spacing: Theme.grid) {
+                accessory(buttonSize)
+                sendOrStop
             }
         }
         .padding(Theme.grid / 2)
         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: buttonSize / 2 + Theme.grid / 2))
+    }
+
+    @ViewBuilder
+    private var sendOrStop: some View {
+        if isReplying {
+            Button(action: onStop) {
+                Image(systemName: "stop.fill")
+                    .font(.footnote.weight(.bold))
+                    .frame(width: buttonSize, height: buttonSize)
+            }
+            .buttonStyle(.monochromeProminent)
+            .buttonBorderShape(.circle)
+            .accessibilityLabel("Stop")
+        } else {
+            Button(action: onSend) {
+                Image(systemName: "arrow.up")
+                    .font(.body.weight(.semibold))
+                    .frame(width: buttonSize, height: buttonSize)
+            }
+            .buttonStyle(.monochromeProminent)
+            .buttonBorderShape(.circle)
+            .disabled(!canSend || !hasText)
+            .accessibilityLabel("Send")
+        }
     }
 }
 

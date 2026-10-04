@@ -14,7 +14,8 @@ import os
 ///   20:00, or a Shanghai café (the fixtures' Wutong Coffee) at 15:00.
 /// - `-RyokoMimoNewChat 1`: start with a new chat.
 /// - `-RyokoMimoDebugSession <id>`: use this session id (to provoke 409 `session_busy`).
-/// - `-RyokoMimoSubject 1`: attach the preview place as the subject (header chip).
+/// - `-RyokoMimoSubject 1`: start a new chat about the preview place, as Ask
+///   Mimo does (its first message shows the place's preview).
 /// - `-RyokoMimoStarter <n>`: send the n-th starter once nearby places are in.
 /// - `-RyokoMimoSend <text>`: send this text instead.
 /// - `-RyokoMimoDraft <text>`: put this text in the composer without sending.
@@ -79,7 +80,7 @@ enum MimoDebug {
             actions.chat.debugUseSession(sessionId)
         }
         if defaults.bool(forKey: "RyokoMimoSubject"), let place = actions.situationStore.situation?.place {
-            actions.router.mimoSubject = place
+            actions.chat.newChat(about: place)
         }
 
         if let draft = defaults.string(forKey: "RyokoMimoDraft") {
