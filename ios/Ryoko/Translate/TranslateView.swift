@@ -105,7 +105,7 @@ struct TranslateView: View {
                 }
             }
             .animation(reduceMotion ? .easeInOut(duration: 0.2) : .smooth, value: composer.isOpen)
-            .background(Color(uiColor: .systemBackground))
+            .background { SituationGradient(background: Color(uiColor: .systemBackground)) }
             .navigationTitle(composer.isOpen ? composerTitle : "Translate")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }

@@ -26,6 +26,7 @@ Phrases (things the traveller can say out loud):
 <phrase lang="LOCAL_LANGUAGE" local="…" gloss="…" romanization="…"/>
 - lang is the situation's localLanguage. "local" is the phrase in that language, in its native script. "gloss" is the meaning in the home language. "romanization" is Hepburn romaji with macrons for Japanese (e.g. "Nichiyōbi mo eigyō shite imasu ka?"); leave it out for Chinese (the app adds pinyin).
 - Nothing else on that line: no bullet, quote, Markdown or wrapper tag around it. Use double quotes for the attributes and never put a double quote inside a value. Don't repeat the phrase in your sentences.
+- Put each phrase tag right after the sentence it belongs to, so it reads as part of your answer. Never collect the phrases at the end.
 - At most 4 phrases per reply, only when they help.
 - Never write the local language's script anywhere outside a phrase tag, not even one word or a place name. In your sentences, call places by their English or romanized name.`;
 

@@ -18,6 +18,8 @@ import os
 /// - `-RyokoMimoStarter <n>`: send the n-th starter once nearby places are in.
 /// - `-RyokoMimoSend <text>`: send this text instead.
 /// - `-RyokoMimoDraft <text>`: put this text in the composer without sending.
+/// - `-RyokoMimoFocus 1`: focus the composer (keyboard up).
+/// - `-RyokoMimoHistory 1`: open the history sidebar.
 /// - `-RyokoMimoScrollTo places`: once the reply is done, scroll to its places.
 /// - `-RyokoMimoStopAfter <seconds>`: tap Stop that long after sending.
 /// - `-RyokoMimoScript plan|error`: answer from a scripted stream: a plan with
@@ -34,6 +36,8 @@ enum MimoDebug {
         var hasNearby: () -> Bool
         var send: (String) -> Void
         var setDraft: (String) -> Void
+        var focusComposer: () -> Void
+        var openHistory: () -> Void
         var scrollTo: (String) -> Void
         var starters: () -> [String]
         var openShow: (Phrase) -> Void
@@ -81,6 +85,13 @@ enum MimoDebug {
         if let draft = defaults.string(forKey: "RyokoMimoDraft") {
             actions.setDraft(draft)
         }
+        if defaults.bool(forKey: "RyokoMimoFocus") {
+            try? await Task.sleep(for: .seconds(1))
+            actions.focusComposer()
+        }
+        if defaults.bool(forKey: "RyokoMimoHistory") {
+            actions.openHistory()
+        }
 
         // Send once there's a situation and (for up to 4 s) nearby places.
         var message = defaults.string(forKey: "RyokoMimoSend")
@@ -90,6 +101,9 @@ enum MimoDebug {
             message = starters.indices.contains(index) ? starters[index] : starters.first
         }
         if let message {
+            for _ in 0..<100 where actions.situationStore.currentSituation() == nil {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
             for _ in 0..<40 where !actions.hasNearby() {
                 try? await Task.sleep(for: .milliseconds(100))
             }

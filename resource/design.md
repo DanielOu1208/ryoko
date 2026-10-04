@@ -147,6 +147,8 @@ For all of them:
 - Plain system background (white or black), no gradient. Contrast comes first.
 - A phrase's local script is as large as fits (`minimumScaleFactor`), with romanization below it in small type and the gloss smallest, at the bottom.
 - Buttons: **Flip** (rotates 180° for someone across a counter) and **Done**. **Speak** comes in tier 2.
+- **Tilt:** like Translate's face-to-face layout (§4.8), laying the phone flat or tipping it toward the other person flips the content to face them; raising it flips it back. Flip overrides until the next tilt.
+- A long phrase starts smaller (about 60% of a short one's size) so it reads in a few lines.
 - Screen brightness goes to max and the idle timer is off while it's open. Both are restored on close.
 
 ### 4.5 Allergy card
@@ -207,7 +209,7 @@ For all of them:
 
 Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_way` mode, with language identification and endpoint detection on.
 
-- **Language pair:** defaults to (profile home language, local language of the active situation), e.g. English ⇄ Chinese in Shanghai. It can still be picked by hand. It never changes mid-session.
+- **Language pair:** defaults to (profile home language, local language of the active situation), e.g. English ⇄ Chinese in Shanghai. It can still be picked by hand, as in Google Translate: your language in a pill left of the mic, theirs in a pill to the right, each its own menu. It never changes mid-session (the pills are off while listening).
 - **Turns:**
   - Translate keeps an in-memory list of turns: id, speaker (me / them), original, translation, source (voice / typed), and whether it was edited.
   - The panes show the latest turn. A **History** toolbar button opens a sheet listing every turn.
@@ -242,28 +244,31 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
 - A chat with Mimo (§6.1). The profile, the active situation, up to 20 nearby MapKit POIs and an optional subject place are attached to every message automatically.
 - **Replies:**
   - Replies stream in as 2–4 short plain sentences, with inline Markdown only.
-  - Tool activity appears as one quiet line ("Searching the web…", "Finding places…").
+  - While a reply streams, one status pill with a small thinking Mimo sits centred just above the composer: "Thinking…" before anything arrives, the tool's line while one runs ("Searching the web…", "Finding places…"), "Working…" while it writes.
+  - Streaming is calm: text eases in at a steady pace instead of in network bursts, new pieces fade in, a places card waits until the sentence before it is finished (with a same-shape placeholder while its places are looked up), and the chat follows the reply only while you're at the bottom.
 - A reply is an ordered list of segments: text, **phrase blocks**, place chips, and sources.
-- **Phrase blocks** (§6.2): every phrase Mimo suggests saying appears between paragraphs as a compact block showing script, romanization, gloss and a chevron, in the same look as Nearby's phrase cards. Tapping a block opens it in Show mode.
+- **Phrase blocks** (§6.2): every phrase Mimo suggests saying appears inside the reply, right after the sentence it belongs to, as a quiet line set off by a bar on its leading edge: script, gloss and an expand icon. Tapping it opens Show mode (#49).
 - **Places:**
   - When an answer involves places, Mimo calls `show_places` with names and a one-line why for each. It never sends coordinates.
-  - The device resolves each name with MapKit (§4.7). Chips appear for the ones it found, plus **Show on map**, which opens Map with the From Mimo layer.
+  - The device resolves each name with MapKit (§4.7). The ones it found show as one card after Mimo's first sentence: a small map of their pins (tap it, or its **Show on map** pill, for the Map's From Mimo layer), then a row per place like the Map sheet's: category icon (or stop number), name and local name, why (after the time for a plan stop), distance. Tap a row to open the Map on that place.
 - **Plan a few hours:**
   - "What should I do this afternoon?" returns an ordered set of stops, each with a suggested time.
   - They're rendered as numbered chips and shown as numbered pins on the map.
   - No routing, no bookings, no multi-day plans.
-- **Web search:** Mimo can search the web (§6.4). Sources show as tappable links under the reply.
+- **Web search:** Mimo can search the web (§6.4). Under the reply, a quiet "Searched the web" line with small site-name pills that open the sources.
 - **Starter suggestions** are fixed templates per place category ("What's popular here?", "How do I pay?", "Plan my afternoon"). They need no LLM call.
 - **Sessions:**
   - The device creates a session id, and a new one on **New chat**. The transcript is kept on the device.
+  - **History:** a ChatGPT-style sidebar (the chat slides aside; swipe right or tap the sidebar button) lists saved chats by their first message, with search and New chat. Touch and hold a chat to delete it.
+- **Header:** laid out like a contact in Messages: the avatar centred at the top with "Mimo" and the place and local time under it, the sidebar button on the left and New chat on the right. No navigation bar title.
   - **Ask Mimo about this place** (from a place sheet) opens the tab with that place attached as the subject, without changing the active situation.
 - **Avatar:** Mimo has an animated avatar: a single monochrome blob with two eyes that morphs between states.
   - **Engine:** ported to Swift from [bloub](https://github.com/jeremy-prt/bloub) (MIT; see THIRD_PARTY_NOTICES.md). Its motion is measured from the x.ai bot avatar.
   - **Look:** Mimo uses its own preset (a different body shape and rest expression), so it isn't a replica of xAI's mascot.
   - **Rendering:** SwiftUI `Canvas` + `TimelineView`. The body uses `.primary`; the eyes are cut-outs. It respects Reduce Motion.
-  - **Moods:** idle (gaze drift, blinks), listening, thinking (while a tool runs or a reply is pending), talking (while text streams), happy (briefly when a reply completes).
+  - **Moods:** idle (gaze drift, blinks), listening, thinking (while a tool runs or a reply is pending: Mimo glances up to one side, then the other; not bloub's three dots), talking (while text streams), happy (briefly when a reply completes).
   - **Where it appears:**
-    - the Mimo tab header, driven by the chat state
+    - centred in the Mimo tab header, driven by the chat state
     - next to "Mimo picks" in the Map sheet
     - the Mimo tab icon (a frozen rest pose as a template image)
 
@@ -649,7 +654,8 @@ Reference: Luma. Lots of whitespace, confident type, few controls, and colour th
   | Evening 16–20 | `#FFC48A` → `#F9B9B0` | `#5C3524` → black |
   | Night 20–05 | `#C5CCE0` → `#E6E9F2` | `#1A1F3D` → black |
 
-- **Where it doesn't appear:** the Map, Show mode, Translate, Mimo, Me and the onboarding survey. Those use plain system backgrounds.
+- **Where it appears:** Nearby, place details, Translate, Mimo and Me (#48).
+- **Where it doesn't appear:** the Map, Show mode and the onboarding survey. Those use plain system backgrounds.
 
 ### 9.4 Surfaces
 
@@ -845,3 +851,5 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 45 | Mimo avatar: Swift port of bloub's engine (MIT) with Mimo's own look; shown in the Mimo header, the Map sheet's Mimo picks and the Mimo tab icon | user |
 | 46 | The app keeps its bundled Soniox key as a fallback when the server can't mint a temporary key (one side-loaded demo phone; rotate after the event) | default |
 | 47 | `/v1/localize-place` is cut: the home base's local-script name and address come from MapKit on the device | default |
+| 48 | UI pass: the time-of-day gradient also covers Translate, Mimo and Me; the Mimo header is centred like Messages, with a ChatGPT-style history sidebar; the Map's search field floats with the sheet's side margins and Layers sits under the location button | user |
+| 49 | Mimo's phrases are part of the reply, not cards: a line after the sentence they belong to that opens Show mode; the prompt asks Mimo not to collect them at the end | user |

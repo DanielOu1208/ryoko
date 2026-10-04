@@ -6,7 +6,7 @@
 /// | ----------- | ------------------------------------------------------------------------------- |
 /// | `idle`      | `idle` with the rest expression: gaze drift and scheduled blinks, nothing else  |
 /// | `listening` | `idle`, the head turns towards the user with the listening expression           |
-/// | `thinking`  | loops `thinking` (three dots, 3 s) and `orbit` (spinning body and rings, 1.8 s) |
+/// | `thinking`  | `idle` with the rest face, glancing up to one side, then the other (3.4 s loop) |
 /// | `talking`   | `idle` with small nods of the gaze while text streams                           |
 /// | `happy`     | a `wink`, then `idle` with the happy expression, then the rest expression       |
 ///

@@ -26,6 +26,11 @@ nonisolated struct MimoMoodScript: Sendable {
     /// When a non-looping script has played its last step.
     var end: Double { intro.map(\.at).max() ?? 0 }
 
+    /// An upward glance to one side, for thinking.
+    static func ponder(yaw: Double, pitch: Double = 20) -> Bloub.Look {
+        Bloub.Look(yaw: yaw, pitch: pitch, mix: 1, spin: 0, wander: 0.2)
+    }
+
     static func script(for mood: MimoMood, style: MimoAvatarStyle) -> MimoMoodScript {
         let rest = style.rest.expression.gaze
         switch mood {
@@ -43,14 +48,23 @@ nonisolated struct MimoMoodScript: Sendable {
                 Step(at: 0, action: .look(Bloub.Look(yaw: 2, pitch: 2, mix: 0.6, spin: 0, wander: 0.5), morph: 0.5)),
             ])
         case .thinking:
-            // bloub's thinking dots (3 s, two pulse cycles), then the start of its orbit
-            // (1.8 s), in turn. The orbit is cut while it is still the spinning triangle:
-            // left to run, it relaxes into bloub's own circle and glance (the x.ai look).
+            // Pondering: Mimo keeps its body and face and glances up to one side,
+            // drifts, then up to the other, as someone does while they think.
+            // (bloub's own thinking state turns the body into three dots.)
             return MimoMoodScript(
-                intro: [Step(at: 0, action: .state(.thinking)), Step(at: 0, action: .look(nil, morph: 0.5))],
-                loop: [Step(at: 0, action: .state(.orbit)), Step(at: 1.8, action: .state(.thinking))],
-                loopStart: 3,
-                period: 4.8
+                intro: [
+                    Step(at: 0, action: .state(.idle)),
+                    Step(at: 0, action: .expression(style.rest)),
+                    Step(at: 0, action: .look(Self.ponder(yaw: -18), morph: 0.45)),
+                ],
+                loop: [
+                    Step(at: 0, action: .look(Self.ponder(yaw: -18), morph: 0.45)),
+                    Step(at: 1.1, action: .look(Self.ponder(yaw: -9, pitch: 24), morph: 0.6)),
+                    Step(at: 1.7, action: .look(Self.ponder(yaw: 18), morph: 0.45)),
+                    Step(at: 2.8, action: .look(Self.ponder(yaw: 9, pitch: 24), morph: 0.6)),
+                ],
+                loopStart: 0.6,
+                period: 3.4
             )
         case .talking:
             // Small nods of the gaze, at a speaking rhythm, around the rest face.
@@ -215,7 +229,7 @@ final class MimoAvatarDirector {
             return frozen(.idle, at: 1, style: style, expression: style.listening,
                           look: Bloub.Look(yaw: 2, pitch: 2, mix: 0.6, spin: 0, wander: 0.5))
         case .thinking:
-            return frozen(.thinking, at: Bloub.poseTimes[.thinking] ?? 1.1, style: style)
+            return frozen(.idle, at: 1, style: style, look: MimoMoodScript.ponder(yaw: -18))
         case .happy:
             return frozen(.idle, at: 1, style: style, expression: style.happy)
         }

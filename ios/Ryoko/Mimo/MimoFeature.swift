@@ -26,6 +26,9 @@ nonisolated enum MimoFeature {
     static let busyCooldown: Duration = .seconds(3)
     /// How many old sessions to keep on the device.
     static let keptSessions = 20
+    /// The shortest time "Searching the web…" shows. Exa often answers in well
+    /// under a second, too quick to read; the rest of the reply waits for it.
+    static let minimumSearchTime: Duration = .seconds(2.5)
 }
 
 extension RyokoLog {

@@ -3,8 +3,8 @@ import SwiftUI
 /// The Me tab (design §4.10): the profile from the survey, each section
 /// editable with the survey's own pickers; the home base for the taxi card;
 /// Redo survey; the allergy card preview; the romanization toggle; credits;
-/// and a small developer section. Plain system background: no time-of-day
-/// gradient here.
+/// and a small developer section. The time-of-day gradient sits behind the
+/// list.
 ///
 /// Every edit goes through `ProfileStore`, so `profile.version` changes and the
 /// server's caches (keyed on it) regenerate.
@@ -28,6 +28,8 @@ struct MeView: View {
                     CreditsSection()
                     DeveloperSection()
                 }
+                .scrollContentBackground(.hidden)
+                .background { SituationGradient() }
                 .navigationTitle("Me")
                 .navigationDestination(for: SurveyPage.self) { page in
                     ProfileEditor(page: page, profile: profileStore.profile)

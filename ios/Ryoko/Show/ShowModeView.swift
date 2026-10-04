@@ -7,6 +7,9 @@ import SwiftUI
 /// - A plain system background (white or black), no gradient: contrast first.
 /// - **Flip** turns the content 180° for someone across a counter; the
 ///   controls stay the right way up for you. **Done** closes it.
+/// - The tilt flips it too, as Translate's face-to-face layout does (design
+///   §4.8): lay the phone flat or tip it toward them and the content turns to
+///   face them; raise it and it turns back. Flip overrides it until the next tilt.
 /// - Brightness goes to max and the idle timer is off while it's open
 ///   (`ShowScreenKeeper`); both are restored on close.
 /// - A haptic on open. Speak arrives in tier 2.
@@ -19,6 +22,7 @@ struct ShowModeView: View {
 
     @State private var isFlipped = false
     @State private var hasAppeared = false
+    @State private var tilt = TiltMonitor()
 
     var body: some View {
         NavigationStack {
@@ -50,6 +54,13 @@ struct ShowModeView: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: hasAppeared) { _, appeared in appeared }
         .sensoryFeedback(.selection, trigger: isFlipped)
         .statusBarHidden()
+        .onAppear { tilt.start() }
+        .onDisappear { tilt.stop() }
+        .onChange(of: tilt.layout) { _, layout in
+            let flipped = layout == .faceToFace
+            guard flipped != isFlipped else { return }
+            withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .smooth) { isFlipped = flipped }
+        }
         .onAppear {
             hasAppeared = true
             #if DEBUG
@@ -94,12 +105,22 @@ private struct ShowPhraseView: View {
 
     @AppStorage(AppSettings.showsRomanizationKey) private var showsRomanization = true
     /// The starting size; `minimumScaleFactor` shrinks it until the phrase fits.
-    @ScaledMetric(relativeTo: .largeTitle) private var scriptSize: CGFloat = 120
+    @ScaledMetric(relativeTo: .largeTitle) private var scriptSize: CGFloat = 96
+
+    /// Smaller for longer phrases, so a sentence or two reads in a few lines
+    /// instead of a few characters a line. A short phrase keeps the full size.
+    private var startingSize: CGFloat {
+        switch phrase.local.count {
+        case ..<10: scriptSize
+        case ..<20: scriptSize * 0.75
+        default: scriptSize * 0.6
+        }
+    }
 
     var body: some View {
         VStack(spacing: Theme.grid * 3) {
             LocalText(phrase.local, languageTag: phrase.lang)
-                .font(.system(size: scriptSize, weight: .semibold))
+                .font(.system(size: startingSize, weight: .semibold))
                 .minimumScaleFactor(0.1)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

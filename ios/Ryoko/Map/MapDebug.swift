@@ -66,7 +66,7 @@ enum MapDebugOptions {
         ShownPlace(name: "Shinjuku Golden Gai", localName: "新宿ゴールデン街", why: "One small bar to finish", order: 3, when: "21:00"),
     ]
 
-    /// Opens the trailing navigation-bar menu (the Layers menu) as a tap
+    /// Opens the menu nearest the trailing edge (the Layers menu) as a tap
     /// would, for screenshots. DEBUG only: there's no tap automation, and
     /// SwiftUI exposes no way to open a `Menu` from code. Tries the control's
     /// accessibility activation, then its context-menu interaction. Returns
@@ -91,11 +91,10 @@ enum MapDebugOptions {
         return nil
     }
 
-    /// The bar button with a menu nearest the trailing edge.
+    /// The first view with a menu in the trailing half of the window.
     private static func trailingBarMenuButton(in view: UIView, windowWidth: CGFloat) -> UIView? {
         let hasMenu = view.interactions.contains { $0 is UIContextMenuInteraction }
-        if hasMenu, String(describing: type(of: view)).contains("BarButton"),
-           view.convert(view.bounds, to: nil).minX > windowWidth / 2 {
+        if hasMenu, view.convert(view.bounds, to: nil).minX > windowWidth / 2 {
             return view
         }
         for subview in view.subviews {

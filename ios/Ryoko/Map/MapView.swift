@@ -9,92 +9,15 @@ struct MapView: View {
     @State private var model = MapHomeModel()
     @State private var search = MapSearch()
 
-    @Environment(AppRouter.self) private var router
-    @Environment(AppSituationStore.self) private var situationStore
-
     var body: some View {
-        @Bindable var model = model
-        @Bindable var search = search
-        NavigationStack {
-            MapHomeScreen(model: model, search: search)
-                .navigationTitle("Map")
-                .toolbarTitleDisplayMode(.inline)
-                .toolbar(removing: .title)
-                .searchable(
-                    text: $search.text,
-                    isPresented: $search.isPresented,
-                    placement: .navigationBarDrawer(displayMode: .always),
-                    prompt: "Search places"
-                )
-                .searchSuggestions {
-                    ForEach(search.suggestions, id: \.self) { completion in
-                        Button {
-                            pick(completion)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(completion.title)
-                                    .foregroundStyle(.primary)
-                                if !completion.subtitle.isEmpty {
-                                    Text(completion.subtitle)
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-                .onSubmit(of: .search, submit)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        MapLayersMenu(
-                            layers: $model.layers,
-                            fromMimoCount: router.fromMimo.count,
-                            onClearFromMimo: { router.clearFromMimo() }
-                        )
-                    }
-                }
-        }
-    }
-
-    // MARK: Search
-
-    /// A picked suggestion: its place, on the map and in the panel.
-    private func pick(_ completion: MKLocalSearchCompletion) {
-        let title = completion.title
-        search.isPresented = false
-        search.text = ""
-        let origin = MapHome.listAnchor(situationStore)?.mapKitLocation
-        Task {
-            guard let item = await search.item(for: completion),
-                  let place = MapPlace(item: item, source: .search, from: origin, name: title) else { return }
-            model.showResults([place], for: title)
-        }
-    }
-
-    /// A submitted query: matching places near what's on screen.
-    private func submit() {
-        let query = search.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return }
-        search.isPresented = false
-        search.text = ""
-        let origin = MapHome.listAnchor(situationStore)?.mapKitLocation
-            ?? model.visibleRegion.map { CLLocation(latitude: $0.center.latitude, longitude: $0.center.longitude) }
-        Task {
-            let items = await search.items(for: query, near: model.visibleRegion)
-            var seen = Set<String>()
-            let places = items
-                .compactMap { MapPlace(item: $0, source: .search, from: origin) }
-                .filter { seen.insert($0.id).inserted }
-                .prefix(MapHome.nearbyLimit)
-            model.showResults(Array(places), for: query)
-        }
+        MapHomeScreen(model: model, search: search)
     }
 }
 
 // MARK: - Screen
 
-/// The map, and the panel over it. Separate from `MapView` so it can read
-/// `isSearching` from the search field.
+/// The map, the floating search field and map buttons, and the panel over it.
+/// No navigation bar: the search field floats with the panel's side margins.
 private struct MapHomeScreen: View {
     @Bindable var model: MapHomeModel
     let search: MapSearch
@@ -105,11 +28,12 @@ private struct MapHomeScreen: View {
     @Environment(AppRouter.self) private var router
     @Environment(\.ryokoAPI) private var api
     @Environment(\.placeResolver) private var resolver
-    @Environment(\.isSearching) private var isSearching
     @Environment(\.scenePhase) private var scenePhase
 
-    /// The height between the search bar and the tab bar.
-    @State private var available: CGFloat = 600
+    @Namespace private var mapScope
+    /// The height between the status bar and the tab bar, keyboard or not.
+    @State private var screenHeight: CGFloat = 700
+    @State private var searchBarHeight: CGFloat = 48
     @State private var headerHeight: CGFloat = 56
     /// Measured by the list: where its third row ends.
     @State private var threeRowsHeight: CGFloat?
@@ -119,23 +43,50 @@ private struct MapHomeScreen: View {
     @ScaledMetric(relativeTo: .body) private var rowEstimate: CGFloat = 64
     @ScaledMetric(relativeTo: .headline) private var sectionTitleEstimate: CGFloat = 30
 
+    /// Space between the status bar and the search field.
+    private static let searchTop: CGFloat = 4
+
     var body: some View {
+        // Where the panel's space starts: under the search field.
+        let belowSearch = Self.searchTop + searchBarHeight
         let metrics = MapSheetMetrics(
-            available: available,
+            available: screenHeight - belowSearch,
             smallContent: 20 + headerHeight + (threeRowsHeight ?? sectionTitleEstimate + rowEstimate * 3)
         )
         let anchor = MapHome.listAnchor(situationStore)
 
-        ZStack(alignment: .bottom) {
+        ZStack(alignment: .top) {
             map(anchor: anchor)
+                .safeAreaPadding(.top, belowSearch + Theme.grid)
                 .safeAreaPadding(.bottom, metrics.mapBottomPadding)
-            if !isSearching {
+                .ignoresSafeArea(.keyboard)
+            mapButtons
+                .padding(.top, belowSearch + Theme.grid)
+                .padding(.trailing, MapSheetMetrics.sideInset)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            if !search.isPresented {
                 panel(metrics: metrics, anchor: anchor)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            VStack(spacing: Theme.grid) {
+                MapSearchBar(search: search, onSubmit: submit)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { searchBarHeight = $0 }
+                if search.isPresented {
+                    MapSearchSuggestions(suggestions: search.suggestions, onPick: pick)
+                }
+            }
+            .padding(.horizontal, MapSheetMetrics.sideInset)
+            .padding(.top, Self.searchTop)
+            .padding(.bottom, MapSheetMetrics.bottomGap)
         }
-        .animation(.smooth, value: isSearching)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { available = $0 }
+        .mapScope(mapScope)
+        .animation(.smooth, value: search.isPresented)
+        .background {
+            Color.clear
+                .ignoresSafeArea(.keyboard)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { screenHeight = $0 }
+        }
         .sensoryFeedback(.selection, trigger: confirmations)
         .task { situationStore.startLiveIfAuthorized() }
         .onChange(of: scenePhase) { _, phase in
@@ -189,14 +140,12 @@ private struct MapHomeScreen: View {
 
     private func map(anchor: Coordinate?) -> some View {
         MapReader { proxy in
-            Map(position: $model.camera, selection: $model.selection) {
+            Map(position: $model.camera, selection: $model.selection, scope: mapScope) {
                 UserAnnotation()
                 markers
             }
             .mapStyle(model.layers.mapStyle)
             .mapControls {
-                MapUserLocationButton()
-                MapCompass()
                 MapScaleView()
             }
             .onMapCameraChange(frequency: .onEnd) { context in
@@ -208,6 +157,21 @@ private struct MapHomeScreen: View {
                 Task { await model.dropPin(at: Coordinate(mapKit: coordinate), origin: anchor) }
             })
         }
+    }
+
+    /// Under the search field on the trailing side: your location, then
+    /// Layers, then the compass while the map is rotated.
+    private var mapButtons: some View {
+        VStack(spacing: Theme.grid) {
+            MapUserLocationButton(scope: mapScope)
+            MapLayersMenu(
+                layers: $model.layers,
+                fromMimoCount: router.fromMimo.count,
+                onClearFromMimo: { router.clearFromMimo() }
+            )
+            MapCompass(scope: mapScope)
+        }
+        .buttonBorderShape(.circle)
     }
 
     @MapContentBuilder
@@ -335,6 +299,38 @@ private struct MapHomeScreen: View {
     private func languageTag(for place: MapPlace) -> String? {
         if let area = place.area { return LocalLanguage.forRegion(area.countryCode, subdivision: area.subdivision).tag }
         return situationStore.situation?.localLanguage
+    }
+
+    // MARK: Search
+
+    /// A picked suggestion: its place, on the map and in the panel.
+    private func pick(_ completion: MKLocalSearchCompletion) {
+        let title = completion.title
+        search.end()
+        let origin = MapHome.listAnchor(situationStore)?.mapKitLocation
+        Task {
+            guard let item = await search.item(for: completion),
+                  let place = MapPlace(item: item, source: .search, from: origin, name: title) else { return }
+            model.showResults([place], for: title)
+        }
+    }
+
+    /// A submitted query: matching places near what's on screen.
+    private func submit() {
+        let query = search.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+        search.end()
+        let origin = MapHome.listAnchor(situationStore)?.mapKitLocation
+            ?? model.visibleRegion.map { CLLocation(latitude: $0.center.latitude, longitude: $0.center.longitude) }
+        Task {
+            let items = await search.items(for: query, near: model.visibleRegion)
+            var seen = Set<String>()
+            let places = items
+                .compactMap { MapPlace(item: $0, source: .search, from: origin) }
+                .filter { seen.insert($0.id).inserted }
+                .prefix(MapHome.nearbyLimit)
+            model.showResults(Array(places), for: query)
+        }
     }
 
     // MARK: Actions

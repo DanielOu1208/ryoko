@@ -4,7 +4,6 @@ import SwiftUI
 /// the quiet tool line while it streams, how it ended, and its sources.
 struct MimoTurnView: View {
     let turn: MimoTurn
-    let showsRomanization: Bool
     /// Whether "Try again" can be offered now.
     let canRetry: Bool
     var onShowPhrase: (Phrase) -> Void
@@ -16,18 +15,50 @@ struct MimoTurnView: View {
         VStack(alignment: .leading, spacing: Theme.grid * 2) {
             MimoUserBubble(text: turn.message)
             VStack(alignment: .leading, spacing: Theme.grid * 1.5) {
-                ForEach(Array(turn.segments.enumerated()), id: \.offset) { index, segment in
-                    segmentView(segment)
+                ForEach(displayOrder, id: \.self) { index in
+                    segmentView(turn.segments[index])
                         .id(MimoTurnView.segmentID(turn: turn.id, index: index))
+                        .transition(.opacity)
                 }
-                activity
                 ending
                 if !turn.sources.isEmpty {
                     MimoSourcesView(sources: turn.sources)
                         .padding(.top, Theme.grid / 2)
+                        .transition(.opacity)
                 }
             }
+            .animation(.smooth(duration: 0.35), value: displayOrder)
+            .animation(.smooth(duration: 0.35), value: turn.sources.isEmpty)
         }
+    }
+
+    /// The segments' indices in the order they're shown. Mimo calls
+    /// `show_places` before it writes, so a reply can open with a places card;
+    /// that card is shown after the first text instead, once that text is
+    /// finished (something follows it, or the reply ends), so the sentence
+    /// introduces the places and nothing streams in above them. Everything
+    /// else keeps its order.
+    private var displayOrder: [Int] {
+        var order: [Int] = []
+        var pendingPlaces: [Int] = []
+        var hasText = false
+        for (index, segment) in turn.segments.enumerated() {
+            switch segment {
+            case .places where !hasText:
+                pendingPlaces.append(index)
+            case .text where segment.hasVisibleContent:
+                hasText = true
+                order.append(index)
+                let isFinished = index < turn.segments.count - 1 || !turn.isStreaming
+                if isFinished {
+                    order += pendingPlaces
+                    pendingPlaces = []
+                }
+            default:
+                order.append(index)
+            }
+        }
+        return order + (turn.isStreaming ? [] : pendingPlaces)
     }
 
     /// A scroll target for one segment.
@@ -39,14 +70,9 @@ struct MimoTurnView: View {
     private func segmentView(_ segment: MimoSegment) -> some View {
         switch segment {
         case let .text(text):
-            MimoTextView(text: text)
+            MimoTextView(text: text, revealsGradually: turn.isStreaming)
         case let .phrase(phrase):
-            PhraseCardView(
-                phrase: phrase,
-                style: .block,
-                showsRomanization: showsRomanization,
-                onShow: { onShowPhrase(phrase) }
-            )
+            MimoPhraseLine(phrase: phrase, onShow: { onShowPhrase(phrase) })
         case let .places(places):
             MimoPlacesView(places: places, onSelect: onSelectPlace, onShowOnMap: { onShowOnMap(places) })
         case .sources:
@@ -54,29 +80,6 @@ struct MimoTurnView: View {
         }
     }
 
-    /// While streaming: the tool line, or a quiet "replying" mark before
-    /// anything has arrived.
-    @ViewBuilder
-    private var activity: some View {
-        if turn.isStreaming {
-            if let toolLine = turn.toolLine {
-                HStack(spacing: Theme.grid) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(toolLine)
-                }
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .accessibilityElement(children: .combine)
-            } else if !turn.segments.contains(where: \.hasVisibleContent) {
-                Image(systemName: "ellipsis")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .symbolEffect(.variableColor.iterative, options: .repeating)
-                    .accessibilityLabel("Mimo is replying")
-            }
-        }
-    }
 
     @ViewBuilder
     private var ending: some View {
@@ -126,6 +129,17 @@ struct MimoTurnView: View {
     }
 }
 
+extension MimoTurn {
+    /// What Mimo is doing while the reply streams, for the status pill:
+    /// thinking before anything arrives, the tool's own line while a tool runs
+    /// ("Searching the web…"), working while it writes. Nil once it's over.
+    var statusLine: String? {
+        guard isStreaming else { return nil }
+        if let toolLine { return toolLine }
+        return segments.contains(where: \.hasVisibleContent) ? "Working…" : "Thinking…"
+    }
+}
+
 private extension MimoSegment {
     /// Whether this segment shows anything yet (text can be only whitespace).
     var hasVisibleContent: Bool {
@@ -159,15 +173,36 @@ private struct MimoUserBubble: View {
 /// Mimo's sentences, with inline Markdown only (bold, italics, code, links).
 struct MimoTextView: View {
     let text: String
+    /// While the reply streams: show the text at a steady pace as it arrives,
+    /// instead of in the bursts the network delivers it in.
+    var revealsGradually = false
+
+    /// How many characters show; nil shows them all (a saved reply).
+    @State private var revealed: Int?
 
     var body: some View {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
+        let shown = revealed.map { String(text.prefix($0)) } ?? text
+        let trimmed = shown.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Text(Self.markdown(trimmed))
                 .font(.body)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
+                .task(id: text.count) {
+                    if revealsGradually, revealed == nil { revealed = 0 }
+                    await catchUp()
+                }
+        }
+    }
+
+    /// Reveals towards the full text, a few characters a frame, faster when
+    /// it's further behind, so a burst eases in instead of jumping.
+    private func catchUp() async {
+        while let shown = revealed, shown < text.count, !Task.isCancelled {
+            let behind = text.count - shown
+            revealed = min(text.count, shown + max(2, behind / 10))
+            try? await Task.sleep(for: .milliseconds(16))
         }
     }
 
@@ -184,36 +219,44 @@ private struct MimoSourcesView: View {
     let sources: [WebSource]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.grid) {
-            Text("Sources")
-                .font(.footnote.weight(.semibold))
+        VStack(alignment: .leading, spacing: Theme.grid * 0.75) {
+            Label("Searched the web", systemImage: "globe")
+                .font(.caption)
                 .foregroundStyle(.secondary)
-            ForEach(sources, id: \.url) { source in
-                if let url = source.link {
-                    Link(destination: url) {
-                        HStack(alignment: .firstTextBaseline, spacing: Theme.grid) {
-                            Image(systemName: "arrow.up.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(source.title)
-                                    .font(.subheadline)
-                                    .multilineTextAlignment(.leading)
-                                if let host = url.host() {
-                                    Text(host.replacingOccurrences(of: "www.", with: ""))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
+            ScrollView(.horizontal) {
+                HStack(spacing: Theme.grid * 0.75) {
+                    ForEach(onePerSite, id: \.url) { source in
+                        if let url = source.link {
+                            Link(destination: url) {
+                                Text(Self.siteName(url) ?? source.title)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                    .padding(.horizontal, Theme.grid * 1.25)
+                                    .padding(.vertical, Theme.grid / 2)
+                                    .background(Color(uiColor: .tertiarySystemFill), in: .capsule)
                             }
+                            .foregroundStyle(.primary)
+                            .accessibilityLabel(source.title)
+                            .accessibilityHint("Opens in Safari")
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
                     }
-                    .foregroundStyle(.primary)
-                    .accessibilityHint("Opens in Safari")
                 }
             }
+            .scrollIndicators(.hidden)
         }
+    }
+
+    /// The first source from each site: two pages from one site are one pill.
+    private var onePerSite: [WebSource] {
+        var seen = Set<String>()
+        return sources.filter { source in
+            guard let url = source.link else { return false }
+            return seen.insert(Self.siteName(url) ?? source.url).inserted
+        }
+    }
+
+    /// "tabelog.com" from "https://www.tabelog.com/…".
+    private static func siteName(_ url: URL) -> String? {
+        url.host()?.replacingOccurrences(of: "www.", with: "")
     }
 }
