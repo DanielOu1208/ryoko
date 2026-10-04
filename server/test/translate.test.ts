@@ -406,7 +406,7 @@ describe('POST /v1/soniox-key', () => {
     const { describeConfig } = await import('../src/config.ts');
     const config = testConfig({ SONIOX_API_KEY: SERVER_KEY });
     assert.equal(config.soniox.configured, true);
-    assert.deepEqual([config.soniox.expiresInSeconds, config.soniox.maxSessionSeconds, config.soniox.perMinute], [60, 3600, 10]);
+    assert.deepEqual([config.soniox.expiresInSeconds, config.soniox.maxSessionSeconds, config.soniox.perMinute], [60, 3600, 30]);
     const text = describeConfig(config);
     assert.match(text, /Soniox keys on/);
     assert.ok(!text.includes(SERVER_KEY));

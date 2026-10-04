@@ -23,9 +23,10 @@ nonisolated protocol TranscriptionRun: Sendable {
     var events: AsyncThrowingStream<TranscriptionEvent, any Error> { get }
     /// Stops the audio and lets Soniox finalize what it heard.
     func finish()
-    /// Asks Soniox to finalize what it heard so far, and keeps listening.
-    /// `<fin>` arrives in `events` once it has.
-    func finalize()
+    /// Manual turns: Soniox finalizes what it heard so far (`<fin>` arrives in
+    /// `events` once it has) and keeps listening, now for `language` only
+    /// (a Soniox code). Nothing changes if it already listens for it.
+    func handOver(lockingTo language: String)
     /// Stops at once.
     func cancel()
 }
@@ -42,24 +43,27 @@ nonisolated enum TranscriptionSourceKind: String, Sendable {
 
     var needsMicrophone: Bool { self == .microphone }
 
-    /// - Parameter api: where a session gets its Soniox key (T2.6).
+    /// - Parameters:
+    ///   - api: where a session gets its Soniox key (T2.6).
+    ///   - language: the Soniox code to listen for (the speaker's, with manual
+    ///     turns), or nil for either of the pair.
     @MainActor
-    func makeRun(pair: TranslatePair, api: any RyokoAPI, turnMode: TurnMode) -> any TranscriptionRun {
+    func makeRun(pair: TranslatePair, api: any RyokoAPI, turnMode: TurnMode, language: String?) -> any TranscriptionRun {
         let keys = SonioxKeyProvider(api: api)
         switch self {
         case .microphone:
-            return SonioxRun(pair: pair, audio: MicrophoneCapture(), usesAudioSession: true, keys: keys)
+            return SonioxRun(pair: pair, language: language, audio: MicrophoneCapture(), usesAudioSession: true, keys: keys)
         case .silence:
             #if DEBUG
-            return SonioxRun(pair: pair, audio: SilenceSource(), usesAudioSession: false, keys: keys)
+            return SonioxRun(pair: pair, language: language, audio: SilenceSource(), usesAudioSession: false, keys: keys)
             #else
-            return SonioxRun(pair: pair, audio: MicrophoneCapture(), usesAudioSession: true, keys: keys)
+            return SonioxRun(pair: pair, language: language, audio: MicrophoneCapture(), usesAudioSession: true, keys: keys)
             #endif
         case .canned:
             #if DEBUG
             return CannedRun(pair: pair, pace: TranslateDebug.cannedPace, failure: TranslateDebug.injectedProblem, handsOver: turnMode == .manual)
             #else
-            return SonioxRun(pair: pair, audio: MicrophoneCapture(), usesAudioSession: true, keys: keys)
+            return SonioxRun(pair: pair, language: language, audio: MicrophoneCapture(), usesAudioSession: true, keys: keys)
             #endif
         }
     }
@@ -67,11 +71,18 @@ nonisolated enum TranscriptionSourceKind: String, Sendable {
 
 /// Audio to Soniox and back (design §4.8, W5.1).
 ///
-/// 1. Starts the audio (it queues while the key and the socket come, so the
-///    first words aren't lost), gets a key (a temporary one from the server,
-///    or the build's own: `SonioxKeyProvider`), opens the socket, sends the config.
+/// 1. Starts the audio (it waits in a backlog while the key and the socket
+///    come, so the first words aren't lost), gets a key (a temporary one from
+///    the server, or the build's own: `SonioxKeyProvider`), opens the socket,
+///    sends the config.
 /// 2. Sends each ~120 ms chunk as it comes.
-/// 3. `finish()` stops the audio; the pump then sends the empty frame, and
+/// 3. Manual turns listen for one language at a time, the speaker's (#74).
+///    Soniox only takes its languages when a session opens, so a hand-over
+///    finalizes the current session (its words and `<fin>` arrive first, so
+///    they stay in that turn), ends it, and opens a new one locked to the new
+///    speaker's language. The audio in between waits in the backlog, and the
+///    next key is fetched while the old session finishes.
+/// 4. `finish()` stops the audio; the pump then sends the empty frame, and
 ///    Soniox finalizes and says `finished`. If it doesn't within a few
 ///    seconds, the socket is closed and what arrived is kept.
 nonisolated final class SonioxRun: TranscriptionRun, @unchecked Sendable {
@@ -82,20 +93,39 @@ nonisolated final class SonioxRun: TranscriptionRun, @unchecked Sendable {
     private let audio: any AudioSource
     private let usesAudioSession: Bool
     private let keys: SonioxKeyProvider
-    private let state = Mutex(State())
+    private let state: Mutex<State>
+
+    /// About 30 s of audio: more than a hand-over ever waits.
+    private static let backlogLimit = 250
+    /// How long a session that's handing over may take to finish.
+    private static let handOverGrace: Duration = .seconds(3)
 
     private nonisolated struct State {
+        /// The session being read; it takes the audio once `takesAudio` is on.
         var session: SonioxSession?
+        /// Off while a session connects and once a hand-over has begun: the
+        /// audio waits in `backlog`.
+        var takesAudio = false
+        /// The language the next session listens for (nil: either of the pair).
+        var language: String?
+        /// A hand-over is under way: once the current session finishes, the
+        /// next opens locked to `language`.
+        var switching = false
+        /// The next session's key, fetched while the old one finishes.
+        var nextKey: Task<(value: String, source: SonioxKeySource), any Error>?
+        /// Audio no session could take yet, oldest first.
+        var backlog: [Data] = []
         var driver: Task<Void, Never>?
         var finishing = false
         var cancelled = false
     }
 
-    init(pair: TranslatePair, audio: any AudioSource, usesAudioSession: Bool, keys: SonioxKeyProvider) {
+    init(pair: TranslatePair, language: String?, audio: any AudioSource, usesAudioSession: Bool, keys: SonioxKeyProvider) {
         self.pair = pair
         self.audio = audio
         self.usesAudioSession = usesAudioSession
         self.keys = keys
+        state = Mutex(State(language: language))
         (events, continuation) = AsyncThrowingStream.makeStream(of: TranscriptionEvent.self)
         let driver = Task { [self] in await run() }
         state.withLock { $0.driver = driver }
@@ -115,24 +145,45 @@ nonisolated final class SonioxRun: TranscriptionRun, @unchecked Sendable {
         }
     }
 
-    func finalize() {
-        guard let session = state.withLock({ $0.session }) else { return } // still connecting
-        Task { await session.finalize() }
+    func handOver(lockingTo language: String) {
+        let old = state.withLock { state -> SonioxSession? in
+            guard !state.finishing, !state.cancelled, state.language != language else { return nil }
+            state.language = language
+            // Still connecting, or already handing over: the next session
+            // opens with the new language (`run()` checks).
+            guard state.takesAudio, !state.switching, let session = state.session else { return nil }
+            state.switching = true
+            state.takesAudio = false
+            state.nextKey = Task { [keys] in try await keys.key() }
+            return session
+        }
+        guard let old else { return }
+        RyokoLog.translate.notice("Hand-over: finishing this Soniox session, the next listens for \(language, privacy: .public)")
+        Task {
+            await old.finalize()
+            await old.endAudio()
+            // Don't wait forever for its `finished`.
+            try? await Task.sleep(for: Self.handOverGrace)
+            old.close()
+        }
     }
 
     func cancel() {
-        let (session, driver) = state.withLock { state in
+        let (session, driver, nextKey) = state.withLock { state in
             state.cancelled = true
-            return (state.session, state.driver)
+            return (state.session, state.driver, state.nextKey)
         }
         audio.stop()
         session?.close()
+        nextKey?.cancel()
         driver?.cancel()
         continuation.finish()
     }
 
     private func run() async {
+        var pump: Task<Void, Never>?
         defer {
+            pump?.cancel()
             audio.stop()
             state.withLock { $0.session }?.close()
             if usesAudioSession { TranslateAudioSession.deactivate() }
@@ -141,30 +192,61 @@ nonisolated final class SonioxRun: TranscriptionRun, @unchecked Sendable {
             // Off the main thread: activating the session can block for a moment.
             if usesAudioSession { try TranslateAudioSession.activate() }
             let chunks = try audio.start()
-            let key = try await keys.key()
-            if state.withLock({ $0.cancelled }) { return }
-            let session = try SonioxSession(apiKey: key.value, config: pair.sonioxConfig)
-            state.withLock { $0.session = session }
-            try await session.open()
-            let responses = session.responses()
-            RyokoLog.translate.notice("Soniox session open: \(self.pair.label, privacy: .public), \(key.source.rawValue, privacy: .public) key")
-            continuation.yield(.connected)
-
-            let pump = Task { [continuation] in
-                for await chunk in chunks {
-                    continuation.yield(.level(chunk.level))
-                    do {
-                        try await session.send(audio: chunk.pcm)
-                    } catch {
-                        break // the reader reports the failure
-                    }
+            pump = startPump(chunks)
+            var connected = false
+            while true {
+                let prefetched = state.withLock { state in
+                    defer { state.nextKey = nil }
+                    return state.nextKey
                 }
-                await session.endAudio()
-            }
-            defer { pump.cancel() }
+                let key: (value: String, source: SonioxKeySource)
+                if let prefetched {
+                    key = try await prefetched.value
+                } else {
+                    key = try await keys.key()
+                }
+                let language = state.withLock { state -> String? in
+                    state.switching = false
+                    return state.language
+                }
+                if state.withLock({ $0.cancelled }) { return }
+                var config = pair.sonioxConfig
+                config.lockedLanguage = language
+                let session = try SonioxSession(apiKey: key.value, config: config)
+                state.withLock { $0.session = session }
+                try await session.open()
+                let responses = session.responses()
+                RyokoLog.translate.notice("Soniox session open: \(self.pair.label, privacy: .public), \(language ?? "either language", privacy: .public), \(key.source.rawValue, privacy: .public) key")
+                if !connected {
+                    continuation.yield(.connected)
+                    connected = true
+                }
+                // Audio flows to it now, unless the speaker changed while it connected.
+                let stale = state.withLock { state -> Bool in
+                    guard state.language == language || state.finishing else {
+                        state.switching = true
+                        return true
+                    }
+                    state.takesAudio = true
+                    return false
+                }
+                if stale {
+                    // It has heard nothing: let it go and open the right one.
+                    session.close()
+                    continue
+                }
 
-            for try await response in responses {
-                continuation.yield(.response(response))
+                do {
+                    for try await response in responses {
+                        continuation.yield(.response(response))
+                    }
+                } catch {
+                    // A session that didn't finish in time during a hand-over:
+                    // keep what arrived and open the next.
+                    guard state.withLock({ $0.switching && !$0.finishing && !$0.cancelled }) else { throw error }
+                    RyokoLog.translate.notice("Hand-over: the last session closed before it finished")
+                }
+                guard state.withLock({ $0.switching && !$0.finishing && !$0.cancelled }) else { break }
             }
             continuation.finish()
         } catch {
@@ -178,6 +260,33 @@ nonisolated final class SonioxRun: TranscriptionRun, @unchecked Sendable {
                 RyokoLog.translate.error("Listening stopped: \(problem.title, privacy: .public)")
                 continuation.finish(throwing: problem)
             }
+        }
+    }
+
+    /// Sends the audio to the session that takes it, oldest first; keeps it
+    /// in the backlog while none does. When the audio stops (`finish()`), ends
+    /// that session's audio so Soniox finalizes.
+    private func startPump(_ chunks: AsyncStream<AudioChunk>) -> Task<Void, Never> {
+        Task { [self, continuation] in
+            for await chunk in chunks {
+                continuation.yield(.level(chunk.level))
+                let (session, frames) = state.withLock { state -> (SonioxSession?, [Data]) in
+                    guard state.takesAudio, let session = state.session else {
+                        state.backlog.append(chunk.pcm)
+                        if state.backlog.count > Self.backlogLimit { state.backlog.removeFirst() }
+                        return (nil, [])
+                    }
+                    defer { state.backlog = [] }
+                    return (session, state.backlog + [chunk.pcm])
+                }
+                guard let session else { continue }
+                for frame in frames {
+                    // A failed send shows up as the session's error.
+                    try? await session.send(audio: frame)
+                }
+            }
+            let session = state.withLock { $0.takesAudio ? $0.session : nil }
+            await session?.endAudio()
         }
     }
 }
@@ -213,7 +322,7 @@ nonisolated final class CannedRun: TranscriptionRun, @unchecked Sendable {
         driver.withLock { $0 = task }
     }
 
-    func finalize() {
+    func handOver(lockingTo language: String) {
         continuation.yield(.response(SonioxResponse(tokens: [SonioxToken(text: SonioxToken.finalizeMarker, isFinal: true, language: nil)])))
     }
 

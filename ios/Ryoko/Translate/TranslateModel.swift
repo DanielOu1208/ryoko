@@ -8,7 +8,9 @@ import UIKit
 ///
 /// - One session at a time. Its pair is fixed when it starts.
 /// - Turns are manual by default (#68): you start as the speaker, and tapping
-///   the other language hands the turn over (`handOver(to:)`).
+///   the other language hands the turn over (`handOver(to:)`). Soniox listens
+///   for the speaker's language only, and each hand-over moves it to the new
+///   speaker's (#74).
 /// - Turns live in memory only. A session's turns move to `log` when it ends;
 ///   typed turns (Type mode) and edits go there too.
 /// - Listening stops after 2 minutes without speech, when the app goes to the
@@ -138,7 +140,9 @@ final class TranslateModel {
         sessionPair = pair
         session += 1
         let current = session
-        let run = sourceKind.makeRun(pair: pair, api: api, turnMode: turnMode)
+        // Manual turns: Soniox listens for the speaker's language only.
+        let language = turnMode == .manual ? pair.sonioxCode(for: nextSpeaker) : nil
+        let run = sourceKind.makeRun(pair: pair, api: api, turnMode: turnMode, language: language)
         self.run = run
         lastHeard = .now
         setIdleTimerDisabled(true)
@@ -161,16 +165,20 @@ final class TranslateModel {
 
     /// Makes `next` the speaker. While listening, the words so far are
     /// finalized first, so they stay in the current speaker's turn; the panes
-    /// keep that turn until the new speaker's words arrive. Before listening,
-    /// it picks who starts.
+    /// keep that turn until the new speaker's words arrive. Soniox then
+    /// listens for the new speaker's language only (#74). Before listening, it
+    /// picks who starts.
     func handOver(to next: TurnSpeaker) {
         guard turnMode == .manual else { return }
         nextSpeaker = next
-        guard builder != nil else { return }
+        guard let pair = sessionPair, builder != nil else { return }
         let needsFinalize = builder?.handOver(to: next) ?? false
-        RyokoLog.translate.notice("Hand-over to \(next.rawValue, privacy: .public)\(needsFinalize ? ", finalizing" : "", privacy: .public)")
+        // Whoever speaks now (tapping back before `<fin>` cancels a hand-over).
+        let speaking = builder?.activeSpeaker ?? next
+        RyokoLog.translate.notice("Hand-over to \(speaking.rawValue, privacy: .public)\(needsFinalize ? ", finalizing" : "", privacy: .public)")
+        // The run finalizes what it heard, then listens for that language only.
+        run?.handOver(lockingTo: pair.sonioxCode(for: speaking))
         guard needsFinalize else { return }
-        run?.finalize()
         let current = session
         handOverTimeout?.cancel()
         handOverTimeout = Task { [weak self] in

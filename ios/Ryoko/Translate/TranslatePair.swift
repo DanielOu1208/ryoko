@@ -82,6 +82,11 @@ nonisolated struct TranslatePair: Hashable, Sendable {
         SonioxConfig(languageA: home.sonioxCode, languageB: other.sonioxCode)
     }
 
+    /// The Soniox code of the language `speaker` speaks: yours, or the other person's.
+    func sonioxCode(for speaker: TurnSpeaker) -> String {
+        speaker == .me ? home.sonioxCode : other.sonioxCode
+    }
+
     /// Whether Soniox can translate between the two (they differ).
     var isUsable: Bool { home.sonioxCode != other.sonioxCode }
 

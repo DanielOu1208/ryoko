@@ -204,7 +204,7 @@ export function configFromEnv(env: Record<string, string | undefined>): Config {
     },
     soniox: {
       configured: Boolean(env.SONIOX_API_KEY?.trim()),
-      perMinute: intFrom(env, 'SONIOX_KEYS_PER_MINUTE', 10, 1, 1000),
+      perMinute: intFrom(env, 'SONIOX_KEYS_PER_MINUTE', 30, 1, 1000),
       expiresInSeconds: intFrom(env, 'SONIOX_KEY_TTL_SECONDS', 60, 10, 3600),
       maxSessionSeconds: intFrom(env, 'SONIOX_MAX_SESSION_SECONDS', 3600, 60, 18_000),
     },

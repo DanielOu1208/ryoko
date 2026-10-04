@@ -124,6 +124,10 @@ nonisolated struct SonioxConfig: Hashable, Sendable {
     /// Soniox codes, e.g. `en` and `zh`.
     var languageA: String
     var languageB: String
+    /// The one language to transcribe, the speaker's (manual turns, #74), or
+    /// nil for either of the pair. Soniox can't change it mid-session, so a
+    /// hand-over opens a new session.
+    var lockedLanguage: String? = nil
 
     /// The JSON text of the first frame. It carries the key: never log it.
     func message(apiKey: String) throws -> String {
@@ -133,8 +137,8 @@ nonisolated struct SonioxConfig: Hashable, Sendable {
             audio_format: "pcm_s16le",
             sample_rate: Self.sampleRate,
             num_channels: 1,
-            language_hints: [languageA, languageB],
-            // Only ever the pair: no third language guessed from an accent.
+            language_hints: lockedLanguage.map { [$0] } ?? [languageA, languageB],
+            // Only ever these: no other language guessed from an accent.
             language_hints_strict: true,
             enable_language_identification: true,
             enable_endpoint_detection: true,

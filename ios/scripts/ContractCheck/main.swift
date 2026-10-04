@@ -329,6 +329,16 @@ do {
     expect(!(shown + [dumped]).contains { $0.contains("secret-value-123") }, "a Soniox key never shows in a description or dump")
     expect(try json(key)["apiKey"] as? String == "secret-value-123", "but it encodes the key")
     expect(try json(SonioxKeyRequest()).isEmpty, "the soniox-key request body is {}")
+    // Manual turns listen for the speaker's language only (#74).
+    func sonioxHints(_ config: SonioxConfig) throws -> ([String]?, Bool?, String?) {
+        let message = try JSONSerialization.jsonObject(with: Data(config.message(apiKey: "k").utf8)) as? [String: Any]
+        let translation = message?["translation"] as? [String: Any]
+        return (message?["language_hints"] as? [String], message?["language_hints_strict"] as? Bool, translation?["type"] as? String)
+    }
+    let both = try sonioxHints(SonioxConfig(languageA: "en", languageB: "zh"))
+    expect(both.0 == ["en", "zh"] && both.1 == true && both.2 == "two_way", "unlocked: both languages, strict, two-way")
+    let locked = try sonioxHints(SonioxConfig(languageA: "en", languageB: "zh", lockedLanguage: "zh"))
+    expect(locked.0 == ["zh"] && locked.1 == true && locked.2 == "two_way", "locked: the speaker's language only, still two-way")
 } catch {
     failures += 1
     print("  FAIL translate contracts: \(error)")

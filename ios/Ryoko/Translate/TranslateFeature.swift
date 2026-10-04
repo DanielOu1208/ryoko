@@ -53,6 +53,9 @@ extension TranslateModel {
 /// - `-RyokoTranslateProblem <code>`: the canned run fails with this Soniox
 ///   error code (401, 402…), or `mic` for a denied microphone.
 /// - `-RyokoTranslateSilenceSeconds <n>`: the silence stop after n seconds, not 120.
+/// - `-RyokoTranslateHandOverEvery <seconds>`: with auto start, hand the turn
+///   to the other person every n seconds while listening, as a tap would
+///   (checks that each hand-over opens a session locked to the new language).
 /// - `-RyokoTranslateSelfCheck 1`: run the turn-rule cases and log the result.
 /// - `-RyokoTranslateType "<text>"`: when Translate appears, open Type mode
 ///   and type this (after `-RyokoTranslateTypeDelay <seconds>`, default 0.5).
@@ -95,6 +98,11 @@ enum TranslateDebug {
         guard let raw = defaults.string(forKey: "RyokoTranslateProblem") else { return nil }
         if raw == "mic" { return .microphoneDenied }
         return Int(raw).map { TranslateProblem.soniox(code: $0, type: nil, message: nil) }
+    }
+
+    static var handOverEvery: Double? {
+        let seconds = defaults.double(forKey: "RyokoTranslateHandOverEvery")
+        return seconds > 0 ? seconds : nil
     }
 
     static var silenceSeconds: Double? {
@@ -145,6 +153,13 @@ enum TranslateDebug {
                 manualOther: manualOther
             ) {
                 await model.start(pair: pair, api: api)
+                if let every = handOverEvery {
+                    while true {
+                        try? await Task.sleep(for: .seconds(every))
+                        guard model.isActive else { break }
+                        model.handOver(to: model.speaker == .me ? .them : .me)
+                    }
+                }
                 return
             }
             try? await Task.sleep(for: .milliseconds(250))
