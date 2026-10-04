@@ -9,7 +9,7 @@ export const WIKIVOYAGE_API = 'https://en.wikivoyage.org/w/api.php';
 export const WIKIVOYAGE_LICENSE = 'CC BY-SA 4.0';
 export const WIKIVOYAGE_ATTRIBUTION = 'Wikivoyage contributors';
 /** Wikimedia asks for a descriptive User-Agent with a way to reach the operator. */
-export const USER_AGENT = 'RyokoGuideLoader/0.1 (StormHack 2026; https://github.com/DanielOu1208/stormhack26)';
+export const USER_AGENT = 'RyokoGuideLoader/0.1 (StormHack 2026; https://github.com/DanielOu1208/ryoko)';
 
 export interface GuidePage {
   title: string;

@@ -251,7 +251,7 @@ Write down what you find. The results may change the spec.
 | X3 | Write-up, screenshots (no keys or URLs visible), "built with", **AI tools disclosed** | | todo | |
 | X4 | Opt into tracks: ElevenLabs, Gemini API, Tiger Data, Snowflake API, Best Solo, Best Design, .Tech | | todo | Each track needs its own opt-in |
 | X5 | Repo stays public; rotate all keys after the event | | todo | |
-| X6 | Project README | agent:docs | done | `ws/docs-readme-showcase`: showcase README for visitors and judges (icon, badges, five-screen strip from the demo clips, features, sponsor tech table, how-it-works diagram; the local setup section was dropped, server setup stays in `server/README.md`). Earlier basic README: [88e1033](https://github.com/DanielOu1208/stormhack26/commit/88e1033) |
+| X6 | Project README | agent:docs | done | `ws/docs-readme-showcase`: showcase README for visitors and judges (icon, badges, five-screen strip from the demo clips, features, sponsor tech table, how-it-works diagram; the local setup section was dropped, server setup stays in `server/README.md`). Earlier basic README: [88e1033](https://github.com/DanielOu1208/ryoko/commit/88e1033) |
 
 ## Blockers
 
