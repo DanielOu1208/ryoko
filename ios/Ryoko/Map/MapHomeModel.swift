@@ -453,6 +453,16 @@ final class MapHomeModel {
     /// the visible map's middle, so the pin looks centred.
     static let markerLift: CGFloat = 22
 
+    /// Once a framed region or rect has been reached, holds the map there as
+    /// a plain camera. MapKit fits a region or rect again whenever the map's
+    /// safe area changes, which it does on each snap (`mapBottomPadding`),
+    /// and the taller safe area at small would zoom it in. A camera keeps its
+    /// centre (the safe area's middle, which doesn't move) and its distance.
+    func cameraSettled(at settled: MapCamera) {
+        guard camera.region != nil || camera.rect != nil else { return }
+        camera = .camera(settled)
+    }
+
     /// Frames the open card's place again for the panel's current size: after
     /// a resize, or when the screen's measurements change.
     func followCard() {
@@ -465,10 +475,11 @@ final class MapHomeModel {
     /// street level. Your location is framed too when it's within 1 km and
     /// still fits.
     ///
-    /// The map's safe area (`mapSafeArea`) doesn't follow the panel, so the
-    /// camera's centre stays at its middle: the region is centred off the
+    /// The middle of the map's safe area (`mapSafeArea`) doesn't move with
+    /// the panel, and it's the camera's centre: the region is centred off the
     /// place by however far the visible map's middle is from there, and sized
-    /// to the safe area so MapKit frames it exactly.
+    /// to the resting safe area so MapKit frames it exactly (at small, the
+    /// taller safe area still fits it by its width).
     func focusCard(on coordinate: Coordinate) {
         guard let safeArea = mapSafeArea, let viewport = cardViewports?.rect(for: detent),
               safeArea.width > 0, safeArea.height > 0 else {

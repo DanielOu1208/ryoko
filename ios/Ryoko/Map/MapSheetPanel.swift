@@ -227,12 +227,25 @@ struct MapSheetMetrics: Equatable {
         }
     }
 
-    /// The map's bottom safe-area padding: the resting sheet and its gap, so
-    /// the Apple Maps logo and legal notice, your location and fitted pins
-    /// sit above it. It never follows the panel: MapKit re-centres the map on
-    /// every inset change, which made small↔medium judder (or, unanimated,
-    /// jump a frame), so resizing the panel never moves the map.
-    var mapBottomPadding: CGFloat { medium + Self.bottomGap }
+    /// The map's bottom safe-area padding for a snapped height: the sheet and
+    /// its gap, so the Apple Maps logo and legal notice sit just above it. It
+    /// stops at the resting height (a large sheet covers the map anyway) and
+    /// changes only once the panel snaps, never during a drag.
+    func mapBottomPadding(for detent: MapSheetDetent) -> CGFloat {
+        min(height(for: detent), medium) + Self.bottomGap
+    }
+
+    /// The bottom padding at the resting height. The map's safe area there
+    /// (under the search field, down to this) is where camera positions are
+    /// framed, and its middle is the camera's centre at every size.
+    var restingMapBottomPadding: CGFloat { medium + Self.bottomGap }
+
+    /// How far the map reaches above the screen. MapKit re-centres the map
+    /// whenever the middle of its safe area moves, which made small↔medium
+    /// judder. So the top padding moves with the bottom one (it's the search
+    /// field's plus `mapBottomPadding`) and the middle stays put; at small
+    /// that top edge is above the screen, which this leaves room for.
+    var mapOverscan: CGFloat { restingMapBottomPadding }
 }
 
 extension MapSheetDetent {

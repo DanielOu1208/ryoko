@@ -61,19 +61,30 @@ private struct MapHomeScreen: View {
         )
         let anchor = MapHome.listAnchor(situationStore)
         let cardIsFull = model.details != nil && model.detent == .large && !search.isPresented
+        let mapBottomPadding = metrics.mapBottomPadding(for: model.detent)
 
         ZStack(alignment: .top) {
+            // The logo and legal notice follow the sheet; the map's middle
+            // (and so the map) never moves (`MapSheetMetrics.mapOverscan`).
             map(anchor: anchor)
-                .safeAreaPadding(.top, belowSearch + Theme.grid)
-                .safeAreaPadding(.bottom, metrics.mapBottomPadding)
+                .safeAreaPadding(.top, belowSearch + Theme.grid + mapBottomPadding)
+                .safeAreaPadding(.bottom, mapBottomPadding)
+                .padding(.top, -metrics.mapOverscan)
+                // In one step: animated insets make MapKit flash a frame.
+                .transaction(value: mapBottomPadding) { $0.animation = nil }
                 .ignoresSafeArea(.keyboard)
             if !cardIsFull {
-                // Only shows while the map is rotated, under the row's buttons.
-                MapCompass(scope: mapScope)
-                    .padding(.top, belowSearch + Theme.grid)
-                    .padding(.trailing, MapSheetMetrics.sideInset)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .transition(.opacity)
+                // Under the row's buttons, here rather than in `mapControls`:
+                // at small, the top of the map's safe area is off screen. The
+                // scale shows while zooming, the compass while rotated.
+                HStack(alignment: .top) {
+                    MapScaleView(scope: mapScope)
+                    Spacer(minLength: 0)
+                    MapCompass(scope: mapScope)
+                }
+                .padding(.top, belowSearch + Theme.grid)
+                .padding(.horizontal, MapSheetMetrics.sideInset)
+                .transition(.opacity)
             }
             if !search.isPresented {
                 panel(metrics: metrics, anchor: anchor)
@@ -175,9 +186,9 @@ private struct MapHomeScreen: View {
     }
 
     /// In global coordinates, once the screen is measured:
-    /// - the map's safe area: the screen minus the padding for the search
-    ///   field and the resting list. Camera positions are framed in it, and
-    ///   its middle is the camera's centre;
+    /// - the map's safe area at the resting height: the screen minus the
+    ///   padding for the search field and the resting list. Camera positions
+    ///   are framed in it, and its middle is the camera's centre at every size;
     /// - the map visible above a card at each size: under the search field
     ///   (or, at large, where the search field steps aside, under the status
     ///   bar) down to the top of the panel.
@@ -201,7 +212,7 @@ private struct MapHomeScreen: View {
                 x: screenFrame.minX,
                 y: screenFrame.minY + top,
                 width: screenFrame.width,
-                height: max(screenFrame.height - top - metrics.mapBottomPadding, 1)
+                height: max(screenFrame.height - top - metrics.restingMapBottomPadding, 1)
             ),
             viewports: MapHomeModel.CardViewports(
                 small: viewport(.small),
@@ -220,10 +231,10 @@ private struct MapHomeScreen: View {
                 markers
             }
             .mapStyle(model.layers.mapStyle)
-            .mapControls {
-                MapScaleView()
-            }
+            // None on the map itself: the scale and compass are placed by hand.
+            .mapControls {}
             .onMapCameraChange(frequency: .onEnd) { context in
+                model.cameraSettled(at: context.camera)
                 model.visibleRegion = context.region
                 search.setRegion(context.region)
             }
