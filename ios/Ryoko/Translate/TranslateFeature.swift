@@ -55,6 +55,8 @@ extension TranslateModel {
 /// - `-RyokoTranslateType "<text>"`: when Translate appears, open Type mode
 ///   and type this (after `-RyokoTranslateTypeDelay <seconds>`, default 0.5).
 ///   `-RyokoTranslateTypeDone <seconds>` then presses Done that much later.
+///   `-RyokoTranslateTypeWordGap <seconds>` types it a word at a time with that
+///   gap instead (0.7 lets each request start, then cancels it with the next word).
 /// - `-RyokoTranslateEdit <seconds>`: that long after Translate appears, open
 ///   the editor on your latest turn (listening pauses); `-RyokoTranslateEditText
 ///   "<text>"` then replaces your words with this, and `-RyokoTranslateEditDone
@@ -98,6 +100,10 @@ enum TranslateDebug {
 
     static var typeDelay: Double {
         defaults.object(forKey: "RyokoTranslateTypeDelay") == nil ? 0.5 : defaults.double(forKey: "RyokoTranslateTypeDelay")
+    }
+
+    static var typeWordGap: Double? {
+        defaults.object(forKey: "RyokoTranslateTypeWordGap") == nil ? nil : defaults.double(forKey: "RyokoTranslateTypeWordGap")
     }
 
     static var typeDoneDelay: Double? {

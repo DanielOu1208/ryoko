@@ -321,7 +321,16 @@ struct TranslateView: View {
         try? await Task.sleep(for: .seconds(TranslateDebug.typeDelay))
         openTyping()
         try? await Task.sleep(for: .milliseconds(600))
-        composer.debugType(text)
+        if let gap = TranslateDebug.typeWordGap {
+            var typed = ""
+            for word in text.split(separator: " ") {
+                typed += typed.isEmpty ? String(word) : " \(word)"
+                composer.debugType(typed)
+                try? await Task.sleep(for: .seconds(gap))
+            }
+        } else {
+            composer.debugType(text)
+        }
         if let done = TranslateDebug.typeDoneDelay {
             try? await Task.sleep(for: .seconds(done))
             commitComposer()
