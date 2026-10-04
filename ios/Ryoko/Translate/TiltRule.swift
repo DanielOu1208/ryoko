@@ -13,14 +13,15 @@ nonisolated enum TranslateLayout: String, Hashable, Sendable, CaseIterable {
 ///
 /// - **Elevation** is how far the phone's top edge is raised above horizontal:
 ///   90° held upright, 0° flat, negative once the top tips away past flat.
-/// - It switches to face-to-face below about 30° (near flat, or tipped away),
-///   and back to upright above about 50°. In between nothing changes.
+/// - It switches to face-to-face below about 15° (nearly flat, or tipped
+///   away), and back to upright above about 35°. In between nothing changes.
+///   Late on purpose: reading the phone at an angle mustn't flip it (#52).
 /// - A new layout must hold for `debounce` seconds before it's used.
 /// - Readings that say nothing about the table case are ignored: face down, or
 ///   turned sideways (landscape), where elevation is near 0 without being flat.
 nonisolated struct TiltRule: Hashable, Sendable {
-    var enterBelowDegrees = 30.0
-    var exitAboveDegrees = 50.0
+    var enterBelowDegrees = 15.0
+    var exitAboveDegrees = 35.0
     var debounce: TimeInterval = 0.4
 
     private(set) var layout: TranslateLayout = .upright

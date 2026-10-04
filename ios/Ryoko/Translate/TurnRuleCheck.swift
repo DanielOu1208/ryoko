@@ -343,13 +343,13 @@ nonisolated enum TurnRuleCheck {
 
     private static func tiltHysteresis(_ e: inout Expect) {
         var rule = TiltRule()
-        e.equal(feed(&rule, elevation: 40, from: 0, seconds: 2), .upright, "40° from upright: stays upright")
-        e.equal(feed(&rule, elevation: 20, from: 2.1, seconds: 0.2), .upright, "a 0.2 s dip doesn't switch")
-        e.equal(feed(&rule, elevation: 45, from: 2.4, seconds: 1), .upright, "back above 30° resets the debounce")
-        e.equal(feed(&rule, elevation: 20, from: 3.5, seconds: 1), .faceToFace, "held below 30°: switches")
-        e.equal(feed(&rule, elevation: 45, from: 4.6, seconds: 2), .faceToFace, "45° from flat: stays face to face")
-        e.equal(feed(&rule, elevation: 60, from: 6.7, seconds: 0.2), .faceToFace, "a 0.2 s lift doesn't switch")
-        e.equal(feed(&rule, elevation: 60, from: 7.0, seconds: 1), .upright, "held above 50°: back to upright")
+        e.equal(feed(&rule, elevation: 25, from: 0, seconds: 2), .upright, "25° from upright (reading at an angle): stays upright")
+        e.equal(feed(&rule, elevation: 10, from: 2.1, seconds: 0.2), .upright, "a 0.2 s dip doesn't switch")
+        e.equal(feed(&rule, elevation: 25, from: 2.4, seconds: 1), .upright, "back above 15° resets the debounce")
+        e.equal(feed(&rule, elevation: 10, from: 3.5, seconds: 1), .faceToFace, "held below 15°: switches")
+        e.equal(feed(&rule, elevation: 30, from: 4.6, seconds: 2), .faceToFace, "30° from flat: stays face to face")
+        e.equal(feed(&rule, elevation: 50, from: 6.7, seconds: 0.2), .faceToFace, "a 0.2 s lift doesn't switch")
+        e.equal(feed(&rule, elevation: 50, from: 7.0, seconds: 1), .upright, "held above 35°: back to upright")
     }
 
     private static func tiltIgnores(_ e: inout Expect) {

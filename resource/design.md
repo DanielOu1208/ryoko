@@ -221,8 +221,8 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
   - The **bottom half** always shows *yours*.
   - When you speak English, your words sit at the bottom and the Chinese translation faces them at the top. When they speak Chinese, their words face them at the top and the English translation sits at the bottom for you.
   - **Detection:** CoreMotion gravity (no permission needed; only testable on a device).
-    - The layout switches when the phone gets within about 30° of flat or its top edge tips away.
-    - It switches back when the phone is raised past about 50°.
+    - The layout switches when the phone gets within about 15° of flat or its top edge tips away: late on purpose, so reading the phone at an angle doesn't flip it (#52).
+    - It switches back when the phone is raised past about 35°.
     - Hysteresis plus a short debounce stops flicker.
   - A toolbar button forces either layout, for reliability and accessibility.
   - A haptic plays on each switch. The rotation is animated with `.smooth`, or a crossfade when Reduce Motion is on.
@@ -859,3 +859,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 49 | Mimo's phrases are part of the reply, not cards: a line after the sentence they belong to that opens Show mode; the prompt asks Mimo not to collect them at the end | user |
 | 50 | The tab bar never minimizes on scroll, on any tab (replaces T2.5's minimize on Nearby and Mimo) | user |
 | 51 | Mimo's composer tucks into a corner button when you're not typing; tap it to type, scroll toward the end of the chat to open it, scroll back to tuck it away. Open in a new chat or with a draft; Stop while replying | user |
+| 52 | The tilt flips later: face-to-face (Translate and Show mode) below about 15° from flat instead of 30°, back to upright above 35° instead of 50° | user |
