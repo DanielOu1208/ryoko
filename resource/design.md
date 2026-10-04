@@ -694,9 +694,9 @@ Reference: Luma. Lots of whitespace, confident type, few controls, and colour th
 - **Colours** (tune on device): light `#ADD2FF` → `#DDECFF`, a little more saturated than before so it stands out from white; dark `#1E416A` → black. When it reacts, the top leans toward a brighter blue (`#86BAFF` / `#2A5F9E`) and a periwinkle (`#B6C0FF` / `#2E3A86`).
 - **It reacts to what's happening (#67):**
   - At rest it holds still.
-  - **Mimo working** (a reply streaming) and **Translate connecting**: waves run across the wash (a cycle every 4–6 s), its colours shifting between the blues, and it grows a little.
+  - **Mimo working** (a reply streaming) and **Translate connecting**: waves run across the wash (a cycle every 2–3 s), its colours shifting between the blues, and it grows a little.
   - **Translate listening:** it swells and brightens with the microphone level, easing between readings.
-  - It eases in and out of motion over about a second. Under Reduce Motion it never moves.
+  - It eases in and out of motion over about half a second. Under Reduce Motion it never moves.
 
 - **Where it appears:** Translate, Mimo and Me (#48). It was also on Nearby, which is removed (#53).
 - **Where it doesn't appear:** the Map (its sheet and place cards included), Show mode and the onboarding survey. Those use plain system backgrounds.

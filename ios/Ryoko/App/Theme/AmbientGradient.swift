@@ -41,7 +41,7 @@ struct AmbientGradient: View {
                 MeshWash(
                     palette: Palette(colorScheme),
                     background: background,
-                    time: context.date.timeIntervalSinceReferenceDate * (mood == .listening ? 1.1 : 1.6),
+                    time: context.date.timeIntervalSinceReferenceDate * (mood == .listening ? 2.0 : 2.8),
                     presence: presence,
                     energy: energy
                 )
@@ -51,7 +51,7 @@ struct AmbientGradient: View {
         }
         // The level arrives about eight times a second: ease between readings.
         .animation(.smooth(duration: 0.35), value: energy)
-        .animation(.smooth(duration: 0.8), value: presence)
+        .animation(.smooth(duration: 0.5), value: presence)
         .background(background)
         .ignoresSafeArea()
         .accessibilityHidden(true)
