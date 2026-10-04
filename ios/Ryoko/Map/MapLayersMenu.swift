@@ -33,12 +33,19 @@ struct MapLayersMenu: View {
         } label: {
             Image(systemName: isFiltered ? "square.3.layers.3d.top.filled" : "square.3.layers.3d")
                 .font(.body.weight(.medium))
+                // A fixed 44 pt control like MapKit's location button above
+                // it: the glyph mustn't outgrow it at accessibility sizes
+                // (the large content viewer shows it bigger instead).
+                .dynamicTypeSize(...DynamicTypeSize.xLarge)
                 .frame(width: Self.size, height: Self.size)
                 .contentShape(.circle)
         }
         .menuActionDismissBehavior(.disabled)
         .glassEffect(.regular.interactive(), in: .circle)
         .accessibilityLabel("Layers")
+        .accessibilityShowsLargeContentViewer {
+            Label("Layers", systemImage: "square.3.layers.3d")
+        }
     }
 
     /// The same size as MapKit's location button above it.
