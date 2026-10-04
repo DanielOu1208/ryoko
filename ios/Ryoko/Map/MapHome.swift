@@ -66,7 +66,8 @@ struct MapPlace: Identifiable, Hashable {
     var area: PlaceArea?
     /// From the list's centre (your fix, or the previewed place).
     var distanceMeters: Double?
-    /// The name to show, when it differs from MapKit's (Mimo's own name for a pick).
+    /// The name to show, when it differs from MapKit's (Mimo's name for a From
+    /// Mimo pin, "Dropped pin"). Picks show MapKit's name.
     var displayName: String?
 
     var id: String { Self.key(for: place) }

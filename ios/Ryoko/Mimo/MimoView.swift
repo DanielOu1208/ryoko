@@ -399,20 +399,18 @@ private struct MimoComposer: View {
                 Button(action: onStop) {
                     Image(systemName: "stop.fill")
                         .font(.footnote.weight(.bold))
-                        .foregroundStyle(Color(uiColor: .systemBackground))
                         .frame(width: buttonSize, height: buttonSize)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.monochromeProminent)
                 .buttonBorderShape(.circle)
                 .accessibilityLabel("Stop")
             } else {
                 Button(action: onSend) {
                     Image(systemName: "arrow.up")
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(canSend && hasText ? AnyShapeStyle(Color(uiColor: .systemBackground)) : AnyShapeStyle(.tertiary))
                         .frame(width: buttonSize, height: buttonSize)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.monochromeProminent)
                 .buttonBorderShape(.circle)
                 .disabled(!canSend || !hasText)
                 .accessibilityLabel("Send")

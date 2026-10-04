@@ -24,14 +24,9 @@ struct MimoPlacesView: View {
                             }
                         }
                     }
-                    Button(action: onShowOnMap) {
-                        // The tint is the primary label colour (white in dark
-                        // mode), so the label takes the background colour.
-                        Label("Show on map", systemImage: "map")
-                            .foregroundStyle(Color(uiColor: .systemBackground))
-                    }
+                    Button("Show on map", systemImage: "map", action: onShowOnMap)
                         .font(.subheadline.weight(.semibold))
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.monochromeProminent)
                         .buttonBorderShape(.capsule)
                         .padding(.top, Theme.grid / 2)
                         .accessibilityHint(places.isPlan ? "Shows the stops as numbered pins on the map" : "Shows these places on the map")

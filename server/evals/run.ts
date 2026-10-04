@@ -6,8 +6,13 @@
 //   ONLY=placeCard,mimo node evals/run.ts   # some skills only
 //
 // It reports, per skill: schema validity (against the contracts), basis validity,
-// the allergen filter, retries, items the server checks dropped, latency p50/max
+// allergen mentions, retries, items the server checks dropped, latency p50/max
 // and cost. A JSON report goes to server/.cache/evals/ (gitignored).
+//
+// The allergen column doesn't reuse the server's filter (`unsafeMention`), so a
+// bug there can't hide here: any allergen or diet term in a delivered item marks
+// the row and lists the text under "? allergen review", for a person to read.
+// Safety phrases ("I'm allergic to peanuts") show up there too; that's expected.
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -34,7 +39,7 @@ import { allowedBasis, hasLatinLetters, inLocalScript, languageInfo, wordCount }
 import type { MimoRunStats } from '../src/skills/mimo/session.ts';
 import { createModelSkills, type SkillCallStats } from '../src/skills/model.ts';
 import { MAX_BECAUSE_WORDS } from '../src/skills/place-card.ts';
-import { hazardsFor, unsafeMention } from '../src/skills/safety.ts';
+import { hazardMentions, hazardsFor } from '../src/skills/safety.ts';
 import type { SseSink } from '../src/sse.ts';
 
 const RUNS = Math.max(1, Number(process.env.RUNS ?? 1));
@@ -182,7 +187,10 @@ interface Row {
   error?: string;
   schemaValid: boolean;
   basisValid: boolean | null;
+  /** No allergen or diet term in any delivered item (see allergenReview). */
   allergenOk: boolean;
+  /** "label: text" for every item that names one, for a person to read. */
+  allergenReview: string[];
   checks: string[];
   attempts: number;
   dropped: string[];
@@ -246,17 +254,17 @@ if (wanted('placeCard')) {
       const hazards = hazardsFor(c.request.profile);
       const checks: string[] = [];
       let basisValid: boolean | null = null;
-      let allergenOk = true;
+      const allergenReview: string[] = [];
       if (card) {
         basisValid = [...card.phrases, ...card.tips].every((item) => (item.basis ?? []).every((b) => allowed.includes(b)));
         for (const p of card.phrases) {
-          if (unsafeMention([p.local, p.gloss], hazards)) allergenOk = false;
+          allergenReview.push(...hazardMentions([p.local, p.gloss], hazards));
           if (wordCount(p.because) > MAX_BECAUSE_WORDS) checks.push(`because too long: ${p.because}`);
           if (local.script === 'han' && hasLatinLetters(p.local)) checks.push(`latin in zh: ${p.local}`);
           if (!inLocalScript(p.local, local)) checks.push(`wrong script: ${p.local}`);
           if (local.romanization !== 'none' && !p.romanization) checks.push(`no romanization: ${p.local}`);
         }
-        for (const t of card.tips) if (unsafeMention([t.text], hazards)) allergenOk = false;
+        for (const t of card.tips) allergenReview.push(...hazardMentions([t.text], hazards));
       }
       rows.push({
         skill: 'placeCard',
@@ -265,7 +273,8 @@ if (wanted('placeCard')) {
         ...(r.error ? { error: r.error } : {}),
         schemaValid: Boolean(card && Value.Check(PlaceCardResponse, card)),
         basisValid,
-        allergenOk,
+        allergenOk: allergenReview.length === 0,
+        allergenReview,
         checks,
         ...genFields(r.ms),
         extra: card ? { phrases: card.phrases.map((p) => `${p.local} | ${p.romanization ?? ''} | ${p.gloss} | ${p.because} [${p.basis.join(',')}]`), tips: card.tips.map((t) => t.text), placeNameLocal: card.placeNameLocal } : {},
@@ -282,11 +291,11 @@ if (wanted('discover')) {
     const local = languageInfo(c.request.situation.localLanguage);
     const hazards = hazardsFor(c.request.profile);
     const checks: string[] = [];
-    let allergenOk = true;
+    const allergenReview: string[] = [];
     for (const p of result?.places ?? []) {
       if (p.why.length > 60) checks.push(`why > 60: ${p.why}`);
       if (!inLocalScript(p.localName, local)) checks.push(`localName script: ${p.localName}`);
-      if (unsafeMention([p.name, p.why], hazards)) allergenOk = false;
+      allergenReview.push(...hazardMentions([p.name, p.why], hazards));
     }
     rows.push({
       skill: 'discover',
@@ -295,7 +304,8 @@ if (wanted('discover')) {
       ...(r.error ? { error: r.error } : {}),
       schemaValid: Boolean(result && Value.Check(DiscoverResponse, result)),
       basisValid: null,
-      allergenOk,
+      allergenOk: allergenReview.length === 0,
+      allergenReview,
       checks,
       ...genFields(r.ms),
       extra: result ? { places: result.places.map((p) => `${p.name} / ${p.localName} [${p.category}] ${p.why}${p.bestTime ? ` (${p.bestTime})` : ''}`) } : {},
@@ -324,6 +334,7 @@ if (wanted('allergyCard')) {
       schemaValid: Boolean(card && Value.Check(AllergyCardResponse, card)),
       basisValid: null,
       allergenOk: true,
+      allergenReview: [],
       checks,
       ...genFields(r.ms),
       extra: card ? { title: card.title, items: card.items.map((i) => `${i.local} | ${i.home}`), request: `${card.requestLocal} | ${card.romanization ?? ''} | ${card.requestHome}` } : {},
@@ -365,6 +376,7 @@ if (wanted('mimo')) {
     const phrases = events.flatMap((e) => (e.type === 'phrase' ? [e.phrase] : []));
     const tools = events.flatMap((e) => (e.type === 'tool_end' ? [e] : []));
     const hazards = hazardsFor(c.request.profile);
+    const allergenReview = phrases.flatMap((p) => hazardMentions([p.local, p.gloss], hazards));
     const checks: string[] = [];
     if (invalid > 0) checks.push(`${invalid} invalid events`);
     if (c.expectTool && !tools.some((t) => t.name === c.expectTool && t.ok)) checks.push(`expected ${c.expectTool}`);
@@ -381,7 +393,8 @@ if (wanted('mimo')) {
       ...(error ? { error } : {}),
       schemaValid: invalid === 0 && events.length > 0,
       basisValid: null,
-      allergenOk: phrases.every((p) => !unsafeMention([p.local, p.gloss], hazards)),
+      allergenOk: allergenReview.length === 0,
+      allergenReview,
       checks,
       attempts: lastMimo()?.turns ?? 0,
       dropped: [],
@@ -430,8 +443,11 @@ for (const skill of ['placeCard', 'discover', 'allergyCard', 'mimo']) {
   ];
   console.log(line.join(' '));
 }
-const failures = rows.filter((row) => !row.ok || row.checks.length > 0 || !row.allergenOk || row.basisValid === false);
+const failures = rows.filter((row) => !row.ok || row.checks.length > 0 || row.basisValid === false);
 for (const row of failures) console.log(`\n! ${row.skill} / ${row.case}: ${row.error ?? ''} ${row.checks.join('; ')}`);
+for (const row of rows.filter((x) => x.allergenReview.length > 0)) {
+  console.log(`\n? allergen review, ${row.skill} / ${row.case}:\n  ${row.allergenReview.join('\n  ')}`);
+}
 for (const row of rows.filter((x) => x.dropped.length > 0 || x.firstIssues.length > 0)) {
   const retry = row.firstIssues.length > 0 ? `retried after [${row.firstIssues.join(' | ')}]` : 'no retry';
   console.log(`\n~ ${row.skill} / ${row.case}: ${retry}; dropped [${row.dropped.join(' | ')}]`);

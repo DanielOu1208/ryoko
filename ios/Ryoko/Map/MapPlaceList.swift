@@ -198,11 +198,8 @@ struct MapPlaceList: View {
             case .failed, .idle, .ready:
                 Text("See Mimo picks and the places around you.")
                     .foregroundStyle(.secondary)
-                Button(action: onFindMe) {
-                    Label("Find places near me", systemImage: "location")
-                        .foregroundStyle(Color(uiColor: .systemBackground))
-                }
-                .buttonStyle(.borderedProminent)
+                Button("Find places near me", systemImage: "location", action: onFindMe)
+                    .buttonStyle(.monochromeProminent)
                 Text("Or search, or long-press the map to look around.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)

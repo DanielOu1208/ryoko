@@ -48,6 +48,33 @@ extension View {
     }
 }
 
+/// `.borderedProminent` in the monochrome tint. The tint is the primary label
+/// colour, white in dark mode, and the system draws a prominent button's label
+/// white too, so it would vanish on the white capsule. Here the label takes the
+/// background colour instead: white on black in light mode, black on white in
+/// dark. Disabled, it's tertiary on the system's dimmed fill.
+///
+///     Button("Open the map") { … }
+///         .buttonStyle(.monochromeProminent)
+struct MonochromeProminentButtonStyle: PrimitiveButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        Button(role: configuration.role) {
+            configuration.trigger()
+        } label: {
+            configuration.label
+                .foregroundStyle(isEnabled ? AnyShapeStyle(Color(uiColor: .systemBackground)) : AnyShapeStyle(.tertiary))
+        }
+        .buttonStyle(.borderedProminent)
+    }
+}
+
+extension PrimitiveButtonStyle where Self == MonochromeProminentButtonStyle {
+    /// `.borderedProminent` with a label that stays readable in the monochrome tint.
+    static var monochromeProminent: MonochromeProminentButtonStyle { MonochromeProminentButtonStyle() }
+}
+
 extension Color {
     /// An sRGB colour from a 24-bit hex literal, e.g. `Color(hex: 0xFFD8B5)`.
     nonisolated init(hex: UInt32) {

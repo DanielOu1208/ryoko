@@ -15,7 +15,7 @@ A living tracker for the build. **Update it as you work.** When you start a task
 | --- | --- | --- |
 | Setup (§12.2) | done | S1–S5 done |
 | Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 done (desk) |
-| Tier 1: working core | doing | W1–W7 built and committed; end-to-end check against real GMI, review and fixes running. Translate needs a valid Soniox key and a device run |
+| Tier 1: working core | doing | **All of W1–W7 built, end-to-end checked against real GMI, reviewed and fixed.** Open: mic and tilt on the phone, minor follow-ups (see Fix round). W8 avatar in progress |
 | Tier 2 | todo | |
 | After core | todo | |
 | Submission | todo | |
@@ -143,6 +143,35 @@ Write down what you find. The results may change the spec.
 | W7.7 | Phrase-tag stream transformer → `phrase` events | wf:W7 | done |  | Phrase-tag transformer: buffered tags → phrase events, pinyin fill, ≤4 per reply, separator around tool calls, malformed tags flushed as text |
 | W7.8 | Caching (persisted LRU, in-flight de-duplication), prefetch on situation change, daily cost kill switch | wf:W7 | done |  | Persisted LRU in server/.cache (survives restart, 2 ms hits), in-flight de-duplication, daily budget kill switch (pi usage + Exa cost); $0.18 spent so far |
 | W7.9 | `server/evals/run.ts` with the canned situations (§6.4) | wf:W7 | done |  | server/evals/run.ts on real GMI (RUNS=2): place-card/discover/allergy 100% valid. 89 offline tests pass; check-contracts --live 193/193 |
+
+### Fix round after W3–W7 (2026-10-03)
+
+| Issue | Severity | Outcome |
+| --- | --- | --- |
+| Allergen filter let "peanut milk tea, no ice" through (a safety cue anywhere cleared the item) | blocker | **Fixed**: a cue only clears the mention it governs; 有…吗 / "is there" are no longer cues; regression tests from real model output; evals list allergen mentions for a person to read; prompt versions bumped (pc-4, dc-3) |
+| Resolver accepted wrong places ("Hanazono Shrine" → a festival listing) | major | **Fixed**: whole-word name matching (only area, branch or kind words may be added; CJK = same name + branch suffix); pick rows show MapKit's name; 29/29 name-match cases pass |
+| Discover invented places | major | **Fixed** (prompt): only long-established places that certainly exist; 14/14 real in two real calls, 10/14 resolved, all correctly |
+| Home-base taxi card showed the Shanghai hotel in Tokyo | major | **Fixed**: offered only within 50 km, otherwise "Your home base is in another city" |
+| Prominent buttons blank in dark mode | major | **Fixed**: shared `.monochromeProminent` style in Theme.swift, used by all 7 prominent buttons |
+| Mic capture aborts in the simulator | major | **Open**: needs a run on the phone |
+
+**Follow-ups (minor, from the review and the e2e check):**
+- double haptic when Show opens from Mimo or the Map
+- collapsed Map sheet shows no rows at the largest text sizes
+- Preview from Map details should open Nearby
+- no prefetch of place card and discover on situation change (§6.4 Speed)
+- Mimo session transcript grows without a limit
+- show_places whys aren't allergen-checked
+- loose script checks (kana passes as Han)
+- idle-timer writes from Translate and Show can conflict
+- makeCurrent falls back to country US
+- PlaceCardCache key ignores profile.version
+- the model sometimes writes local script outside phrase tags
+- 2 Tokyo discover fixtures no longer resolve under the stricter matcher
+- overlapping From Mimo pins
+- stale `-RyokoInitialTab now` comment
+- duplicated "speaks the local language" helpers
+
 
 ### W8. Mimo avatar (design §4.9, decision #45)
 

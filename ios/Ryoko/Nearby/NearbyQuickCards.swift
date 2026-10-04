@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 
 /// Nearby's quick cards row (design §4.3): the allergy card and the taxi card,
@@ -6,8 +7,14 @@ import SwiftUI
 /// - **Allergy:** the profile's allergies in the local language
 ///   (`AllergyCardStore`). Disabled, with the reason, when the profile has none
 ///   or the language has no templates yet.
-/// - **Taxi:** to the current place, or to the home base when no place is known.
+/// - **Taxi:** to the current place, or to the home base when no place is known
+///   and the home base is in this area (within `homeBaseRadius` of the place
+///   or your last fix). A home base in another city gets no card: a Shanghai
+///   hotel's address is no use to a Tokyo driver.
 struct NearbyQuickCards: View {
+    /// How far the home base can be from here and still be "in this city".
+    static let homeBaseRadius: CLLocationDistance = 50_000
+
     let situation: Situation
     /// The place's local name from its place card, for the taxi card.
     let placeNameLocal: String?
@@ -15,6 +22,7 @@ struct NearbyQuickCards: View {
     var cardSettled = false
 
     @Environment(ProfileStore.self) private var profileStore
+    @Environment(AppSituationStore.self) private var situationStore
     @Environment(AppRouter.self) private var router
     @Environment(\.ryokoAPI) private var api
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -73,20 +81,38 @@ struct NearbyQuickCards: View {
     private enum TaxiTarget {
         case place(Place)
         case home(HomeBase)
+        /// The home base is in another city: no card.
+        case homeElsewhere
+
+        var isAvailable: Bool {
+            if case .homeElsewhere = self { false } else { true }
+        }
     }
 
     private var taxiTarget: TaxiTarget? {
+        let home = profileStore.profile.homeBase
         #if DEBUG
-        if ShowDebugOptions.taxiTargetsHome, let home = profileStore.profile.homeBase { return .home(home) }
+        if ShowDebugOptions.taxiTargetsHome, let home { return homeTarget(home) }
         #endif
         if let place = situation.place { return .place(place) }
-        return profileStore.profile.homeBase.map(TaxiTarget.home)
+        return home.map(homeTarget)
+    }
+
+    /// The home base, if it's in this area. With nothing to measure from, it
+    /// counts as elsewhere.
+    private func homeTarget(_ home: HomeBase) -> TaxiTarget {
+        guard let here = situation.place?.coordinate ?? situationStore.lastFix else { return .homeElsewhere }
+        let distance = CLLocation(latitude: here.lat, longitude: here.lon)
+            .distance(from: CLLocation(latitude: home.coordinate.lat, longitude: home.coordinate.lon))
+        return distance <= Self.homeBaseRadius ? .home(home) : .homeElsewhere
     }
 
     private var taxiTile: some View {
-        let subtitle: String = switch taxiTarget {
+        let target = taxiTarget
+        let subtitle: String = switch target {
         case let .place(place)?: "To \(place.name)"
         case let .home(home)?: "To your home base, \(home.name)"
+        case .homeElsewhere?: "Your home base is in another city"
         case nil: "No home base set"
         }
         return QuickCardTile(
@@ -94,24 +120,26 @@ struct NearbyQuickCards: View {
             subtitle: subtitle,
             systemImage: "car.fill",
             isLoading: isBuildingTaxi,
-            isEnabled: taxiTarget != nil,
+            isEnabled: target?.isAvailable ?? false,
             hint: "Opens the address in the local language, full screen, to show a driver",
             action: openTaxi
         )
     }
 
     private func openTaxi() {
-        guard let target = taxiTarget, !isBuildingTaxi else { return }
+        guard let target = taxiTarget, target.isAvailable, !isBuildingTaxi else { return }
         isBuildingTaxi = true
         Task {
-            let card = switch target {
+            let card: TaxiShowCard? = switch target {
             case let .place(place):
                 await TaxiCardFactory.card(for: place, language: situation.localLanguage, placeNameLocal: placeNameLocal)
             case let .home(home):
                 await TaxiCardFactory.card(forHomeBase: home, language: situation.localLanguage)
+            case .homeElsewhere:
+                nil
             }
             isBuildingTaxi = false
-            router.show = .taxi(card)
+            if let card { router.show = .taxi(card) }
         }
     }
 

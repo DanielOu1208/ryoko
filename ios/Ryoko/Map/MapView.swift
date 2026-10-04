@@ -477,8 +477,17 @@ private struct MapHomeScreen: View {
             }
         }
         if let anchor {
-            for name in options.resolverCheck {
-                let result = await resolver.resolve(PlaceQuery(name: name, near: anchor))
+            for entry in options.resolverCheck {
+                // "name" or "name;localName;category", as discover sends them.
+                let parts = entry.split(separator: ";", omittingEmptySubsequences: false).map(String.init)
+                let name = parts[0]
+                let query = PlaceQuery(
+                    name: name,
+                    localName: parts.count > 1 && !parts[1].isEmpty ? parts[1] : nil,
+                    category: parts.count > 2 ? CategorySlug(rawValue: parts[2]) : nil,
+                    near: anchor
+                )
+                let result = await resolver.resolve(query)
                 if let result {
                     RyokoLog.places.info("Resolver check: \(name, privacy: .public) → \(result.place.name, privacy: .public) [\(result.place.id ?? "no id", privacy: .public)] \(Int(result.distanceMeters)) m")
                 } else {

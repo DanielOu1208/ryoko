@@ -224,6 +224,45 @@ describe('allergen filter', () => {
     assert.equal(unsafeMention(['叉烧饭一份', 'One char siu rice'], hazards), 'no_pork');
     assert.equal(unsafeMention(['一杯少糖拿铁'], hazardsFor(seed)), null);
   });
+
+  test('a cue elsewhere in the item does not exempt an order (regression)', () => {
+    // A negation or question about something else used to exempt the whole item.
+    assert.equal(unsafeMention(['我要一杯花生奶茶，不要冰', 'A peanut milk tea, no ice please'], hazards), 'peanut');
+    assert.equal(unsafeMention(['有花生酱面吗？'], hazards), 'peanut');
+    assert.equal(unsafeMention(['ピーナッツラテをください。氷なしで'], hazards), 'peanut');
+    assert.equal(unsafeMention(['不要冰，花生奶茶'], hazards), 'peanut');
+    assert.equal(unsafeMention(['No ice, and a peanut latte please'], hazards), 'peanut');
+    assert.equal(unsafeMention(['Do you have peanut noodles?'], hazards), 'peanut');
+    assert.equal(unsafeMention(['Is there a peanut noodle dish?'], hazards), 'peanut');
+    assert.equal(unsafeMention(['有没有花生酱面？'], hazards), 'peanut');
+    assert.equal(unsafeMention(['ピーナッツが入っているラテをください'], hazards), 'peanut');
+  });
+
+  test('a cue covers the mention it governs and the rest of its list', () => {
+    const several = hazardsFor(withProfile({ allergies: [{ id: 'peanut', severity: 'serious' }, { id: 'sesame', severity: 'serious' }, { id: 'egg', severity: 'mild' }, { id: 'milk', severity: 'mild' }] }));
+    for (const texts of [
+      ['No peanuts or sesame, please'],
+      ['我对花生和芝麻过敏'],
+      ['卵と乳製品は食べられません'],
+      ['ピーナッツは入っていますか？'],
+      ['请不要放任何花生'],
+      ['这道菜加了花生酱吗？'],
+      ['Is it peanut-free?'],
+      ['I have a peanut allergy'],
+      // Seen in the evals on the real model.
+      ['ピーナッツは使っていますか', 'Do you use peanuts?'],
+      ['这个里面有花生和芝麻吗？我对这两个都过敏。', 'Does this have peanuts or sesame? I am allergic to both.'],
+      ['我对花生和芝麻严重过敏，这些菜里有吗', 'I have severe peanut and sesame allergies, do these dishes contain them?'],
+      ['I have a peanut allergy. Does anything here contain peanuts?', 'Tell staff about your peanut allergy and ask about peanuts'],
+      ['ピーナッツに重度のアレルギーがあります'],
+      ['Does this have any peanuts in it?', 'Ask whether the item contains peanuts.'],
+      ['Do you have any fruit teas, and none with peanuts?', 'Asking about fruit teas and whether any contain peanuts.'],
+    ]) {
+      assert.equal(unsafeMention(texts, several), null, texts.join(' / '));
+    }
+    assert.equal(unsafeMention(['我对芝麻过敏，来一份花生糖'], several), 'peanut');
+    assert.equal(unsafeMention(['Ask about the peanut noodles'], several), 'peanut');
+  });
 });
 
 describe('place-card checks', () => {

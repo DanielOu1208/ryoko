@@ -139,11 +139,12 @@ final class MapHomeModel {
                     radiusMeters: MapHome.resolveRadius
                 )
                 guard let resolved = await resolver.resolve(query) else { continue }
+                // The row shows MapKit's name, not Mimo's, so it names the
+                // place a tap opens even if the two ever differ.
                 let place = MapPlace(
                     place: resolved.place,
                     source: .pick(why: pick.why, bestTime: pick.bestTime),
-                    distanceMeters: resolved.distanceMeters,
-                    displayName: pick.name
+                    distanceMeters: resolved.distanceMeters
                 )
                 guard !found.contains(where: { $0.id == place.id }) else { continue }
                 found.append(place)

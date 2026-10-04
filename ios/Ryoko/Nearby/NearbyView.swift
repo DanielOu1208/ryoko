@@ -370,7 +370,7 @@ private struct SpeaksLocalCard: View {
             Text("No phrases needed. Preview a place abroad to see what to say there.")
                 .foregroundStyle(.secondary)
             Button("Preview a place", systemImage: "map") { router.selectedTab = .map }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.monochromeProminent)
                 .controlSize(.large)
                 .padding(.top, Theme.grid / 2)
         }
@@ -522,7 +522,7 @@ private struct NearbyNoSituationView: View {
     private func mapButton(prominent: Bool) -> some View {
         let button = Button("Open the map") { router.selectedTab = .map }
         if prominent {
-            button.buttonStyle(.borderedProminent)
+            button.buttonStyle(.monochromeProminent)
         } else {
             button.buttonStyle(.bordered)
         }

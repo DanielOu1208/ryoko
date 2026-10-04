@@ -21,7 +21,8 @@ import UIKit
 /// - `-RyokoMapSearch <text>`: open search with this text (suggestions).
 /// - `-RyokoMapOpenLayers 1`: open the layers menu, for screenshots.
 /// - `-RyokoMapResolverCheck "<name>|<name>|…"`: resolve each name near you and
-///   log the result (category `places`).
+///   log the result (category `places`). An entry can be
+///   `<name>;<localName>;<category slug>`, as discover sends them.
 enum MapDebugOptions {
     private static var defaults: UserDefaults { .standard }
 

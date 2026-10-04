@@ -15,8 +15,9 @@ import os
 /// 2. Search terms in order: in mainland China the local name, then the
 ///    English name; elsewhere the English name, then the local name; then a
 ///    category query (e.g. "ramen") whose results are filtered by name.
-/// 3. Accept only hits within 5 km whose name is similar to the requested
-///    name or local name (`PlaceNameMatch`), and take the nearest.
+/// 3. Accept only hits within 5 km whose name is the requested name or local
+///    name, give or take area, branch and kind-of-place words
+///    (`PlaceNameMatch`, word by word); the closest name wins, then the nearest.
 ///
 /// Answers, misses included, are cached by (normalized name, area). Places are
 /// kept by `identifier.rawValue`, or normalized name plus the coordinate
@@ -50,6 +51,9 @@ final class LivePlaceResolver: PlaceResolver {
     private var inFlight: [String: Task<Outcome, Never>] = [:]
     /// Area cell → ISO country code, or nil when reverse geocoding found nothing.
     private var countries: [String: String?] = [:]
+    /// Area cell → words naming the area ("shinjuku", "tokyo"), which may
+    /// qualify a place's name (`PlaceNameMatch.areaWords`).
+    private var areaWords: [String: Set<String>] = [:]
     /// When each recent MapKit request started.
     private var requestLog: [ContinuousClock.Instant] = []
     /// After a `loadingThrottled` error: no requests before this.
@@ -121,6 +125,7 @@ final class LivePlaceResolver: PlaceResolver {
         let radius = min(max(query.radiusMeters, Self.regionRadius.lowerBound), Self.regionRadius.upperBound)
         let region = MKCoordinateRegion(around: query.near, meters: radius * 2)
         let inChina = await countryCode(near: query.near) == "CN"
+        let centreArea = areaWords[Self.cell(query.near)] ?? []
 
         var texts = [query.name, query.localName].compactMap { ContractText.clean($0, maxLength: 120) }
         if inChina { texts.reverse() }
@@ -137,7 +142,7 @@ final class LivePlaceResolver: PlaceResolver {
         for term in terms {
             switch await search(term, in: region) {
             case let .some(items):
-                if let hit = bestHit(in: items, for: query) {
+                if let hit = bestHit(in: items, for: query, centreArea: centreArea) {
                     RyokoLog.places.info(
                         "Resolved \(query.name, privacy: .public) → \(hit.place.name, privacy: .public), \(Int(hit.distanceMeters)) m, via \(term.description, privacy: .public)"
                     )
@@ -182,17 +187,23 @@ final class LivePlaceResolver: PlaceResolver {
         }
     }
 
-    /// The best-matching hit within 5 km: an exact name first, then one name
-    /// containing the other, then a close spelling; the nearest within that.
-    private func bestHit(in items: [MKMapItem], for query: PlaceQuery) -> ResolvedPlace? {
+    /// The best-matching hit within 5 km: the same name first, then the name
+    /// with qualifiers, then the name without the request's area words; the
+    /// nearest within that. Area words come from the query's centre and the
+    /// hit's own city and district.
+    private func bestHit(in items: [MKMapItem], for query: PlaceQuery, centreArea: Set<String>) -> ResolvedPlace? {
         let center = query.near.mapKitLocation
         return items
             .compactMap { item -> (hit: ResolvedPlace, score: Int)? in
                 guard let itemName = item.name else { return nil }
+                let area = centreArea.union(Self.areaWords(of: item))
                 let score = max(
-                    PlaceNameMatch.score(itemName, against: query.name),
-                    PlaceNameMatch.score(itemName, against: query.localName)
+                    PlaceNameMatch.score(itemName, against: query.name, areaWords: area),
+                    PlaceNameMatch.score(itemName, against: query.localName, areaWords: area)
                 )
+                if score == 0 {
+                    RyokoLog.places.debug("Not \(query.name, privacy: .public): \(itemName, privacy: .public)")
+                }
                 guard score > 0, let place = NearbySearch.place(from: item) else { return nil }
                 let distance = item.location.distance(from: center)
                 guard distance <= Self.maxDistance else { return nil }
@@ -207,8 +218,9 @@ final class LivePlaceResolver: PlaceResolver {
     // MARK: Country
 
     /// The country at `coordinate`, from one reverse geocode per ~10 km cell.
+    /// The same lookup fills `areaWords` for the cell.
     private func countryCode(near coordinate: Coordinate) async -> String? {
-        let cell = String(format: "%.1f,%.1f", coordinate.lat, coordinate.lon)
+        let cell = Self.cell(coordinate)
         if let known = countries[cell] { return known }
         guard await waitForSlot(), let request = MKReverseGeocodingRequest(location: coordinate.mapKitLocation) else {
             return nil
@@ -217,6 +229,7 @@ final class LivePlaceResolver: PlaceResolver {
             let items = try await request.mapItems
             let code = items.lazy.compactMap { $0.addressRepresentations?.region?.identifier.uppercased() }.first
             countries[cell] = .some(code)
+            areaWords[cell] = items.prefix(1).reduce(into: Set<String>()) { $0.formUnion(Self.areaWords(of: $1)) }
             return code
         } catch let error as MKError where error.code == .placemarkNotFound {
             countries[cell] = .some(nil)
@@ -249,6 +262,21 @@ final class LivePlaceResolver: PlaceResolver {
         }
     }
 
+    /// About 10 km.
+    private static func cell(_ coordinate: Coordinate) -> String {
+        String(format: "%.1f,%.1f", coordinate.lat, coordinate.lon)
+    }
+
+    /// City, ward and district names from a map item's address, not its street.
+    private static func areaWords(of item: MKMapItem) -> Set<String> {
+        let representations = item.addressRepresentations
+        return PlaceNameMatch.areaWords(from: [
+            representations?.cityName,
+            representations?.cityWithContext(.full),
+            representations?.cityWithContext,
+        ])
+    }
+
     // MARK: Keys
 
     /// (normalized name, area): the area is the query centre rounded to 2
@@ -275,63 +303,5 @@ final class LivePlaceResolver: PlaceResolver {
         case .hotel: "hotel"
         case .other: nil
         }
-    }
-}
-
-// MARK: - Name similarity
-
-/// Whether a MapKit name is the place that was asked for (design §4.7: short
-/// brand queries match loosely, so every hit is checked).
-nonisolated enum PlaceNameMatch {
-    /// Lowercased, without diacritics, full-width forms or punctuation:
-    /// "Omoide Yokochō" → "omoideyokocho", "ＣＯＣＯ都可" → "coco都可".
-    static func normalized(_ name: String) -> String {
-        let folded = name.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
-        return String(String.UnicodeScalarView(folded.unicodeScalars.filter {
-            CharacterSet.alphanumerics.contains($0)
-        }))
-    }
-
-    /// 3: the same name. 2: one contains most of the other ("Blue Bottle
-    /// Coffee" in "Blue Bottle Coffee Shinjuku Cafe"). 1: one contains the
-    /// other but isn't a stray fragment of it ("Shinjuku Gyoen" in "Shinjuku
-    /// Gyoen National Garden"), or a close spelling ("Fu-unji" / "Fuunji").
-    /// 0: not the place.
-    static func score(_ candidate: String, against wanted: String?) -> Int {
-        guard let wanted else { return 0 }
-        let a = normalized(candidate)
-        let b = normalized(wanted)
-        guard !a.isEmpty, !b.isEmpty else { return 0 }
-        if a == b { return 3 }
-
-        let (short, long) = a.count <= b.count ? (a, b) : (b, a)
-        let minimum = short.unicodeScalars.contains(where: \.properties.isIdeographic) ? 2 : 4
-        let coverage = Double(short.count) / Double(long.count)
-        if long.contains(short), short.count >= minimum, coverage >= 0.4 {
-            return coverage >= 0.75 ? 2 : 1
-        }
-        return dice(a, b) >= 0.6 ? 1 : 0
-    }
-
-    /// Sørensen–Dice coefficient over character bigrams.
-    static func dice(_ a: String, _ b: String) -> Double {
-        let x = bigrams(a)
-        let y = bigrams(b)
-        guard !x.isEmpty, !y.isEmpty else { return 0 }
-        var remaining = y
-        var shared = 0
-        for gram in x {
-            if let index = remaining.firstIndex(of: gram) {
-                shared += 1
-                remaining.remove(at: index)
-            }
-        }
-        return 2 * Double(shared) / Double(x.count + y.count)
-    }
-
-    private static func bigrams(_ text: String) -> [String] {
-        let characters = Array(text)
-        guard characters.count > 1 else { return characters.map(String.init) }
-        return (0..<(characters.count - 1)).map { String(characters[$0...($0 + 1)]) }
     }
 }

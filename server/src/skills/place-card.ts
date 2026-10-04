@@ -20,7 +20,7 @@ import { Value } from 'typebox/value';
 import type { Finalized } from '../llm/typed.ts';
 
 /** Bump when the prompt or checks change, so cached cards regenerate. */
-export const PLACE_CARD_PROMPT_VERSION = 'pc-3';
+export const PLACE_CARD_PROMPT_VERSION = 'pc-4';
 
 /** snake_case or a profile field name in a "because…" line: the model leaking the request's keys. */
 const FIELD_NAME = /\b[a-z]+_[a-z_]+\b|\b(?:localTime|allowedBasis|homeLanguage|dietNotes)\b/;
@@ -77,6 +77,7 @@ Phrases:
 - "basis": 1–2 values from allowedBasis, naming the inputs the phrase rests on. Use only values listed in allowedBasis.
 - Don't stretch the profile to fit: a phrase can rest on the place or the local time alone. Use a favourite or a taste only where it suits this kind of place.
 - Allergies and diet are hard limits: never suggest ordering anything that contains an allergen or breaks the diet. If the traveller has an allergy, one phrase may state it and ask whether a dish contains it.
+- When a phrase or tip names an allergen or a food outside the diet, put the safety words right next to it: "no peanuts", "allergic to peanuts", "does it contain peanuts", 不要花生, 我对花生过敏, 这个里面有花生吗, ピーナッツ抜き, ピーナッツアレルギー. Never name one in an order or a recommendation, even alongside another request (not "a peanut milk tea, no ice").
 - taste: sweetness and spice are 0–4, where 2 is "as usual"; below 2 means less, above 2 means more.
 - personality.food: local_favourite means the place's specialty; my_usual means whatever is closest to their favourites. budget: save means modest choices.
 
@@ -142,7 +143,7 @@ export function finalizePlaceCard(request: PlaceCardRequest, output: PlaceCardMo
   output.phrases.forEach((phrase, index) => {
     const problems = phraseProblems(phrase, local, allowed, hazards);
     if (problems.length > 0) {
-      const line = `phrases[${index}] (${phrase.local}): ${problems.join('; ')}`;
+      const line = `phrases[${index}] (${phrase.local} / ${phrase.gloss}): ${problems.join('; ')}`;
       dropped.push(line);
       issues.push(line);
       return;

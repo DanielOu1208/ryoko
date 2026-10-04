@@ -1,7 +1,9 @@
 // The discover skill (design §6.5, §7.5): 5–8 real places for an area, each with a
 // one-line why (≤ 60 characters), a category and an optional best time. One result
 // feeds the Map sheet's Mimo picks and the Hidden gems layer. The device resolves
-// each name with MapKit and drops misses, so names must be the ones on maps.
+// each name with MapKit and drops misses, so names must be the ones on maps. The
+// prompt trades "hidden" for "certainly real": an invented name either vanishes
+// or, worse, lands on a different place with a similar name.
 
 import { Type, type Static } from 'typebox';
 import { Value } from 'typebox/value';
@@ -11,7 +13,7 @@ import { describeErrors } from '../validate.ts';
 import { inLocalScript, languageInfo, mostlyInScript, PERSONA, promptProfile, promptSituation, type LanguageInfo } from './context.ts';
 import { hazardsFor, unsafeMention } from './safety.ts';
 
-export const DISCOVER_PROMPT_VERSION = 'dc-2';
+export const DISCOVER_PROMPT_VERSION = 'dc-3';
 
 /** Looser than the contract: an over-long line drops that place instead of failing the reply. */
 export const DiscoverModelOutput = Strict({
@@ -31,12 +33,13 @@ export type DiscoverModelOutput = Static<typeof DiscoverModelOutput>;
 export function discoverSystem(local: LanguageInfo, home: LanguageInfo): string {
   return `${PERSONA}
 
-Task: suggest 5–8 places near the area in the request that this traveller would enjoy around the local time given. These are your picks: hidden gems and special spots a local would recommend, not the obvious tourist list.
+Task: suggest 5–8 places near the area in the request that this traveller would enjoy around the local time given. These are your picks: special spots a local would recommend, not the obvious tourist list.
 
 Rules:
-- Only real places that exist today and that you are confident about, within about the given radius of the area centre. The phone looks each name up on the map and drops any it can't find.
-- "name": the name as it appears on maps, in English or the common romanized form. "localName": the name in ${local.name}${local.script === 'latin' ? '' : ' script'}.
-- Prefer lesser-known places that suit the time of day and day of week (open and pleasant then), the traveller's personality (quiet or lively, save or splurge, early bird or night owl) and their diet.
+- Every place must really exist today under exactly that name, within about the given radius of the area centre. Pick only established places (open for years) that you are certain of and that are listed on Apple Maps and Google Maps. Never make up or guess a name, and never combine a brand with a building or district into a name you haven't seen. If you can't think of enough lesser-known places you are sure of, use well-known ones instead: a real, famous place is always better than an invented one. The phone looks each name up on the map and drops any it can't find.
+- Name the place itself: not an event, a festival, a counter or stall inside a department store, mall or station, or a single dish.
+- "name": the name exactly as it appears on maps, in English or the common romanized form. "localName": the name in ${local.name}${local.script === 'latin' ? '' : ' script'}, as written on the place's own sign.
+- Prefer places that suit the time of day and day of week (open and pleasant then), the traveller's personality (quiet or lively, save or splurge, early bird or night owl) and their diet. Among places you are sure of, prefer the lesser-known ones.
 - Allergies and diet are hard limits: never pick a place whose point is food or drink the traveller can't have.
 - "why": one line in ${home.name}, at most 50 characters, specific (what to do or try there). No exclamation marks. Don't mention the traveller's allergies or diet in it; just don't pick places that conflict with them.
 - "category": one of ${CATEGORY_SLUGS.join(', ')}.

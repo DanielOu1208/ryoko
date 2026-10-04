@@ -168,11 +168,8 @@ struct MapPlaceDetails: View {
             } label: {
                 Label("Make this my place", systemImage: "location.fill")
                     .frame(maxWidth: .infinity)
-                    // The tint is the label colour (white in dark mode), so the
-                    // text takes the background colour to stay readable.
-                    .foregroundStyle(Color(uiColor: .systemBackground))
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.monochromeProminent)
             .controlSize(.large)
 
             let layout = dynamicTypeSize.isAccessibilitySize
