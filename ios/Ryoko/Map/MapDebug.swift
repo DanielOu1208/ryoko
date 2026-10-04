@@ -29,7 +29,8 @@ import UIKit
 /// - `-RyokoMapCardLatency <seconds>`: the card's place card answers from
 ///   fixtures that slowly, to see the `.redacted` loading state.
 /// - `-RyokoMapDropPin <lat>,<lon>`: as if long-pressed there.
-/// - `-RyokoMapLayers food,washrooms,gems,mimo`: layers to turn on.
+/// - `-RyokoMapLayers food,washrooms,picks,mimo`: layers to turn on (Mimo picks
+///   and From Mimo are on already).
 /// - `-RyokoMapFromMimo 1`: put a sample three-stop plan (Shinjuku names) on
 ///   the From Mimo layer, as Mimo's "Show on map" would.
 /// - `-RyokoMapSearch <text>`: open search with this text (suggestions).

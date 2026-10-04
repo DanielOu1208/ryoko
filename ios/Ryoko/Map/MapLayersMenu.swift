@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// The layer toggles in a native menu (design §4.7), behind a glass button
-/// under the location button: Food & drink and Washrooms filter the map's
-/// points of interest; Hidden gems pins Mimo's picks; From Mimo shows what the
-/// Mimo tab sent, with a clear action.
+/// beside the location button: Food & drink and Washrooms pin only those
+/// places (the map's other points of interest step aside); Mimo picks pins
+/// the list's picks (on by default); From Mimo shows what the Mimo tab sent,
+/// with a clear action.
 struct MapLayersMenu: View {
     @Binding var layers: MapLayers
     /// How many places the Mimo tab sent.
@@ -17,7 +18,7 @@ struct MapLayersMenu: View {
                 Toggle("Washrooms", systemImage: "toilet", isOn: $layers.washrooms)
             }
             Section("Mimo") {
-                Toggle("Hidden gems", systemImage: "binoculars", isOn: $layers.hiddenGems)
+                Toggle("Mimo picks", systemImage: "binoculars", isOn: $layers.mimoPicks)
                 // Unchecked while there's nothing from Mimo to show.
                 Toggle(isOn: Binding(
                     get: { layers.fromMimo && fromMimoCount > 0 },
@@ -56,6 +57,6 @@ struct MapLayersMenu: View {
     }
 
     private var isFiltered: Bool {
-        layers.foodAndDrink || layers.washrooms || layers.hiddenGems
+        layers.showsOnly
     }
 }

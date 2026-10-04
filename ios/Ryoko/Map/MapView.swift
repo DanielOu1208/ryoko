@@ -157,6 +157,9 @@ private struct MapHomeScreen: View {
                 model.clearNearby()
             }
         }
+        .task(id: layerQuery(anchor: anchor)) {
+            await model.loadLayerPins(layerQuery(anchor: anchor))
+        }
         .onChange(of: model.selection) { _, selection in
             handleSelection(selection, anchor: anchor)
         }
@@ -236,6 +239,15 @@ private struct MapHomeScreen: View {
             .onMapCameraChange(frequency: .onEnd) { context in
                 model.cameraSettled(at: context.camera)
                 model.visibleRegion = context.region
+                // The map reaches above the screen; the camera's centre is the
+                // middle of the map you see, and its width is the screen's.
+                let width = context.region.span.longitudeDelta * 111_320
+                    * cos(context.camera.centerCoordinate.latitude * .pi / 180)
+                model.visibleArea = MKCoordinateRegion(
+                    center: context.camera.centerCoordinate,
+                    latitudinalMeters: width,
+                    longitudinalMeters: width
+                )
                 search.setRegion(context.region)
             }
             .gesture(MapLongPress { point in
@@ -260,8 +272,18 @@ private struct MapHomeScreen: View {
 
     @MapContentBuilder
     private var markers: some MapContent {
-        if model.layers.hiddenGems {
-            ForEach(hiddenGems) { place in
+        // Show only layers: their places stand in for the map's own POIs.
+        ForEach(model.layerPins) { pin in
+            Marker(
+                pin.place.title,
+                systemImage: pin.isRestroom ? "toilet" : pin.place.place.category.sfSymbol,
+                coordinate: pin.place.coordinate
+            )
+            .tint(pin.isRestroom ? .blue : .red)
+            .tag(MapSelection(MapMarkerTag.layer.tag(pin.id)))
+        }
+        if model.layers.mimoPicks {
+            ForEach(pickPins) { place in
                 Marker(place.title, systemImage: place.place.category.sfSymbol, coordinate: place.coordinate)
                     .tint(.orange)
                     .tag(MapSelection(MapMarkerTag.gem.tag(place.id)))
@@ -293,7 +315,7 @@ private struct MapHomeScreen: View {
     }
 
     /// Picks, minus any already pinned by the From Mimo layer.
-    private var hiddenGems: [MapPlace] {
+    private var pickPins: [MapPlace] {
         guard model.layers.fromMimo, !router.fromMimo.isEmpty else { return model.picks.places }
         let pinned = Set(router.fromMimo.map { MapPlace.key(for: $0.resolved.place) })
         return model.picks.places.filter { !pinned.contains($0.id) }
@@ -557,6 +579,7 @@ private struct MapHomeScreen: View {
         guard let (kind, id) = MapMarkerTag.parse(tag) else { return nil }
         switch kind {
         case .gem: return model.picks.places.first { $0.id == id }
+        case .layer: return model.layerPins.first { $0.id == id }?.place
         case .search: return model.searchResults.first { $0.id == id }
         case .pin: return model.droppedPin
         case .focus: return model.details
@@ -596,6 +619,13 @@ private struct MapHomeScreen: View {
         }
     }
 
+    /// The Show only layers search the visible map, or around you before the
+    /// camera has settled once.
+    private func layerQuery(anchor: Coordinate?) -> MapHomeModel.LayerQuery? {
+        let region = model.visibleArea ?? anchor.map { MKCoordinateRegion(around: $0, meters: 1_500) }
+        return MapHomeModel.LayerQuery(layers: model.layers, region: region)
+    }
+
     private func picksKey(anchor: Coordinate?) -> MapHomeModel.PicksKey? {
         guard let situation = situationStore.situation, let anchor else { return nil }
         // About 100 m: a fresh fix a few metres away doesn't ask again.
@@ -626,7 +656,7 @@ private struct MapHomeScreen: View {
         let layers = options.layers
         if layers.contains("food") { model.layers.foodAndDrink = true }
         if layers.contains("washrooms") { model.layers.washrooms = true }
-        if layers.contains("gems") { model.layers.hiddenGems = true }
+        if layers.contains("gems") || layers.contains("picks") { model.layers.mimoPicks = true }
         if let detent = options.detent { model.detent = detent }
         if let text = options.searchText {
             search.isPresented = true
@@ -748,7 +778,10 @@ private extension View {
 
 /// Map marker tags: a kind and the place's id, so a tapped marker finds its place.
 enum MapMarkerTag: String {
+    /// A Mimo pick (the Mimo picks layer).
     case gem
+    /// A Show only layer's place (Food & drink, Washrooms).
+    case layer
     case mimo
     case search
     case pin

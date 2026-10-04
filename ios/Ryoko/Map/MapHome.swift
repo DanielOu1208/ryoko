@@ -175,12 +175,12 @@ enum MapSheetDetent: Int, CaseIterable, Comparable {
 
 /// The layer toggles (design §4.7).
 struct MapLayers: Hashable {
-    /// MapStyle filter: restaurants, cafés, bakeries, bars and food markets only.
+    /// Show only: restaurants, cafés, bakeries, bars and food markets, as pins.
     var foodAndDrink = false
-    /// MapStyle filter: restrooms only.
+    /// Show only: restrooms, as pins.
     var washrooms = false
-    /// Mimo's `discover` picks as pins.
-    var hiddenGems = false
+    /// Mimo's `discover` picks as pins (the list's Mimo picks).
+    var mimoPicks = true
     /// Places and plans sent from the Mimo tab.
     var fromMimo = true
 
@@ -188,12 +188,23 @@ struct MapLayers: Hashable {
         .restaurant, .cafe, .bakery, .brewery, .winery, .distillery, .nightlife, .foodMarket,
     ]
 
-    /// Every POI, or only the filtered categories when a filter layer is on.
-    var pointsOfInterest: PointOfInterestCategories {
+    /// The categories the Show only layers pin (`MapHomeModel.layerPins`).
+    var pinnedCategories: [MKPointOfInterestCategory] {
         var categories: [MKPointOfInterestCategory] = []
         if foodAndDrink { categories += Self.foodAndDrinkCategories }
         if washrooms { categories.append(.restroom) }
-        return categories.isEmpty ? .all : .including(categories)
+        return categories
+    }
+
+    /// Whether a Show only layer is on.
+    var showsOnly: Bool { foodAndDrink || washrooms }
+
+    /// Every POI; none while a Show only layer is on, whose pins stand in for
+    /// them. MapKit draws few POIs at street level (a restroom filter showed
+    /// next to nothing in Shinjuku, with 50 within 1 km), so the layers pin
+    /// what a search finds instead of filtering the map's own.
+    var pointsOfInterest: PointOfInterestCategories {
+        showsOnly ? .excludingAll : .all
     }
 
     var mapStyle: MapStyle {

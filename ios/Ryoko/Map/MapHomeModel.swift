@@ -88,6 +88,9 @@ final class MapHomeModel {
     var camera: MapCameraPosition = .userLocation(fallback: .automatic)
     var selection: MapSelection<String>?
     var visibleRegion: MKCoordinateRegion?
+    /// The map you can see: a square around the camera's centre, the screen's
+    /// width across (`visibleRegion` includes the map above the screen).
+    var visibleArea: MKCoordinateRegion?
     var layers = MapLayers()
 
     /// The map's safe area (between the search field and the resting list),
@@ -281,11 +284,11 @@ final class MapHomeModel {
 
     // MARK: - Cards
 
-    /// Opens `place`'s card in place of the list or results (design §4.7), at
-    /// the panel's size (the resting size when it was collapsed), with the map
-    /// gliding so the place sits, highlighted, in the map above it. With a
-    /// card already open, the new one replaces it, and Back still goes to the
-    /// list. Nothing about the situation changes.
+    /// Opens `place`'s card in place of the list or results (design §4.7) at
+    /// full height, with the map gliding so the place sits, highlighted, in
+    /// the strip of map above it. With a card already open, the new one
+    /// replaces it, and Back still goes to the list at the size it had.
+    /// Nothing about the situation changes.
     func showDetails(_ place: MapPlace) {
         if card == nil {
             returnDetent = detent
@@ -296,7 +299,7 @@ final class MapHomeModel {
             lastCardFocus = nil
         }
         card = place
-        if detent == .small { detent = .medium }
+        detent = .large
         // A tapped map feature is already selected (and has no tag).
         if let tag = markerTag(for: place) {
             selection = MapSelection(tag)
@@ -341,12 +344,107 @@ final class MapHomeModel {
     func markerTag(for place: MapPlace) -> String? {
         switch place.source {
         case .feature: nil
-        case .pick: layers.hiddenGems ? MapMarkerTag.gem.tag(place.id) : MapMarkerTag.focus.tag(place.id)
+        case .pick: layers.mimoPicks ? MapMarkerTag.gem.tag(place.id) : MapMarkerTag.focus.tag(place.id)
         case .search: MapMarkerTag.search.tag(place.id)
         case .droppedPin: MapMarkerTag.pin.tag(place.id)
         case .fromMimo: layers.fromMimo ? MapMarkerTag.mimo.tag(place.id) : MapMarkerTag.focus.tag(place.id)
-        case .nearby, .focus: MapMarkerTag.focus.tag(place.id)
+        case .nearby, .focus:
+            layerPins.contains { $0.id == place.id } ? MapMarkerTag.layer.tag(place.id) : MapMarkerTag.focus.tag(place.id)
         }
+    }
+
+    // MARK: - Show only layers
+
+    /// A Show only layer's pin: a place MapKit found in the visible map.
+    struct LayerPin: Identifiable, Equatable {
+        var place: MapPlace
+        var isRestroom: Bool
+        var id: String { place.id }
+    }
+
+    /// What the Show only layers pin, in the visible map.
+    struct LayerQuery: Hashable {
+        var categories: [MKPointOfInterestCategory]
+        /// The region, rounded so small camera moves don't search again.
+        var latitude: Double
+        var longitude: Double
+        var span: Double
+
+        init?(layers: MapLayers, region: MKCoordinateRegion?) {
+            let categories = layers.pinnedCategories
+            guard !categories.isEmpty, let region else { return nil }
+            self.categories = categories
+            latitude = (region.center.latitude * 500).rounded() / 500
+            longitude = (region.center.longitude * 500).rounded() / 500
+            // Latitude degrees across, at most about 6 km.
+            span = min((region.span.latitudeDelta * 500).rounded() / 500, 0.06)
+        }
+
+        var region: MKCoordinateRegion {
+            // Square on the ground: longitude degrees shrink with latitude.
+            let side = max(span, 0.004)
+            return MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+                span: MKCoordinateSpan(latitudeDelta: side, longitudeDelta: side / max(cos(latitude * .pi / 180), 0.1))
+            )
+        }
+
+        /// The region's four quarters.
+        var quarters: [MKCoordinateRegion] {
+            let whole = region
+            let half = MKCoordinateSpan(latitudeDelta: whole.span.latitudeDelta / 2, longitudeDelta: whole.span.longitudeDelta / 2)
+            return [(-1.0, -1.0), (-1, 1), (1, -1), (1, 1)].map { north, east in
+                MKCoordinateRegion(
+                    center: CLLocationCoordinate2D(
+                        latitude: whole.center.latitude + north * half.latitudeDelta / 2,
+                        longitude: whole.center.longitude + east * half.longitudeDelta / 2
+                    ),
+                    span: half
+                )
+            }
+        }
+    }
+
+    /// The Show only layers' pins (Food & drink, Washrooms) for the visible
+    /// map; empty when neither is on.
+    private(set) var layerPins: [LayerPin] = []
+
+    /// Searches the visible map for the Show only layers' places. One search
+    /// returns about 50 places bunched round its centre (all inside Shinjuku
+    /// station), so the map is searched in quarters, and each kind keeps at
+    /// most one pin per cell of an 8 × 8 grid, so pins never pile up.
+    func loadLayerPins(_ query: LayerQuery?) async {
+        guard let query else {
+            layerPins = []
+            return
+        }
+        var items: [MKMapItem] = []
+        for quarter in query.quarters {
+            let request = MKLocalPointsOfInterestRequest(coordinateRegion: quarter)
+            request.pointOfInterestFilter = MKPointOfInterestFilter(including: query.categories)
+            do {
+                items += try await MKLocalSearch(request: request).start().mapItems
+            } catch let error as MKError where error.code == .placemarkNotFound {
+                continue
+            } catch {
+                if error is CancellationError || Task.isCancelled { return }
+                RyokoLog.places.error("Layer pins failed: \(String(describing: error), privacy: .public)")
+            }
+        }
+        if Task.isCancelled { return }
+        let origin = userLocation?.mapKitLocation
+        let cell = query.region.span.latitudeDelta / 8
+        let cellLongitude = query.region.span.longitudeDelta / 8
+        var taken = Set<String>()
+        layerPins = items.compactMap { item -> LayerPin? in
+            guard let place = MapPlace(item: item, source: .nearby, from: origin) else { return nil }
+            let isRestroom = item.pointOfInterestCategory == .restroom
+            let coordinate = place.place.coordinate
+            let key = "\(isRestroom) \(Int((coordinate.lat / cell).rounded(.down))) \(Int((coordinate.lon / cellLongitude).rounded(.down)))"
+            guard taken.insert(key).inserted else { return nil }
+            return LayerPin(place: place, isRestroom: isRestroom)
+        }
+        RyokoLog.places.info("Layer pins: \(self.layerPins.count) of \(items.count) found")
     }
 
     // MARK: - Search

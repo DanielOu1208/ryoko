@@ -138,6 +138,9 @@ struct MimoView: View {
             history = chat.history()
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: showCount)
+        .onChange(of: router.mimoQuestion, initial: true) { _, place in
+            if let place { ask(about: place) }
+        }
         .onChange(of: chat.turns.last?.status) { old, new in
             guard old == .streaming, case .done = new else { return }
             celebrating = true
@@ -613,6 +616,23 @@ struct MimoView: View {
     private func retry(_ turnID: UUID) {
         guard let context = sendContext() else { return }
         chat.retry(turnID, context: context)
+    }
+
+    /// "Ask Mimo" from a place's card: a new chat about the place, asked at
+    /// once, with the place as its subject. The Map's From Mimo layer stays:
+    /// you're looking at it. With no situation yet, the question waits in the
+    /// composer.
+    private func ask(about place: Place) {
+        router.mimoQuestion = nil
+        chat.newChat()
+        router.mimoSubject = place
+        let question = "Tell me more about \(place.name)."
+        if sendContext() == nil {
+            draft = question
+        } else {
+            draft = ""
+            send(question)
+        }
     }
 
     private func startNewChat() {

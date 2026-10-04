@@ -35,6 +35,10 @@ final class AppRouter {
     /// New chat). It never changes the active situation.
     var mimoSubject: Place?
 
+    /// "Ask Mimo" on a place's card (design §4.9): Mimo starts a new chat
+    /// about this place and asks about it straight away, then clears it.
+    var mimoQuestion: Place?
+
     /// The Map's From Mimo layer (design §4.7): places, or a plan's numbered
     /// stops, from the Mimo tab, already resolved on the device. It stays until
     /// `clearFromMimo()` (the layer's clear action, or Mimo's New chat).
@@ -81,9 +85,10 @@ final class AppRouter {
         fromMimo = []
     }
 
-    /// Opens Mimo with `place` as the subject. Callers in a sheet dismiss it first.
+    /// Opens Mimo on a new chat about `place`, asked at once (`mimoQuestion`).
+    /// Callers in a sheet dismiss it first.
     func askMimo(about place: Place) {
-        mimoSubject = place
+        mimoQuestion = place
         selectedTab = .mimo
     }
 }

@@ -36,7 +36,7 @@ Languages: **Mandarin (Simplified, `zh-Hans`) and Japanese (`ja`)** are first-cl
 | Map (opens first): bottom sheet of Mimo picks and nearby places; every place opens a card with phrases with "because…", tips and quick actions (Nearby merged in, #53) | Onboarding survey (§4.1) and editing in Me, including About me (#55) | Translate read-aloud |
 | Show mode (no Speak yet) | Translate Type mode and tap-to-edit turns, `POST /v1/translate` | Menu scan with allergen flags |
 | Allergy card (reviewed templates) and taxi card | Bottom "Listening" accessory (tab-bar minimize dropped, #50) | Offline pack for pinned places |
-| Map: search, place cards, Preview, layers incl. Hidden gems and From Mimo | Server-minted Soniox keys | Listen mode (announcements, tour guides) |
+| Map: search, place cards, Preview, layers incl. Mimo picks (was Hidden gems) and From Mimo | Server-minted Soniox keys | Listen mode (announcements, tour guides) |
 | Translate: voice, face-to-face tilt, turn history | Switch the model from GMI to Gemini (§6.3), before submission | |
 | Mimo tab: chat, phrase blocks, places, plans for a few hours, web search with sources | | |
 | Agent server: `place-card`, `mimo`, `discover`, `allergy-card` | | |
@@ -170,7 +170,7 @@ For all of them:
   - Each row starts with its category icon (#61).
 - **Sheet and navigation (#62):**
   - Three heights shared by the list and a card: collapsed (the header; a card shows Back, its name and round buttons), resting at about 60% of the space between the search field and the tab bar (header plus 5–6 rows, about 40% map above), and large. Dragging follows the finger and snaps on release with its velocity. The search field and map buttons step aside only for a card at large.
-  - A card replaces the list in place at the same height (resting if the sheet was collapsed). Another place swaps the card. "‹ Back" at the top left is the one way back: the list returns at its height and scroll position. A tap on empty map also goes back. No ✕; swiping down collapses, it doesn't go back.
+  - A card replaces the list in place and opens at full height (#66). Another place swaps the card. "‹ Back" at the top left is the one way back: the list returns at its height and scroll position. A tap on empty map also goes back. No ✕; swiping down collapses, it doesn't go back.
   - While a card is open the camera keeps its pin centred and highlighted in the map above the sheet, gliding after every height change, and frames your location within 1 km. Going back leaves the camera alone.
   - Card order: round buttons, then Look Around, then I'm here or Preview, then the rest. At collapsed nothing below the buttons shows. At accessibility text sizes the list header and card title scroll with the content; only Back stays pinned.
 - **Tapping any place opens its card in the sheet:** a pin, a POI, a list row, a search result, a long-press pin, a Mimo pick, a From Mimo pin, the header, `router.openMap(selecting:)` or the Live Activity (§4.11). Opening a card never changes the situation, and you stay on Map.
@@ -193,9 +193,8 @@ For all of them:
   - POI tap: `Map(selection:)` with `MapSelection`, then `MKMapItemRequest(feature:)`.
   - Long-press: a `UIGestureRecognizerRepresentable` and `MapReader` to get a coordinate.
 - **Layer toggles** in a native menu:
-  - **Food & drink:** a MapStyle POI filter (restaurant, cafe, bakery, …).
-  - **Washrooms:** a MapStyle POI filter on `.restroom`. Coverage in China is unknown (spike, §11).
-  - **Hidden gems:** Mimo's `discover` picks for the area, resolved with MapKit and cached per area.
+  - **Show only** (#66): **Food & drink** (restaurant, cafe, bakery, …) and **Washrooms** (`.restroom`) pin those places in the visible map, and the map's other points of interest step aside. MapKit draws few POIs at street level, so a style filter alone looked like it did nothing (Shinjuku has 50 restrooms within 1 km). The visible map is searched in quarters (one POI request returns about 50 places bunched round its centre), and each kind keeps at most one pin per cell of an 8 × 8 grid. Coverage in China is unknown (spike, §11).
+  - **Mimo picks** (was Hidden gems; on by default, #66): the list's Mimo picks as pins: Mimo's `discover` picks for the area, resolved with MapKit and cached per area.
   - **From Mimo:** places and plans from the Mimo tab. Plans show numbered pins. The layer stays until it's cleared or a new chat starts.
 - **Resolving names Mimo gives:**
   - Resolve one name at a time with `MKLocalSearch`, always with `regionPriority .required` (a 1.5–3 km region); `.default` returns results near the device in Canada. Treat `placemarkNotFound` as "no results". In China, try the local name first, then English, then a category query. Key the cache on `identifier.rawValue`, falling back to normalized name plus coordinates rounded to 4 decimals (about 40% of Taipei and Hong Kong POIs have no identifier). Accept a hit only if its name is similar to the requested name (short brand queries match loosely in Hong Kong). When no hit matches by name, take a local-name search hit that has every distinctive word of the English name and isn't part of a place (a car park, a gate); several such hits must be within 300 m of each other, and the nearest wins (#63). A throttled search is retried once after the one-minute pause. The POI request caps at about 50 results, so sort by distance on the device.
@@ -268,7 +267,7 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
   - Under it, one glass pill on one line: "<place> · <local time>" (the place's time). A long place name truncates before the time. Before there's a place, there's no pill.
   - The sidebar button (left) and New chat (right) are 44 pt and centred on the avatar. The pill and buttons stop growing at accessibility text sizes, like bar items.
   - VoiceOver reads it as one heading: "Mimo, <place>, <time>" (just "Mimo" before there's a place).
-  - **Ask Mimo** on a place card opens the tab with that place attached as the subject, without changing the active situation.
+  - **Ask Mimo** on a place card opens the tab on a new chat that asks "Tell me more about <place>." at once, with the place attached as the subject (#66), without changing the active situation. The Map's From Mimo layer stays. With no situation yet, the question waits in the composer.
 - **Avatar:** Mimo has an animated avatar: a single monochrome blob with two eyes that morphs between states.
   - **Engine:** ported to Swift from [bloub](https://github.com/jeremy-prt/bloub) (MIT; see THIRD_PARTY_NOTICES.md). Its motion is measured from the x.ai bot avatar.
   - **Look:** Mimo uses its own preset (a different body shape and rest expression), so it isn't a replica of xAI's mascot.
@@ -459,7 +458,7 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
 
 - `POST /v1/discover` returns 5–8 places for an area: `{name, localName, why (≤ 60 chars), category, bestTime?}`.
 - It's cached by (geohash-6 area, hour bucket, profile version, a hash of the sorted nearby names, prompt version, model key).
-- One result feeds both the **Mimo picks** at the top of the Map's bottom sheet and the Map's **Hidden gems** layer.
+- One result feeds both the **Mimo picks** at the top of the Map's bottom sheet and the Map's **Mimo picks** layer (pins; was Hidden gems, #66).
 - **Picks come from real nearby places** (#54). The model used to name city-wide places, and at SFU 5 of 6 picks were dropped as misses.
   - `DiscoverRequest.nearby` holds MapKit POIs around the discover centre: within 1.5 km, widened to 3 km when fewer than 12 come back, nearest first, at most 40.
   - The prompt picks 5–8 from that list, copying names exactly and using the listed localName. It prefers independent and local spots, and may add at most 2 well-known places it's certain are within the radius (enough to reach 5 if the list is short).
@@ -912,3 +911,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 63 | Mimo's places resolve more often. MapKit names places in the device's language, so a local-script name can't be compared with a hit: when nothing matches by name, the resolver takes a local-name search hit that has every distinctive word of the English name and isn't part of a place, if all such hits are within 300 m (the nearest wins). "Office", "observation", "observatory" and "deck" count as kinds of place, and common romanized words match their English ("Chuo" = "Central", "Koen" = "Park"). A MapKit throttle retries the search after the pause instead of dropping the place. Mimo copies names from `nearby` exactly and gives other places their full name and a local name | user (Mimo's places went missing in chats) |
 | 64 | The profile only where it matters, tightened: Mimo brings up allergies or diet only when asked or when ordering at a food or drink place (finding or planning places isn't ordering), at most one allergy phrase, never explains a suggestion by the profile, never claims it as its own, and its prompt names no example allergens. Place cards: allergy, diet, taste and favourites are allowed bases only at food places; at most one profile phrase per card. A before/after check: Mimo's unasked allergy mentions 5 of 18 replies → 1 of 28; profile phrases on non-food cards 7 of 12 → 0 of 12; allergy phrases kept when ordering (3 of 3) and on food cards | user (Mimo and cards kept bringing up allergies and preferences) |
 | 65 | Loading where Mimo is working is a thinking orb (`haplollc/ThinkingOrbs` 1.1.0, MIT, a SwiftUI port of Jakub Antalik's thinking-orbs) on one card with a short line, not a `.redacted` skeleton stack. When the content arrives the card dissolves into the first card and the rest rise in one by one. Picks, place cards, Mimo's places, locating and the allergy row; busy buttons keep the system spinner. No text shimmer (§9.7). §4.3, §4.7, §4.12, §9.5 | user |
+| 66 | Map fixes from use: a place's card opens at full height (supersedes #62's "at the same height"; Back still returns to the list's height); Mimo picks show as pins by default (the Hidden gems layer, renamed Mimo picks); Food & drink and Washrooms pin those places from a search of the visible map instead of filtering MapKit's own POIs, which showed next to nothing; Ask Mimo starts a new chat that asks about the place at once. §4.7, §4.9 | user |
