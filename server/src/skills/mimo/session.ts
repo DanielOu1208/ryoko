@@ -11,7 +11,7 @@ import type { AssistantMessage, SystemMessage } from '@earendil-works/pi-ai';
 import type { MimoMessageRequest, SseEvent, StopReason } from '@ryoko/contracts';
 import { ApiError, clampMessage } from '../../errors.ts';
 import type { Budget } from '../../llm/budget.ts';
-import { costOf, providerErrorText, type Llm, type SkillModel } from '../../llm/registry.ts';
+import { costOf, outputBudget, providerErrorText, type Llm, type SkillModel } from '../../llm/registry.ts';
 import type { SseSink } from '../../sse.ts';
 import { languageInfo } from '../context.ts';
 import { hazardsFor } from '../safety.ts';
@@ -132,7 +132,7 @@ export class MimoSessions {
     const { llm } = this.deps;
     return new Agent({
       initialState: { systemPrompt: MIMO_SYSTEM, model: skillModel.model, thinkingLevel: 'off', tools },
-      streamFn: (model, context, options) => llm.models.streamSimple(model, context, { ...options, ...skillModel.options, maxTokens: MIMO_LIMITS.maxTokens }),
+      streamFn: (model, context, options) => llm.models.streamSimple(model, context, { ...options, ...skillModel.options, maxTokens: outputBudget(MIMO_LIMITS.maxTokens, skillModel.options) }),
       toolExecution: 'sequential',
     });
   }

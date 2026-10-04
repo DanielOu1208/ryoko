@@ -9,7 +9,7 @@ import { Value } from 'typebox/value';
 import { ApiError, clampMessage, clientClosed } from '../errors.ts';
 import { describeErrors } from '../validate.ts';
 import type { Budget } from './budget.ts';
-import { costOf, providerErrorText, type Llm } from './registry.ts';
+import { costOf, outputBudget, providerErrorText, type Llm } from './registry.ts';
 import type { SkillName } from '../config.ts';
 
 /** A skill's verdict on schema-valid output: accept (maybe after dropping bad items), or retry with these problems. */
@@ -126,7 +126,7 @@ export async function generateTyped<S extends TSchema, R>(request: TypedRequest<
       throw gone;
     }
     stats.attempts = attempt;
-    const message = await request.llm.models.completeSimple(model, context, { ...options, maxTokens: request.maxTokens, signal });
+    const message = await request.llm.models.completeSimple(model, context, { ...options, maxTokens: outputBudget(request.maxTokens, options), signal });
     const cost = costOf(model, message.usage);
     stats.costUsd += cost;
     request.budget.add(cost);

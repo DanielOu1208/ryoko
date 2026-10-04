@@ -52,6 +52,19 @@ export function gmiModel(id: string, baseUrl = GMI_BASE_URL): Model<'openai-comp
   };
 }
 
+/**
+ * Extra output tokens when thinking is on: the model's reasoning counts
+ * against max_tokens, so without room for it a reply is cut short (stopReason
+ * `length`). DeepSeek V4.1 Flash on GMI used about 300–1,000 reasoning tokens
+ * at any level in the reasoning-level probe.
+ */
+export const REASONING_HEADROOM_TOKENS = 4096;
+
+/** A skill's output budget plus room for thinking when its reasoning is on. */
+export function outputBudget(maxTokens: number, options: SimpleStreamOptions): number {
+  return options.reasoning ? maxTokens + REASONING_HEADROOM_TOKENS : maxTokens;
+}
+
 /** What a skill needs to call its model. */
 export interface SkillModel {
   model: Model<Api>;
