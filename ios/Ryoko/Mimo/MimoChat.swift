@@ -196,7 +196,7 @@ final class MimoChat {
         var searchesStarted: [String: ContinuousClock.Instant] = [:]
         do {
             for try await event in stream {
-                if case let .toolStart(id, name, _) = event, name == .webSearch {
+                if case let .toolStart(id, name, _) = event, name == .webSearch || name == .searchGuides {
                     searchesStarted[id] = .now
                 }
                 if case let .toolEnd(end) = event, let started = searchesStarted.removeValue(forKey: end.id) {

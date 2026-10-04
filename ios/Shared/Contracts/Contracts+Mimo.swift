@@ -34,6 +34,8 @@ nonisolated struct ToolName: RawRepresentable, Codable, Hashable, Sendable {
 
     static let showPlaces = ToolName(rawValue: "show_places")
     static let webSearch = ToolName(rawValue: "web_search")
+    /// The travel guides in Snowflake (design §8.4). Its details are sources, like web_search's.
+    static let searchGuides = ToolName(rawValue: "search_guides")
 }
 
 /// A place Mimo names. Mimo never sends coordinates; the device resolves the name.
@@ -82,6 +84,7 @@ nonisolated struct StopReason: RawRepresentable, Codable, Hashable, Sendable {
 nonisolated struct MimoToolEnd: Hashable, Sendable {
     nonisolated enum Details: Hashable, Sendable {
         case showPlaces(ShowPlacesDetails)
+        /// Sources from `web_search` or `search_guides`.
         case webSearch(WebSearchDetails)
         /// A tool this build doesn't know. Its details are dropped.
         case unknown
@@ -138,7 +141,7 @@ nonisolated extension MimoEvent: Codable {
             let details: MimoToolEnd.Details
             switch name {
             case .showPlaces: details = .showPlaces(try c.decode(ShowPlacesDetails.self, forKey: .details))
-            case .webSearch: details = .webSearch(try c.decode(WebSearchDetails.self, forKey: .details))
+            case .webSearch, .searchGuides: details = .webSearch(try c.decode(WebSearchDetails.self, forKey: .details))
             default: details = .unknown
             }
             self = .toolEnd(MimoToolEnd(

@@ -72,7 +72,14 @@ export const WebSearchToolEndEvent = Strict({
   ok: Type.Boolean(),
   details: WebSearchDetails,
 });
-export const ToolEndEvent = Type.Union([ShowPlacesToolEndEvent, WebSearchToolEndEvent]);
+export const SearchGuidesToolEndEvent = Strict({
+  type: StringEnum(['tool_end']),
+  id: Type.String({ minLength: 1 }),
+  name: StringEnum(['search_guides']),
+  ok: Type.Boolean(),
+  details: WebSearchDetails,
+});
+export const ToolEndEvent = Type.Union([ShowPlacesToolEndEvent, WebSearchToolEndEvent, SearchGuidesToolEndEvent]);
 export type ToolEndEvent = Static<typeof ToolEndEvent>;
 
 export const STOP_REASONS = ['stop', 'length', 'turn_limit', 'tool_limit', 'aborted'] as const;
@@ -103,6 +110,7 @@ export const SseEvent = Type.Union([
   ToolStartEvent,
   ShowPlacesToolEndEvent,
   WebSearchToolEndEvent,
+  SearchGuidesToolEndEvent,
   DoneEvent,
   ErrorEvent,
 ]);

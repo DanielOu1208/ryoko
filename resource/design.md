@@ -480,6 +480,22 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
 - Picks fit the time of day, the profile's personality and the diet.
 - The device resolves each name with MapKit (§4.7) and silently drops misses.
 
+### 6.6 Where Mimo's answers come from (#72)
+
+Not every source on every message: that's slow, costs money, and off-topic excerpts make answers worse. Cheap sources that always matter are in the prompt; the rest are tools Mimo picks, at most two per message.
+
+| Tier | Source | When | Cost |
+| --- | --- | --- | --- |
+| In the prompt | Situation and map data: place, local time, `nearby` (MapKit on the device) | Every message | Free |
+| | Profile | Every message | Free |
+| | Trip memory (Tiger, §8.3): recent events and the most similar past ones, as `<trip_memory>` | Fetched before every message, with a time limit; skipped on failure | One SQL query |
+| Tools | `search_guides` (Snowflake, §8.4) | Customs, etiquette, tipping, paying, what and how to order, local food, how things work | About 0.4 s |
+| | `web_search` (Exa) | Facts that change: opening hours, events, closures, prices, news; or when asked to look something up | 1–2 s and money |
+| Checked after | `show_places` → MapKit on the device | Every place Mimo names; a name the map can't find is dropped | On device |
+
+- **When sources disagree, the most specific wins:** map data for what's actually nearby; the web for anything time-sensitive; the guides for customs and etiquette; memory only shapes suggestions and never overrides a fact; the model's own knowledge comes last, said with doubt when it's unsure.
+- **Place cards** have no tools and must be fast: the server fetches the top 3 guide excerpts for the kind of place and the country before the one model call (and trip memory, once it exists). No web search.
+
 ## 7. Contracts
 
 `contracts/` is the source of truth. It holds:
@@ -658,12 +674,19 @@ Durable storage and trip memory, on Tiger Cloud Postgres (the free plan is enoug
 
 ### 8.4 Snowflake: after core
 
-A travel knowledge base that Mimo cites for cultural tips.
+A travel knowledge base that Mimo cites for cultural tips. **Built (#72):** `pnpm guides:load` in `server/` loads it; 735 sections from 8 pages.
 
 - A `guides` table: Wikivoyage pages for the demo cities and etiquette. Wikivoyage text is CC BY-SA 4.0, so each row keeps attribution fields (article URL, licence) and cited tips link back to the article.
 - A Cortex Search service over that table, queried over REST with a programmatic access token. The account's authentication policy has to allow PATs.
 - For place cards, the server runs the search *before* building the prompt and injects the results, so the card stays fast. Mimo's chat gets a `search_guides` tool for culture questions, with a cited source.
 - Not used for user memory: Cortex Search refreshes on a delay, and per-user memory is small and changes constantly. That's Tiger Data's job.
+- **As built:**
+  - Pages: Tokyo, Tokyo/Shinjuku, Japan, Japanese cuisine, Shanghai, Shanghai/Jing'an, China, Chinese cuisine. City pages keep the useful sections (no Sleep, Get in or Go next); country pages keep Talk, Get around, Buy, Eat, Drink, Stay safe, Stay healthy, Respect, Cope, Connect.
+  - Chunks of up to about 1,200 characters per section, each prefixed "Page — Section:" so search can match the place; the URL carries the section anchor.
+  - Account: `RYOKO.GUIDES.GUIDES` and the `GUIDE_SEARCH` service (`ON BODY`, attributes `COUNTRY_CODE`, `CITY`, `TOPIC`, `TARGET_LAG = '1 day'`) on warehouse `RYOKO_WH` (XS, 60 s auto-suspend). The server's `RYOKO_SERVER` service user has role `RYOKO_APP` and a 30-day PAT.
+  - A trial account has AI features off until a credit card is on file (it isn't charged until an upgrade).
+  - Queries are filtered by the situation's country and cached in memory for an hour. A failed or slow search (3 s) means no guides, never a failed card or reply.
+  - A place-card tip that rests on an excerpt gets `source` (`{title, url}`, e.g. "Wikivoyage: Japan › Buy"), shown under the tip as a link. `search_guides` ends with the same `sources` as `web_search`; the app labels them "From Wikivoyage", one pill per section.
 
 ## 9. Styling
 
@@ -927,3 +950,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 69 | Me is a styled home instead of one long list: an avatar header (an SF Symbol you pick, kept on the device, not in the profile), where you're from, languages and this-or-that chips; the allergy card at a glance (local title, allergens with severity in words, tap for Show mode); Diet, Your usual and Home base; About me; and a Settings row that holds every profile page, the home base, Redo survey, romanization, credits and the developer section. §4.10 | user ("the Me screen looks like an afterthought") |
 | 70 | Every thinking orb is the Rubik's cube design (`.solving`) instead of one design per kind of work | user |
 | 71 | Speak: one ElevenLabs voice for every language, set in `Secrets.xcconfig` (`ELEVENLABS_VOICE_ID`) instead of a stock voice per language in code, because new accounts don't get the stock voices. Speak sits beside Show on phrase cards and in Show mode's bottom bar; Mimo's phrase blocks get it through Show mode. §8.1, §4.4 | research (ElevenLabs default voices: accounts made before March 2026 only) |
+| 72 | Where Mimo's answers come from: situation, map data, profile and (later) trip memory are always in the prompt; the travel guides (`search_guides`, Snowflake Cortex Search) and the web (`web_search`) are tools Mimo picks; places it names are checked against the map. The most specific source wins. Place cards fetch the guides before their one call, and tips can cite them (`Tip.source`). §6.6, §8.4 | user (a hierarchy for how Mimo uses its sources) |

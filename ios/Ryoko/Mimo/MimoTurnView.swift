@@ -227,15 +227,15 @@ private struct MimoSourcesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.grid * 0.75) {
-            Label("Searched the web", systemImage: "globe")
+            heading
                 .font(.caption)
                 .foregroundStyle(.secondary)
             ScrollView(.horizontal) {
                 HStack(spacing: Theme.grid * 0.75) {
-                    ForEach(onePerSite, id: \.url) { source in
+                    ForEach(pills, id: \.url) { source in
                         if let url = source.link {
                             Link(destination: url) {
-                                Text(Self.siteName(url) ?? source.title)
+                                Text(Self.pillName(source, url))
                                     .font(.caption)
                                     .lineLimit(1)
                                     .padding(.horizontal, Theme.grid * 1.25)
@@ -253,13 +253,37 @@ private struct MimoSourcesView: View {
         }
     }
 
+    /// "Searched the web", "From Wikivoyage" (the travel guides, design §8.4), or both.
+    @ViewBuilder
+    private var heading: some View {
+        let guides = sources.contains { Self.isGuide($0.link) }
+        let web = sources.contains { !Self.isGuide($0.link) }
+        switch (guides, web) {
+        case (true, false): Label("From Wikivoyage", systemImage: "book")
+        case (true, true): Label("Sources", systemImage: "book")
+        default: Label("Searched the web", systemImage: "globe")
+        }
+    }
+
     /// The first source from each site: two pages from one site are one pill.
-    private var onePerSite: [WebSource] {
+    /// Guide sections each keep their own pill, since they're different articles.
+    private var pills: [WebSource] {
         var seen = Set<String>()
         return sources.filter { source in
             guard let url = source.link else { return false }
-            return seen.insert(Self.siteName(url) ?? source.url).inserted
+            let key = Self.isGuide(url) ? source.url : (Self.siteName(url) ?? source.url)
+            return seen.insert(key).inserted
         }
+    }
+
+    /// "Japan › Buy" for a guide section, "tabelog.com" for a web page.
+    private static func pillName(_ source: WebSource, _ url: URL) -> String {
+        if isGuide(url) { return source.title.replacingOccurrences(of: "Wikivoyage: ", with: "") }
+        return siteName(url) ?? source.title
+    }
+
+    private static func isGuide(_ url: URL?) -> Bool {
+        url?.host()?.hasSuffix("wikivoyage.org") ?? false
     }
 
     /// "tabelog.com" from "https://www.tabelog.com/…".

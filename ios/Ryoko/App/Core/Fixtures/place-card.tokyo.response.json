@@ -36,7 +36,8 @@
     },
     {
       "text": "No tipping, unlike Canada, and slurping your noodles is perfectly normal.",
-      "basis": ["nationality"]
+      "basis": ["nationality"],
+      "source": { "title": "Wikivoyage: Japan › Buy", "url": "https://en.wikivoyage.org/wiki/Japan#Tipping" }
     }
   ],
   "placeNameLocal": "麺屋 風",

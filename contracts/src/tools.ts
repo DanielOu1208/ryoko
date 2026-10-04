@@ -4,7 +4,7 @@ import { ClockTime } from './common.ts';
 
 // Design §6.4. Mimo's tools. Mimo names places; the device resolves them with MapKit.
 
-export const TOOL_NAMES = ['show_places', 'web_search'] as const;
+export const TOOL_NAMES = ['show_places', 'web_search', 'search_guides'] as const;
 export const ToolName = StringEnum(TOOL_NAMES);
 export type ToolName = Static<typeof ToolName>;
 
@@ -40,3 +40,9 @@ export const WebSearchDetails = Strict({
   sources: Type.Array(WebSource, { maxItems: 8 }),
 });
 export type WebSearchDetails = Static<typeof WebSearchDetails>;
+
+/** search_guides (design §8.4): the travel guides in Snowflake. Same arguments and details as web_search; the sources are Wikivoyage sections. */
+export const SearchGuidesParams = WebSearchParams;
+export type SearchGuidesParams = WebSearchParams;
+export const SearchGuidesDetails = WebSearchDetails;
+export type SearchGuidesDetails = WebSearchDetails;

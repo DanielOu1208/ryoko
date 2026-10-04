@@ -161,7 +161,8 @@
           "type": "string",
           "enum": [
             "show_places",
-            "web_search"
+            "web_search",
+            "search_guides"
           ]
         },
         "label": {
@@ -279,6 +280,71 @@
           "type": "string",
           "enum": [
             "web_search"
+          ]
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "details": {
+          "type": "object",
+          "required": [
+            "sources"
+          ],
+          "properties": {
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "url"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https?://"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "maxItems": 8
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "name",
+        "ok",
+        "details"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "tool_end"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "enum": [
+            "search_guides"
           ]
         },
         "ok": {

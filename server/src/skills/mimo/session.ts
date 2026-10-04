@@ -18,7 +18,8 @@ import type { MimoContext, MimoRun } from '../types.ts';
 import type { WebSearch } from './exa.ts';
 import { PhraseStream, type PhraseStreamStats } from './phrase-stream.ts';
 import { MIMO_SYSTEM, mimoSections } from './prompt.ts';
-import { isMimoTool, showPlacesTool, TOOL_LABELS, webSearchTool } from './tools.ts';
+import { isMimoTool, searchGuidesTool, showPlacesTool, TOOL_LABELS, webSearchTool } from './tools.ts';
+import type { GuideSearch } from '../../guides/snowflake.ts';
 
 export const MIMO_LIMITS = {
   maxTurns: 4,
@@ -49,6 +50,8 @@ export interface MimoDeps {
   budget: Budget;
   /** Exa search, or null when EXA_API_KEY isn't set (web_search is then not offered). */
   search: WebSearch | null;
+  /** The travel guides in Snowflake, or null when SNOWFLAKE_* isn't set (search_guides is then not offered). */
+  guides?: GuideSearch | null;
   timeoutMs: number;
   onRunStats?: (stats: MimoRunStats) => void;
 }
@@ -57,6 +60,8 @@ interface Session {
   agent: Agent;
   modelKey: string;
   lastUsed: number;
+  /** The latest message's country, for search_guides. */
+  countryCode?: string;
 }
 
 type RunState = {
@@ -105,7 +110,9 @@ export class MimoSessions {
     let session = this.sessions.get(sessionId);
     if (session && session.modelKey !== skillModel.key) session = undefined; // never switch a session's model
     if (!session) {
-      session = { agent: this.createAgent(skillModel), modelKey: skillModel.key, lastUsed: now };
+      const created: Session = { agent: undefined as unknown as Agent, modelKey: skillModel.key, lastUsed: now };
+      created.agent = this.createAgent(skillModel, () => created.countryCode);
+      session = created;
       this.sessions.set(sessionId, session);
       this.evict(now);
     }
@@ -125,8 +132,9 @@ export class MimoSessions {
     }
   }
 
-  private createAgent(skillModel: SkillModel): Agent {
+  private createAgent(skillModel: SkillModel, countryCode: () => string | undefined): Agent {
     const tools: AgentTool<any>[] = [showPlacesTool()];
+    if (this.deps.guides) tools.push(searchGuidesTool(this.deps.guides, countryCode));
     if (this.deps.search) tools.push(webSearchTool(this.deps.search, this.deps.budget));
     const { llm } = this.deps;
     return new Agent({
@@ -147,6 +155,7 @@ export class MimoSessions {
 
   private async run(session: Session, skillModel: SkillModel, request: MimoMessageRequest, ctx: MimoContext, sink: SseSink): Promise<StopReason> {
     const { agent } = session;
+    session.countryCode = request.situation.countryCode;
     const started = performance.now();
     const state: RunState = { turns: 0, toolCalls: [], toolLimit: false, turnLimit: false };
     let firstTextMs: number | null = null;
@@ -218,7 +227,7 @@ export class MimoSessions {
           if (event.toolName === 'show_places') {
             send({ type: 'tool_end', id: event.toolCallId, name: 'show_places', ok, details: { places: ok && details?.places ? details.places : [] } });
           } else {
-            send({ type: 'tool_end', id: event.toolCallId, name: 'web_search', ok, details: { sources: ok && details?.sources ? details.sources : [] } });
+            send({ type: 'tool_end', id: event.toolCallId, name: event.toolName, ok, details: { sources: ok && details?.sources ? details.sources : [] } });
           }
           break;
         }

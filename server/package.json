@@ -12,7 +12,8 @@
     "start": "node src/index.ts",
     "test": "node --test 'test/*.test.ts'",
     "typecheck": "tsc --noEmit",
-    "evals": "node evals/run.ts"
+    "evals": "node evals/run.ts",
+    "guides:load": "node scripts/load-guides.ts"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "1.0.1",

@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
+import { snowflakeConfigFrom } from './guides/snowflake.ts';
 
 /** The server listens on loopback only (design §6.4). Funnel forwards to it. */
 export const HOST = '127.0.0.1';
@@ -233,5 +234,6 @@ export function describeConfig(config: Config): string {
     models += `, budget $${config.dailyBudgetUsd}/day, cache ${config.cacheDir ? 'on disk' : 'in memory'}`;
   }
   const soniox = config.soniox.configured ? `Soniox keys on (${config.soniox.perMinute}/min)` : 'Soniox keys off (no SONIOX_API_KEY)';
-  return `MODEL=${config.model}${models}${pace}, rate limit ${config.rateLimitPerMinute}/min, body limit ${config.bodyLimitBytes / 1024} KB, ${soniox}, APP_TOKEN set`;
+  const guides = config.model === 'faux' ? '' : snowflakeConfigFrom(config.env) ? ', travel guides on (Snowflake)' : ', travel guides off (no SNOWFLAKE_PAT)';
+  return `MODEL=${config.model}${models}${pace}, rate limit ${config.rateLimitPerMinute}/min, body limit ${config.bodyLimitBytes / 1024} KB, ${soniox}${guides}, APP_TOKEN set`;
 }
