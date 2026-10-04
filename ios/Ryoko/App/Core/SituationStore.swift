@@ -51,7 +51,7 @@ extension SituationStore {
     /// situation is re-stamped to `date` in its own time zone; a preview keeps
     /// its committed time. Key `.task(id:)` on `situation`, not on this.
     func currentSituation(at date: Date = .now) -> Situation? {
-        situation?.stamped(at: date)
+        situation?.stamped(at: DebugClock.shifted(date))
     }
 
     /// The situation's local language, if it's one Ryoko has a table row for.

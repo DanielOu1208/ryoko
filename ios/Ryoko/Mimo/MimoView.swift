@@ -718,7 +718,7 @@ struct MimoView: View {
     /// place's time zone: nil before there's a situation, no time without a zone.
     private func whereAndWhen(at date: Date) -> (place: String, time: String?)? {
         guard let situation = situationStore.situation else { return nil }
-        let clocked = situation.stamped(at: date)
+        let clocked = situation.stamped(at: DebugClock.shifted(date))
         let name = situation.place?.name ?? situation.city
         guard let instant = clocked.date, let zone = clocked.zone else { return (name, nil) }
         var style = Date.FormatStyle(date: .omitted, time: .shortened)

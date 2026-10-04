@@ -76,10 +76,15 @@ final class APIStore {
     }
 
     private static func makeAPI(_ mode: Mode) -> any RyokoAPI {
-        switch mode {
+        let api: any RyokoAPI = switch mode {
         case .fixture: FixtureRyokoAPI()
         case .live: LiveRyokoAPI()
         }
+        #if DEBUG
+        return DemoScriptAPI.wrapping(api) // `-RyokoDemo nara` (demo recordings)
+        #else
+        return api
+        #endif
     }
 }
 

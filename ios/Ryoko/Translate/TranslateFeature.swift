@@ -50,6 +50,8 @@ extension TranslateModel {
 ///   default). With the canned source, manual turns hand over at each line.
 /// - `-RyokoTranslateHistory <seconds>`: open History that long after appearing.
 /// - `-RyokoTranslateCannedPace <factor>`: speed of the canned script (1 = real time).
+/// - `-RyokoTranslateCannedScript coffee`: play a café coffee order (Chinese)
+///   instead of the pair's usual script (demo recordings).
 /// - `-RyokoTranslateProblem <code>`: the canned run fails with this Soniox
 ///   error code (401, 402…), or `mic` for a denied microphone.
 /// - `-RyokoTranslateSilenceSeconds <n>`: the silence stop after n seconds, not 120.
@@ -89,6 +91,10 @@ enum TranslateDebug {
     static var cannedPace: Double {
         let pace = defaults.double(forKey: "RyokoTranslateCannedPace")
         return pace > 0 ? pace : 1
+    }
+
+    static var cannedScript: CannedConversation.Script {
+        defaults.string(forKey: "RyokoTranslateCannedScript").flatMap(CannedConversation.Script.init(rawValue:)) ?? .standard
     }
 
     static var injectedProblem: TranslateProblem? {

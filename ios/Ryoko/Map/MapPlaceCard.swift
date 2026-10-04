@@ -66,7 +66,7 @@ struct MapPlaceCardTitle: View {
                     .foregroundStyle(.secondary)
             }
             TimelineView(.everyMinute) { context in
-                Text(detailLine(at: context.date))
+                Text(detailLine(at: DebugClock.shifted(context.date)))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .contentTransition(.numericText())
@@ -503,7 +503,7 @@ struct MapPlaceCard: View {
         let previewDate = active?.mode == .preview ? active?.date : nil
         return Situation(
             mode: previewDate == nil ? .live : .preview,
-            date: previewDate ?? .now,
+            date: previewDate ?? DebugClock.now,
             timeZone: zone,
             place: place.place,
             city: area.city,

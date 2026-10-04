@@ -1,0 +1,20 @@
+{
+  "version": "demo",
+  "nationality": "CA",
+  "homeLanguage": "en",
+  "spokenLanguages": ["en"],
+  "diet": [],
+  "dietNotes": "",
+  "allergies": [{ "id": "peanut", "severity": "serious" }],
+  "favourites": { "foods": ["ramen", "onigiri"], "drinks": ["iced coffee", "matcha latte"] },
+  "taste": { "sweetness": 1, "spice": 2 },
+  "personality": { "rhythm": "early_bird", "food": "local_favourite", "budget": "save", "vibe": "quiet" },
+  "homeBase": {
+    "name": "Nara Hotel",
+    "localName": "奈良ホテル",
+    "address": "1096 Takabatake-cho, Nara",
+    "addressLocal": "奈良県奈良市高畑町1096",
+    "coordinate": { "lat": 34.6795, "lon": 135.8387 }
+  },
+  "aboutMe": "First time in Japan. I love quiet temples, good coffee and eating where the locals eat."
+}

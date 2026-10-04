@@ -87,7 +87,7 @@ struct MapListHeader: View {
     private func subtitle(at date: Date) -> some View {
         if let situation {
             // Live, the clock ticks; a preview keeps its committed time.
-            let clocked = isPreview ? situation : situation.stamped(at: date)
+            let clocked = isPreview ? situation : situation.stamped(at: DebugClock.shifted(date))
             let text = [situation.mapAreaText, clocked.mapClockText()]
                 .compactMap(\.self)
                 .filter { !$0.isEmpty }
