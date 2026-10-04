@@ -176,6 +176,9 @@ struct MapPlaceList: View {
                 if hasSituation {
                     picksSection
                     nearbySection
+                    FoursquareCredit(places: (picks.places + nearby.places).map(\.place), keepsSpace: true)
+                        .padding(.horizontal, Theme.margin)
+                        .padding(.top, Theme.grid)
                 } else {
                     locationPrompt
                 }

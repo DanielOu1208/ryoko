@@ -7,15 +7,21 @@ import os
 // MARK: - View
 
 /// A small, rounded picture of a place, for list rows (the Map's lists,
-/// Mimo's places card). MapKit has no public API for the photos Apple Maps
-/// shows on a listing, so it's Apple's Look Around imagery of the street in
-/// front of the place; where there's none (mainland China, most small towns)
-/// it's a satellite tile with a pin.
+/// Mimo's places card), in this order:
 ///
-/// The category icon shows while it loads, and stays if both fail; the image
+/// 1. A photo of the place from Foursquare (`PlacePhotoStore`, through the
+///    server). MapKit has no public API for the photos Apple Maps shows on a
+///    listing.
+/// 2. Otherwise Apple's Look Around imagery of the street in front of it.
+/// 3. Where there's none (mainland China, most small towns), a satellite
+///    tile with a pin.
+///
+/// The category icon shows while it loads, and stays if all fail; the image
 /// then fades in. Decorative, so VoiceOver skips it. Inside a `.redacted`
-/// placeholder it loads nothing. Loading, limits and caching are in
-/// `PlaceThumbnailLoader`.
+/// placeholder it loads nothing. Look Around's loading, limits and caching
+/// are in `PlaceThumbnailLoader`; photos' in `PlacePhotoStore` and
+/// `PlacePhotoImages`. A screen that shows these thumbnails credits
+/// Foursquare with `FoursquareCredit`.
 struct PlaceThumbnail: View {
     static let defaultSize: CGFloat = 56
 
@@ -26,6 +32,7 @@ struct PlaceThumbnail: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
     @Environment(\.redactionReasons) private var redactionReasons
+    @Environment(\.ryokoAPI) private var api
     @State private var loaded: Loaded?
 
     private struct Loaded {
@@ -37,7 +44,7 @@ struct PlaceThumbnail: View {
         let request = PlaceThumbnailLoader.Request(place: place, points: size, scale: displayScale, dark: colorScheme == .dark)
         // Straight from memory when it's there, so rows scrolled back into view
         // don't flash the icon.
-        let image = loaded?.key == request.key ? loaded?.image : PlaceThumbnailLoader.shared.cachedImage(for: request.key)
+        let image = loaded?.key == request.key ? loaded?.image : cachedImage(for: request)
         ZStack {
             placeholder
             if let image {
@@ -52,14 +59,39 @@ struct PlaceThumbnail: View {
         .accessibilityHidden(true)
         .task(id: request.key) {
             guard !redactionReasons.contains(.placeholder) else { return }
-            if let cached = PlaceThumbnailLoader.shared.cachedImage(for: request.key) {
+            if let cached = cachedImage(for: request) {
                 loaded = Loaded(key: request.key, image: cached)
                 return
             }
-            guard let image = await PlaceThumbnailLoader.shared.image(for: request), !Task.isCancelled else { return }
+            if let url = await PlacePhotoStore.shared.url(for: place, api: api),
+               let photo = await PlacePhotoImages.shared.image(at: url, filling: photoSize, scale: displayScale) {
+                guard !Task.isCancelled else { return }
+                withAnimation(.smooth(duration: 0.35)) {
+                    loaded = Loaded(key: request.key, image: photo)
+                }
+                return
+            }
+            guard !Task.isCancelled,
+                  let image = await PlaceThumbnailLoader.shared.image(for: request), !Task.isCancelled else { return }
             withAnimation(.smooth(duration: 0.35)) {
                 loaded = Loaded(key: request.key, image: image)
             }
+        }
+    }
+
+    private var photoSize: CGSize { CGSize(width: size, height: size) }
+
+    /// The image from memory: the photo when the place has one; Look Around's
+    /// (or the tile) once it's known there's no photo; nil while that's unknown.
+    private func cachedImage(for request: PlaceThumbnailLoader.Request) -> UIImage? {
+        switch PlacePhotoStore.shared.answer(for: place, api: api) {
+        case let .photo(url):
+            PlacePhotoImages.shared.cachedImage(at: url, filling: photoSize, scale: displayScale)
+                ?? PlaceThumbnailLoader.shared.cachedImage(for: request.key)
+        case .noPhoto:
+            PlaceThumbnailLoader.shared.cachedImage(for: request.key)
+        case nil:
+            nil
         }
     }
 

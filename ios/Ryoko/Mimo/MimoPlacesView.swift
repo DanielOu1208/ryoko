@@ -20,44 +20,59 @@ struct MimoPlacesView: View {
     private var content: some View {
         if let found = places.found {
             if !found.isEmpty {
-                card {
-                    MimoPlacesMap(places: found, isPlan: places.isPlan, onShowOnMap: onShowOnMap)
-                    ForEach(Array(found.enumerated()), id: \.element.id) { index, place in
-                        if index > 0 { MimoPlaceDivider(isPlan: places.isPlan) }
-                        MimoPlaceRow(
-                            shown: place.shown,
-                            place: place.place,
-                            number: places.isPlan ? place.shown.order ?? index + 1 : nil,
-                            distanceMeters: place.distanceMeters,
-                            language: places.language,
-                            action: { onSelect(place) }
-                        )
-                    }
+                VStack(alignment: .trailing, spacing: Theme.grid / 2) {
+                    foundCard(found)
+                    FoursquareCredit(places: found.map(\.place), keepsSpace: true)
+                        .padding(.trailing, Theme.grid)
                 }
             }
         } else {
-            // Looking the names up on the map: the card's shape, so nothing jumps
-            // when the places come in.
-            card {
-                Rectangle()
-                    .fill(.quaternary)
-                    .frame(height: MimoPlacesMap.height)
-                ForEach(Array(places.lookupOrder.enumerated()), id: \.offset) { index, shown in
-                    if index > 0 { MimoPlaceDivider(isPlan: places.isPlan) }
-                    MimoPlaceRow(
-                        shown: shown,
-                        place: Self.placeholderPlace,
-                        number: places.isPlan ? shown.order ?? index + 1 : nil,
-                        distanceMeters: nil,
-                        language: places.language,
-                        action: {}
-                    )
-                }
+            // Looking the names up on the map: the card's shape, and the
+            // credit's space under it, so nothing jumps when the places come in.
+            VStack(alignment: .trailing, spacing: Theme.grid / 2) {
+                lookupCard
+                FoursquareCredit(places: [], keepsSpace: true)
             }
-            .redacted(reason: .placeholder)
-            .disabled(true)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Finding places on the map")
+        }
+    }
+
+    private var lookupCard: some View {
+        card {
+            Rectangle()
+                .fill(.quaternary)
+                .frame(height: MimoPlacesMap.height)
+            ForEach(Array(places.lookupOrder.enumerated()), id: \.offset) { index, shown in
+                if index > 0 { MimoPlaceDivider(isPlan: places.isPlan) }
+                MimoPlaceRow(
+                    shown: shown,
+                    place: Self.placeholderPlace,
+                    number: places.isPlan ? shown.order ?? index + 1 : nil,
+                    distanceMeters: nil,
+                    language: places.language,
+                    action: {}
+                )
+            }
+        }
+        .redacted(reason: .placeholder)
+        .disabled(true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Finding places on the map")
+    }
+
+    private func foundCard(_ found: [MimoFoundPlace]) -> some View {
+        card {
+            MimoPlacesMap(places: found, isPlan: places.isPlan, onShowOnMap: onShowOnMap)
+            ForEach(Array(found.enumerated()), id: \.element.id) { index, place in
+                if index > 0 { MimoPlaceDivider(isPlan: places.isPlan) }
+                MimoPlaceRow(
+                    shown: place.shown,
+                    place: place.place,
+                    number: places.isPlan ? place.shown.order ?? index + 1 : nil,
+                    distanceMeters: place.distanceMeters,
+                    language: places.language,
+                    action: { onSelect(place) }
+                )
+            }
         }
     }
 

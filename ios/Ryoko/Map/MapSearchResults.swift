@@ -23,6 +23,9 @@ struct MapSearchResultsList: View {
                         MapPlaceRow(place: place, languageTag: languageTag) { onSelect(place) }
                     }
                 }
+                FoursquareCredit(places: results.map(\.place), keepsSpace: true)
+                    .padding(.horizontal, Theme.margin)
+                    .padding(.top, Theme.grid)
             }
             .padding(.bottom, Theme.grid * 3)
         }

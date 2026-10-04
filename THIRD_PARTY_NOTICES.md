@@ -1,5 +1,13 @@
 # Third-party notices
 
+## Foursquare
+
+Place photos in the app's thumbnails and on the Map's place card come from the
+Foursquare Places API (`server/src/photos/`, `POST /v1/place-photos`). Foursquare's
+terms ask for "Powered by Foursquare" on any screen that shows its data: the Map's
+lists, a place card with a photo and Mimo's places cards show it whenever a photo
+is on screen, and Me → Credits lists it. No Foursquare code is included.
+
 ## bloub
 
 Mimo's animated avatar (`ios/Ryoko/Avatar/Engine/`) is a Swift port of the avatar

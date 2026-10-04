@@ -308,6 +308,9 @@ private struct CreditsSection: View {
             Link(destination: URL(string: "https://github.com/jeremy-prt/bloub")!) {
                 LabeledContent("Mimo's avatar", value: "bloub, MIT License")
             }
+            Link(destination: URL(string: "https://foursquare.com")!) {
+                LabeledContent("Place photos", value: "Powered by Foursquare")
+            }
         }
     }
 }

@@ -76,10 +76,12 @@ struct MapPlaceCardHeader: View {
 
 /// A place's card in the Map's sheet (design §4.7). Top to bottom:
 ///
-/// 0. A wide Look Around preview of the street, when Apple has imagery there
-///    (`PlaceThumbnailLoader`'s scene, shared with the list's thumbnail). Tap
-///    it for the full-screen Look Around viewer. With no scene there's
-///    nothing extra: the map above already shows the place.
+/// 0. A wide photo of the place from Foursquare (`PlacePhotoStore`, shared
+///    with the list's thumbnail), with "Powered by Foursquare" under it and,
+///    when Apple has imagery there, a Look Around button on it. With no photo,
+///    a wide Look Around preview of the street (`PlaceThumbnailLoader`'s
+///    scene); tap it for the full-screen viewer. With neither there's nothing
+///    extra: the map above already shows the place.
 /// 1. Directions, Taxi, Allergy and Ask Mimo, as round buttons. Allergy shows
 ///    only when the profile has allergies the local language has a card for,
 ///    and you don't speak it.
@@ -119,6 +121,9 @@ struct MapPlaceCard: View {
     @State private var showCount = 0
     @State private var lookAround: MKLookAroundScene?
     @State private var isLookingAround = false
+    /// The header photo once it's loaded, or `.noPhoto` once it's known there isn't one.
+    @State private var headerPhoto: HeaderPhoto = .checking
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         let situation = area.map(cardSituation)
@@ -129,10 +134,17 @@ struct MapPlaceCard: View {
         // From memory when the list's thumbnail already found it, so it's
         // there as the card opens.
         let scene = lookAround ?? PlaceThumbnailLoader.shared.cachedScene(for: place.place).flatMap(\.self)
+        let photo = shownHeaderPhoto
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.cardSpacing) {
-                if let scene {
-                    lookAroundPreview(scene)
+                switch photo {
+                case let .photo(image):
+                    photoHeader(image, scene: scene)
+                case .noPhoto:
+                    if let scene { lookAroundPreview(scene) }
+                case .checking:
+                    // Usually known already from the list's thumbnail.
+                    EmptyView()
                 }
                 MapPlaceActions(actions: actions(situation: situation, speaksLocal: speaksLocal))
                     .padding(.top, Theme.grid / 2)
@@ -159,6 +171,7 @@ struct MapPlaceCard: View {
             guard lookAround == nil, let found = await PlaceThumbnailLoader.shared.scene(for: place.place) else { return }
             withAnimation(.smooth(duration: 0.35)) { lookAround = found }
         }
+        .task(id: place.id) { await loadHeaderPhoto() }
         .task(id: place) {
             let found = await model.area(for: place, situation: situationStore.situation, anchor: anchor)
             area = found
@@ -181,6 +194,96 @@ struct MapPlaceCard: View {
         #endif
     }
 
+    // MARK: Photo
+
+    private enum HeaderPhoto {
+        case checking
+        case photo(UIImage)
+        case noPhoto
+    }
+
+    static let headerHeight: CGFloat = 150
+    /// Wide enough for the card on any iPhone; the image is cropped to the card.
+    private static let headerPhotoSize = CGSize(width: 440, height: headerHeight)
+
+    /// No photo is looked up for a dropped pin: it's an address, not a listing.
+    private var wantsPhoto: Bool {
+        if case .droppedPin = place.source { false } else { true }
+    }
+
+    /// `headerPhoto`, or what memory already knows, so a card opened from a
+    /// row with a photo shows it at once.
+    private var shownHeaderPhoto: HeaderPhoto {
+        guard case .checking = headerPhoto else { return headerPhoto }
+        guard wantsPhoto else { return .noPhoto }
+        switch PlacePhotoStore.shared.answer(for: place.place, api: api) {
+        case .noPhoto: return .noPhoto
+        case let .photo(url):
+            let image = PlacePhotoImages.shared.cachedImage(at: url, filling: Self.headerPhotoSize, scale: displayScale)
+            return image.map(HeaderPhoto.photo) ?? .checking
+        case nil: return .checking
+        }
+    }
+
+    private func loadHeaderPhoto() async {
+        guard wantsPhoto else {
+            headerPhoto = .noPhoto
+            return
+        }
+        if case .photo = shownHeaderPhoto {
+            // Kept, so the image stays if memory lets it go.
+            headerPhoto = shownHeaderPhoto
+            return
+        }
+        guard let url = await PlacePhotoStore.shared.url(for: place.place, api: api) else {
+            if !Task.isCancelled { headerPhoto = .noPhoto }
+            return
+        }
+        let image = await PlacePhotoImages.shared.image(at: url, filling: Self.headerPhotoSize, scale: displayScale)
+        guard !Task.isCancelled else { return }
+        withAnimation(.smooth(duration: 0.35)) {
+            headerPhoto = image.map(HeaderPhoto.photo) ?? .noPhoto
+        }
+    }
+
+    /// The place's photo, cropped to the card's width, with a Look Around
+    /// button when Apple has imagery there and the credit Foursquare's terms
+    /// ask for. The photo itself is decorative.
+    private func photoHeader(_ image: UIImage, scene: MKLookAroundScene?) -> some View {
+        VStack(alignment: .trailing, spacing: Theme.grid / 2) {
+            Color.clear
+                .frame(height: Self.headerHeight)
+                .frame(maxWidth: .infinity)
+                .overlay {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .accessibilityHidden(true)
+                }
+                .clipShape(Theme.cardShape)
+                .overlay(alignment: .bottomTrailing) {
+                    if scene != nil {
+                        Button("Look Around", systemImage: "binoculars.fill") {
+                            isLookingAround = true
+                        }
+                        .font(.footnote.weight(.semibold))
+                        .buttonStyle(.glass)
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.small)
+                        .tint(.primary)
+                        .padding(Theme.grid)
+                        .accessibilityHint("Opens the street-level view of this place")
+                        .transition(.opacity)
+                    }
+                }
+            Text("Powered by Foursquare")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.trailing, Theme.grid)
+        }
+        .transition(.opacity)
+    }
+
     // MARK: Look Around
 
     /// The street in front of the place, not interactive itself: a tap opens
@@ -191,7 +294,7 @@ struct MapPlaceCard: View {
         } label: {
             LookAroundPreview(initialScene: scene, allowsNavigation: false, badgePosition: .bottomTrailing)
                 .allowsHitTesting(false)
-                .frame(height: 150)
+                .frame(height: Self.headerHeight)
                 .clipShape(Theme.cardShape)
                 .contentShape(Theme.cardShape)
         }
