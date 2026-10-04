@@ -357,7 +357,7 @@ struct MapListDivider: View {
 
 // MARK: - Row
 
-/// One place in two lines, after its thumbnail (Look Around, or a map tile):
+/// One place in two lines, after its thumbnail (Look Around, or satellite):
 /// the name with its local name, then Mimo's why (picks, with the distance at
 /// the side) or the category and distance. Tapping it opens the place's card.
 /// At accessibility text sizes the thumbnail goes, so the text keeps the width.

@@ -10,7 +10,7 @@ import os
 /// Mimo's places card). MapKit has no public API for the photos Apple Maps
 /// shows on a listing, so it's Apple's Look Around imagery of the street in
 /// front of the place; where there's none (mainland China, most small towns)
-/// it's a map tile with a pin.
+/// it's a satellite tile with a pin.
 ///
 /// The category icon shows while it loads, and stays if both fail; the image
 /// then fades in. Decorative, so VoiceOver skips it. Inside a `.redacted`
@@ -85,14 +85,18 @@ struct PlaceThumbnail: View {
 ///   places, map features, the resolver's hits), else its coordinate. "No
 ///   scene" is cached too.
 /// - **Image:** `MKLookAroundSnapshotter` at the tile's size and the screen's
-///   scale; with no scene (or a failed snapshot), `MKMapSnapshotter` around
-///   the place with a pin, in the current appearance.
+///   scale; with no scene (or a failed lookup or snapshot), `MKMapSnapshotter`
+///   satellite imagery around the place with a pin. Satellite, because the
+///   standard map's district and road labels land under the pin as fragments
+///   at this size, and only points of interest can be turned off.
 /// - **Limits:** at most two places load at once; a row that disappears
 ///   leaves the queue (or stops after its current request). A
 ///   `loadingThrottled` error pauses loading for a minute.
 /// - **Caches:** images in memory by place key, pixel size and light or dark,
 ///   and on disk in Caches (`PlaceThumbnailDisk`); scenes and map items in
-///   memory.
+///   memory. A satellite tile is kept only when there's no Look Around scene
+///   there; one drawn because Look Around failed shows on that row but isn't
+///   kept, so the place asks for Look Around again next time.
 @MainActor
 final class PlaceThumbnailLoader {
     static let shared = PlaceThumbnailLoader()
@@ -104,8 +108,9 @@ final class PlaceThumbnailLoader {
         var dark: Bool
 
         /// For the caches. The version changes with the drawing, so images an
-        /// older build saved on disk aren't reused.
-        var name: String { "v1|\(place)|\(pixels)|\(dark ? "dark" : "light")" }
+        /// older build saved on disk aren't reused. (v1 kept map tiles drawn
+        /// after a failed Look Around, and drew the standard map.)
+        var name: String { "v2|\(place)|\(pixels)|\(dark ? "dark" : "light")" }
     }
 
     struct Request {
@@ -154,7 +159,8 @@ final class PlaceThumbnailLoader {
     }
 
     /// The thumbnail for `request`, or nil when MapKit has nothing (or failed,
-    /// or the task was cancelled). Failures aren't cached.
+    /// or the task was cancelled). Nothing is cached after a failure: not a
+    /// missing image, and not a satellite tile drawn because Look Around failed.
     func image(for request: Request) async -> UIImage? {
         if let cached = cachedImage(for: request.key) { return cached }
         if let data = await PlaceThumbnailDisk.data(named: request.key.name),
@@ -164,11 +170,14 @@ final class PlaceThumbnailLoader {
         }
         guard !Task.isCancelled else { return nil }
         do {
-            let image = try await limiter.run { try await self.render(request) }
-            if let image, let data = image.jpegData(compressionQuality: 0.85) {
-                Task { await PlaceThumbnailDisk.save(data, named: request.key.name) }
+            let rendered = try await limiter.run { try await self.render(request) }
+            if rendered.isKept {
+                store(rendered.image, for: request.key)
+                if let data = rendered.image.jpegData(compressionQuality: 0.85) {
+                    Task { await PlaceThumbnailDisk.save(data, named: request.key.name) }
+                }
             }
-            return image
+            return rendered.image
         } catch {
             if !(error is CancellationError) {
                 RyokoLog.thumbnails.debug("No thumbnail for \(request.place.name, privacy: .public): \(String(describing: error), privacy: .public)")
@@ -177,35 +186,46 @@ final class PlaceThumbnailLoader {
         }
     }
 
-    /// Runs inside a limiter slot.
-    private func render(_ request: Request) async throws -> UIImage? {
+    /// An image from `render`.
+    private struct Rendered {
+        var image: UIImage
+        /// Whether to cache it: a Look Around snapshot, or a satellite tile
+        /// where there's no Look Around. Not a tile standing in for a Look
+        /// Around that failed, nor an image that's already cached.
+        var isKept: Bool
+    }
+
+    /// Runs inside a limiter slot. Throws when there's no image at all.
+    private func render(_ request: Request) async throws -> Rendered {
         // Another row may have made it while this one waited.
-        if let cached = cachedImage(for: request.key) { return cached }
+        if let cached = cachedImage(for: request.key) { return Rendered(image: cached, isKept: false) }
         try checkNotPaused()
         let size = CGSize(width: request.points, height: request.points)
         let traits = UITraitCollection { traits in
             traits.displayScale = request.scale
             traits.userInterfaceStyle = request.dark ? .dark : .light
         }
-        var image: UIImage?
+        let lookAroundFailed: Bool
         do {
             if let scene = try await lookUpScene(for: request.place) {
                 try Task.checkCancellation()
-                image = try await lookAroundImage(of: scene, size: size, traits: traits)
+                return Rendered(image: try await lookAroundImage(of: scene, size: size, traits: traits), isKept: true)
             }
+            // MapKit answered: no imagery here.
+            lookAroundFailed = false
         } catch is CancellationError {
             throw CancellationError()
         } catch let error as MKError where error.code == .loadingThrottled {
             throw error
         } catch {
+            // Often a tile fetch that failed for a moment: the tile below
+            // stands in on this row only, and the next load tries again.
+            lookAroundFailed = true
             RyokoLog.thumbnails.debug("Look Around failed for \(request.place.name, privacy: .public): \(String(describing: error), privacy: .public)")
         }
-        if image == nil {
-            try Task.checkCancellation()
-            image = try await mapImage(at: request.place.coordinate.mapKitCoordinate, size: size, traits: traits)
-        }
-        if let image { store(image, for: request.key) }
-        return image
+        try Task.checkCancellation()
+        let tile = try await satelliteImage(at: request.place.coordinate.mapKitCoordinate, size: size, traits: traits)
+        return Rendered(image: tile, isKept: !lookAroundFailed)
     }
 
     private func store(_ image: UIImage, for key: Key) {
@@ -222,15 +242,15 @@ final class PlaceThumbnailLoader {
         return try await snapshotter.snapshot.image
     }
 
-    /// About 350 m of street map around the place, with a pin in the middle.
-    private func mapImage(at coordinate: CLLocationCoordinate2D, size: CGSize, traits: UITraitCollection) async throws -> UIImage {
+    /// About 350 m of satellite imagery around the place, with a pin in the
+    /// middle. Satellite imagery has no labels, so no district name sits in
+    /// fragments under the pin as it does on the standard map.
+    private func satelliteImage(at coordinate: CLLocationCoordinate2D, size: CGSize, traits: UITraitCollection) async throws -> UIImage {
         let options = MKMapSnapshotter.Options()
         options.region = MKCoordinateRegion(center: coordinate, latitudinalMeters: 350, longitudinalMeters: 350)
         options.size = size
         options.traitCollection = traits
-        let configuration = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .default)
-        configuration.pointOfInterestFilter = .excludingAll
-        options.preferredConfiguration = configuration
+        options.preferredConfiguration = MKImageryMapConfiguration(elevationStyle: .flat)
         let snapshot = try await mapSnapshot(options)
         return Self.drawPin(on: snapshot.image, at: snapshot.point(for: coordinate), traits: traits)
     }
