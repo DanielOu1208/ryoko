@@ -4,7 +4,7 @@ import SwiftUI
 /// place sheets) and W6 (Mimo's phrase blocks) to build on.
 ///
 /// - `.card`: the Map's place cards. Local script at `.title` semibold, then
-///   romanization, gloss, the "because…" line and a Show button.
+///   romanization, gloss, the "because…" line, and Show and Speak buttons.
 /// - `.block`: Mimo's compact phrase block. Script at `.title3` semibold, no
 ///   "because…", a chevron, and the whole block opens Show mode.
 ///
@@ -39,13 +39,16 @@ struct PhraseCardView: View {
                     .foregroundStyle(.tertiary)
                     .padding(.top, 4)
             }
-            if let onShow {
-                Button("Show", systemImage: "arrow.up.left.and.arrow.down.right", action: onShow)
-                    .buttonStyle(.glass)
-                    .tint(.primary)
-                    .padding(.top, 8)
-                    .accessibilityHint("Opens the phrase full screen to show someone")
+            HStack(spacing: 8) {
+                if let onShow {
+                    Button("Show", systemImage: "arrow.up.left.and.arrow.down.right", action: onShow)
+                        .accessibilityHint("Opens the phrase full screen to show someone")
+                }
+                SpeakButton(phrase: phrase)
             }
+            .buttonStyle(.glass)
+            .tint(.primary)
+            .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)

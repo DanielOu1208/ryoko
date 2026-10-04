@@ -30,6 +30,7 @@ import { configFromEnv, modelsFromEnv, ConfigError, type Config } from '../src/c
 import { ApiError } from '../src/errors.ts';
 import { EXAMPLES_DIR } from '../src/fixtures.ts';
 import { Budget } from '../src/llm/budget.ts';
+import type { GuideHit, GuideSearch } from '../src/guides/snowflake.ts';
 import { costOf, createLlm, providerErrorText, staticLlm } from '../src/llm/registry.ts';
 import { generateTyped, parseJsonObject } from '../src/llm/typed.ts';
 import { allergyCardModelOutput, finalizeAllergyCard } from '../src/skills/allergy-card.ts';
@@ -77,7 +78,7 @@ function testConfig(env: Record<string, string> = {}): Config {
 }
 
 /** pi-ai's faux provider behind the skills, plus helpers to script it. */
-function harness(options: { env?: Record<string, string>; search?: (query: string, signal?: AbortSignal) => Promise<SearchResponse>; budget?: Budget; cache?: ResponseCache } = {}) {
+function harness(options: { env?: Record<string, string>; search?: (query: string, signal?: AbortSignal) => Promise<SearchResponse>; guides?: GuideSearch; budget?: Budget; cache?: ResponseCache } = {}) {
   const faux = fauxProvider({ provider: 'faux-test', models: [{ id: 'faux-1', cost: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 } }], tokenSize: { min: 1, max: 2 } });
   const models = createModels();
   models.setProvider(faux.provider);
@@ -89,6 +90,7 @@ function harness(options: { env?: Record<string, string>; search?: (query: strin
     budget,
     cache: options.cache ?? new ResponseCache({ file: null }),
     search: options.search ?? null,
+    guides: options.guides ?? null,
     log: () => {},
   });
   /** Scripts the next responses; each records the context it was asked with. */
@@ -330,6 +332,30 @@ describe('typed output', () => {
     assert.match(systemText(h.contexts[0]!), /must match this JSON Schema/);
     assert.match(lastUserText(h.contexts[0]!), /"allowedBasis"/);
     assert.doesNotMatch(lastUserText(h.contexts[0]!), /"version"|"homeBase"/);
+  });
+
+  test('travel guides go into the prompt, and a tip that rests on one links its source', async () => {
+    const hits: GuideHit[] = [
+      { pageTitle: 'Japan', section: 'Buy › Tipping', url: 'https://en.wikivoyage.org/wiki/Japan#Tipping', text: 'Tipping is not a part of Japanese culture.' },
+    ];
+    const queries: { query: string; countryCode?: string }[] = [];
+    const h = harness({ guides: async (query, filter) => (queries.push({ query, ...filter }), hits) });
+    const withGuide = { ...goodCard, tips: [{ ...goodCard.tips[0]!, guide: 1 }, ...goodCard.tips.slice(1)] };
+    h.script(json(withGuide));
+    const card = await h.skills.placeCard(placeCardRequest, { installId: null, clientVersion: null, signal: new AbortController().signal });
+    assert.equal(queries.length, 1);
+    assert.equal(queries[0]!.countryCode, placeCardRequest.situation.countryCode);
+    assert.match(lastUserText(h.contexts[0]!), /"guides":\[\{"n":1,"from":"Wikivoyage: Japan › Buy","text":"Tipping is not a part/);
+    assert.deepEqual(card.tips[0]!.source, { title: 'Wikivoyage: Japan › Buy', url: 'https://en.wikivoyage.org/wiki/Japan#Tipping' });
+    assert.ok(Value.Check(PlaceCardResponse, card));
+  });
+
+  test('a failed guide search still makes the card, without guides', async () => {
+    const h = harness({ guides: async () => Promise.reject(new Error('Cortex Search answered HTTP 500.')) });
+    h.script(json({ ...goodCard, tips: [{ ...goodCard.tips[0]!, guide: 2 }] }));
+    const card = await h.skills.placeCard(placeCardRequest, { installId: null, clientVersion: null, signal: new AbortController().signal });
+    assert.doesNotMatch(lastUserText(h.contexts[0]!), /"guides"/);
+    assert.equal(card.tips[0]!.source, undefined);
   });
 
   test('an invalid reply is retried once with the problems listed', async () => {
@@ -880,6 +906,32 @@ describe('mimo skill', () => {
     const toolResult = h.contexts[1]!.messages.find((m) => m.role === 'toolResult');
     assert.match(JSON.stringify(toolResult), /Closed on Mondays/);
     assert.ok(h.budget.spentTodayUsd >= 0.005);
+  });
+
+  test('search_guides: guide excerpts for the model, Wikivoyage sources in tool_end, filtered to the country', async () => {
+    const calls: { query: string; countryCode?: string }[] = [];
+    const h = harness({
+      guides: async (query, filter) => {
+        calls.push({ query, ...filter });
+        return [{ pageTitle: 'China', section: 'Respect', url: 'https://en.wikivoyage.org/wiki/China#Respect', text: 'Tipping is not expected in most restaurants.' }];
+      },
+    });
+    h.script(
+      fauxAssistantMessage([fauxToolCall('search_guides', { query: 'Is tipping expected in Shanghai restaurants?' }, { id: 'call_g' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage('No, tipping isn’t expected here.'),
+    );
+    const { events } = await runMimo(h.skills, { ...mimoRequest, message: 'Should I tip?' });
+    assert.deepEqual(calls, [{ query: 'Is tipping expected in Shanghai restaurants?', countryCode: mimoRequest.situation.countryCode }]);
+    assert.deepEqual(events.find((e) => e.type === 'tool_start'), { type: 'tool_start', id: 'call_g', name: 'search_guides', label: 'Reading travel guides…' });
+    assert.deepEqual(events.find((e) => e.type === 'tool_end'), {
+      type: 'tool_end',
+      id: 'call_g',
+      name: 'search_guides',
+      ok: true,
+      details: { sources: [{ title: 'Wikivoyage: China › Respect', url: 'https://en.wikivoyage.org/wiki/China#Respect' }] },
+    });
+    const toolResult = h.contexts[1]!.messages.find((m) => m.role === 'toolResult');
+    assert.match(JSON.stringify(toolResult), /Tipping is not expected/);
   });
 
   test('a failed search ends its tool with ok false and empty sources', async () => {

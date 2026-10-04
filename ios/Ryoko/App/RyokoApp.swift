@@ -32,17 +32,20 @@ struct RyokoApp: App {
     @State private var router = AppRouter(selectedTab: RootTabView.launchTab)
     /// Translate's listening and turns. App-wide, so listening carries on when
     /// you switch tabs and the tab bar's Listening accessory can stop it (T2.5).
-    @State private var translateModel = TranslateModel.forLaunch()
+    @State private var translateModel: TranslateModel
     /// One resolver for the app (MapKit's throttle is per app). W4 replaces the
     /// fixture with its MapKit resolver here, and nowhere else.
     @State private var placeResolver: any PlaceResolver = LivePlaceResolver()
-    /// The Speech workstream replaces the fixture here.
-    @State private var speechService: any SpeechService = FixtureSpeechService()
+    /// Speak (design §8.1): ElevenLabs, or the on-device voice without a key.
+    @State private var speechService: any SpeechService
     /// The Live Activity for the active place (design §4.11), and its `ryoko://` links.
     @State private var liveActivities = LiveActivityCoordinator()
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        let translate = TranslateModel.forLaunch()
+        _translateModel = State(initialValue: translate)
+        _speechService = State(initialValue: LiveSpeechService(beforeSpeaking: { await translate.stopForSpeech() }))
         #if DEBUG
         FixtureSelfCheck.runAtLaunch()
         #endif

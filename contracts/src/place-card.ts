@@ -1,6 +1,7 @@
 import { Type, type Static } from 'typebox';
 import { Strict } from './helpers.ts';
 import { BasisList, LanguageTag, Timestamp } from './common.ts';
+import { WebSource } from './tools.ts';
 import { CardPhrase } from './phrase.ts';
 import { Profile } from './profile.ts';
 import { Situation } from './situation.ts';
@@ -16,6 +17,8 @@ export type PlaceCardRequest = Static<typeof PlaceCardRequest>;
 export const Tip = Strict({
   text: Type.String({ minLength: 1, maxLength: 200, description: 'In the home language' }),
   basis: BasisList,
+  /** The travel guide the tip rests on (design §8.4), linked for attribution. Absent when it rests on none. */
+  source: Type.Optional(WebSource),
 });
 export type Tip = Static<typeof Tip>;
 

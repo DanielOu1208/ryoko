@@ -13,6 +13,7 @@ import Foundation
 ///   allergy card or the taxi card (the card's own buttons' code path). Same
 ///   as `-RyokoMapCard here -RyokoMapCardAction <kind>` (`MapDebugOptions`).
 /// - `-RyokoShowFlipped 1`: Show mode opens flipped.
+/// - `-RyokoShowSpeaks 1`: Show mode presses Speak once it opens.
 /// - `-RyokoShowAutoClose <seconds>`: Show mode closes itself after that long,
 ///   the way Done does (to check brightness and the idle timer are restored).
 /// - `-RyokoExtraAllergy kiwi:serious`: add a free-text allergy to the allergy
@@ -29,6 +30,10 @@ nonisolated enum ShowDebugOptions {
 
     static var startsFlipped: Bool {
         UserDefaults.standard.bool(forKey: "RyokoShowFlipped")
+    }
+
+    static var speaksOnOpen: Bool {
+        UserDefaults.standard.bool(forKey: "RyokoShowSpeaks")
     }
 
     static var autoCloseAfter: Duration? {

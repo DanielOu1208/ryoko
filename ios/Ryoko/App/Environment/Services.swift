@@ -7,7 +7,7 @@ extension EnvironmentValues {
     /// MapKit resolver there. Previews get the fixture resolver.
     @Entry var placeResolver: any PlaceResolver = FixturePlaceResolver()
 
-    /// Speaks phrases (tier 2). `RyokoApp` sets it; the Speech workstream swaps in
-    /// its service there. Previews get the fixture, which only logs.
+    /// Speaks phrases (tier 2). `RyokoApp` sets `LiveSpeechService`. Previews
+    /// get the fixture, which only logs.
     @Entry var speechService: any SpeechService = FixtureSpeechService()
 }

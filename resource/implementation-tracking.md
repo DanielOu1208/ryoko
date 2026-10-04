@@ -16,7 +16,7 @@ A living tracker for the build. **Update it as you work.** When you start a task
 | Setup (§12.2) | done | S1–S5 done |
 | Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 done (desk) |
 | Tier 1: working core | doing | **All of W1–W7 built, end-to-end checked against real GMI, reviewed and fixed.** W8 avatar done. **Merged on `main` (W8.6–W8.14):** Map-first places with Nearby removed (#53), picks grounded in real nearby places (#54), About me (#55), Mimo relevance (#56), allergen filter removed (#57), thinking levels (#58), compact Mimo header (#59), place thumbnails (#60), and the sidebar/composer fix. Open: minor follow-ups (see Fix round); W8.5 hand testing on the phone |
-| Tier 2 | doing | T2.2–T2.6 done (merged, verified end to end on real GMI, reviewed, fixed). T2.1 Speak waits for an ElevenLabs key; T2.7 Gemini deferred |
+| Tier 2 | doing | T2.2–T2.6 done (merged, verified end to end on real GMI, reviewed, fixed). T2.1 Speak built (on-device voice works; ElevenLabs waits for a key and voice id); T2.7 Gemini deferred |
 | After core | todo | |
 | Submission | todo | |
 
@@ -224,20 +224,20 @@ Write down what you find. The results may change the spec.
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| T2.1 | Speak: ElevenLabs client (restricted key via the MLH code or Starter), audio cache, `AVSpeechSynthesizer` fallback, `.playback` session, stop Translate first | | todo | | |
+| T2.1 | Speak: ElevenLabs client (restricted key via the MLH code or Starter), audio cache, `AVSpeechSynthesizer` fallback, `.playback` session, stop Translate first | agent:speech | review | `ws/t2-speak` | `LiveSpeechService` (Speech/): `eleven_flash_v2_5` with `language_code`, MP3s cached in Caches/SpeechAudio by hash, on-device voice without a key or on error; `SpeakButton` beside Show on place-card phrases and in Show mode's bottom bar (phrase, allergy, taxi). Listening stops first (`TranslateModel.stopForSpeech`). Simulator-checked with the on-device voice (Show mode: Speak → Stop → Speak; place card). ElevenLabs verified end to end in the simulator (free-tier account, restricted key: TTS + voices read, 5,000-credit cap; voice Jessica `cgSgspJ2msm6clMCkdW9`, verified for en/ja/zh; ~0.6–0.8 s per phrase, then cached) |
 | T2.2 | Live Activity: attributes in `Shared/`, lock screen, Dynamic Island, deep link to Show, one at a time | wf:T2 | done | `worktree-wf_be317781-a93-1` | Starts on confirm/preview (only where there are phrases), one at a time, placeholder → real top phrase (≤ ~320 B), 2 h end + staleDate; lock screen + Dynamic Island (category symbol + short name, expanded phrase); ryoko://show deep link opens Show (cold start too); waits 2.5 s for profile edits to settle. Real tap on the phone still to try |
 | T2.3 | Onboarding survey (7 pages) + editing in Me + redo survey | wf:T2 | done |  | 7-page survey on first launch (skips → null), DEBUG 'Use demo profile'; Me: every section editable live (text saves after a 1 s pause), home base via search or pick on map, Redo survey; profile.version updates so the server regenerates cards |
 | T2.4 | Translate Type mode + tap-to-edit turns + `/v1/translate` | wf:T2 | done |  | Type mode with a live preview (500 ms pauses, stale requests cancelled), Done adds the turn; tap your turn (panes or History) to edit and re-translate; /v1/translate on GMI ~1.6–2.2 s cold, cached |
 | T2.5 | Bottom Listening accessory + tab-bar minimize | wf:T2 | done |  | App-wide TranslateModel; 'Listening · English ⇄ Japanese' accessory with stop on other tabs; tab bar minimizes on scroll on Nearby and Mimo only (design §3) |
 | T2.6 | Server-minted Soniox keys (`/v1/soniox-key`) | wf:T2 | done |  | /v1/soniox-key mints single-use 60 s keys (3600 s session cap, 10/min); each session uses one; falls back to the bundled key only when the server can't mint (kept for the hackathon, #46) |
-| T2.7 | Switch to Gemini: billed project + spend cap, `gemini-3.8-flash` (reasoning low), Flash-Lite for translate, rerun evals | | todo | | Required before submission (Gemini track). W8.26 already offers Gemini 3.8 Flash and 3.5 Flash-Lite in Mimo's picker once `GEMINI_API_KEY` is set |
+| T2.7 | Switch to Gemini: billed project + spend cap, `gemini-3.8-flash` (reasoning low), Flash-Lite for translate, rerun evals | | todo | | Required before submission (Gemini track). Billed project: drftkng1208 "Default Gemini Project" (Tier 1); its key is `GEMINI_API_KEY_BILLED` in `server/.env` but answers 402 "prepayment credits are depleted" until prepay is set up (or the $60 credit offer is redeemed). `GEMINI_API_KEY` is the free-tier key meanwhile. W8.26 already offers Gemini 3.8 Flash and 3.5 Flash-Lite in Mimo's picker on `GEMINI_API_KEY` |
 
 ## 4. After core
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| A1 | Tiger Data: Postgres session store, `trip_events` hypertable, Gemini embeddings, `<trip_memory>` | | todo | | |
-| A2 | Snowflake: `guides` table (Wikivoyage with attribution), Cortex Search, `search_guides` | | todo | | |
+| A1 | Tiger Data: Postgres session store, `trip_events` hypertable, Gemini embeddings, `<trip_memory>` | | todo | | **Accounts ready (2026-10-04):** Tiger Cloud free service `ryoko` (us-east-1, PostgreSQL 18.6, TimescaleDB 2.30 installed, `vector` 0.8.6 and `vectorscale` 0.9 available), `TIGER_DATABASE_URL` in `server/.env`. TLS: pin Timescale's CA (`ca.timescale.com`); node-postgres rejects it otherwise. Gemini key (free tier, project "Ryoko") in `GEMINI_API_KEY`: `gemini-embedding-001` at 768 dims works |
+| A2 | Snowflake: `guides` table (Wikivoyage with attribution), Cortex Search, `search_guides` | agent:guides | review | `ws/a2-snowflake` | **Built (#75).** `pnpm guides:load` (server/) loaded 735 sections from 8 Wikivoyage pages into `RYOKO.GUIDES.GUIDES` and built `GUIDE_SEARCH` (test query 348 ms, right top hit). Place cards fetch 3 excerpts before the call (~0.4–0.8 s) and tips cite them (`Tip.source`, shown under the tip); Mimo has `search_guides` ("Reading travel guides…", sources labelled "From Wikivoyage"). Checked end to end on real GMI: Tokyo ramen card with two cited tips; Mimo answered tipping + chopsticks from two guide searches in ~7 s. Server tests 133/133, contracts 40/40, check-contracts 234/234; simulator shows the tip link. Account set up 2026-10-04 (trial, card on file) |
 
 ## 5. Submission
 

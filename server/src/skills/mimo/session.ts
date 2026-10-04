@@ -20,7 +20,8 @@ import type { MimoContext, MimoRun } from '../types.ts';
 import type { WebSearch } from './exa.ts';
 import { PhraseStream, type PhraseStreamStats } from './phrase-stream.ts';
 import { MIMO_SYSTEM, mimoSections } from './prompt.ts';
-import { isMimoTool, showPlacesTool, TOOL_LABELS, webSearchTool } from './tools.ts';
+import { isMimoTool, searchGuidesTool, showPlacesTool, TOOL_LABELS, webSearchTool } from './tools.ts';
+import type { GuideSearch } from '../../guides/snowflake.ts';
 
 export const MIMO_LIMITS = {
   maxTurns: 4,
@@ -57,6 +58,8 @@ export interface MimoDeps {
   budget: Budget;
   /** Exa search, or null when EXA_API_KEY isn't set (web_search is then not offered). */
   search: WebSearch | null;
+  /** The travel guides in Snowflake, or null when SNOWFLAKE_* isn't set (search_guides is then not offered). */
+  guides?: GuideSearch | null;
   timeoutMs: number;
   /** The model for one message: the app's pick (design §4.9). Defaults to the mimo skill's configured model. */
   pickModel?: (request: MimoMessageRequest) => Promise<SkillModel>;
@@ -70,6 +73,8 @@ interface Session {
   skillModel: SkillModel;
   modelKey: string;
   lastUsed: number;
+  /** The latest message's country, for search_guides. */
+  countryCode?: string;
 }
 
 type RunState = {
@@ -164,6 +169,8 @@ export class MimoSessions {
 
   private createSession(skillModel: SkillModel, now: number): Session {
     const tools: AgentTool<any>[] = [showPlacesTool()];
+    // The guides search in the country of the session's latest message.
+    if (this.deps.guides) tools.push(searchGuidesTool(this.deps.guides, () => session.countryCode));
     if (this.deps.search) tools.push(webSearchTool(this.deps.search, this.deps.budget));
     const { llm } = this.deps;
     const session: Session = {
@@ -192,6 +199,7 @@ export class MimoSessions {
 
   private async run(session: Session, skillModel: SkillModel, request: MimoMessageRequest, ctx: MimoContext, sink: SseSink): Promise<StopReason> {
     const { agent } = session;
+    session.countryCode = request.situation.countryCode;
     const started = performance.now();
     this.deps.onRunEvent?.(ctx.runId, { type: 'model', key: skillModel.key });
     const state: RunState = { turns: 0, toolCalls: [], toolLimit: false, turnLimit: false };
@@ -266,7 +274,7 @@ export class MimoSessions {
           if (event.toolName === 'show_places') {
             send({ type: 'tool_end', id: event.toolCallId, name: 'show_places', ok, details: { places: ok && details?.places ? details.places : [] } });
           } else {
-            send({ type: 'tool_end', id: event.toolCallId, name: 'web_search', ok, details: { sources: ok && details?.sources ? details.sources : [] } });
+            send({ type: 'tool_end', id: event.toolCallId, name: event.toolName, ok, details: { sources: ok && details?.sources ? details.sources : [] } });
           }
           break;
         }

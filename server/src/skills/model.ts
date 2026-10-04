@@ -15,8 +15,9 @@ import { ALLERGY_CARD_PROMPT_VERSION, allergyCardModelOutput, allergyCardSystem,
 import { languageInfo } from './context.ts';
 import { DISCOVER_PROMPT_VERSION, discoverGrounding, DiscoverModelOutput, discoverSystem, discoverUser, finalizeDiscover, geohash, nearbyKey } from './discover.ts';
 import { createExaSearch, type WebSearch } from './mimo/exa.ts';
+import { createGuideSearch, snowflakeConfigFrom, type GuideHit, type GuideSearch } from '../guides/snowflake.ts';
 import { MimoSessions, type MimoRunEvent, type MimoRunStats } from './mimo/session.ts';
-import { finalizePlaceCard, normalizePlaceCard, PLACE_CARD_PROMPT_VERSION, PlaceCardModelOutput, placeCardSystem, placeCardUser } from './place-card.ts';
+import { finalizePlaceCard, normalizePlaceCard, PLACE_CARD_PROMPT_VERSION, placeCardGuideQuery, PlaceCardModelOutput, placeCardSystem, placeCardUser } from './place-card.ts';
 import {
   finalizeTranslate,
   normalizeTranslateText,
@@ -41,6 +42,8 @@ export interface ModelSkillsOptions {
   cache?: ResponseCache;
   budget?: Budget;
   search?: WebSearch | null;
+  /** The travel guides (Snowflake Cortex Search); by default from SNOWFLAKE_* when set. */
+  guides?: GuideSearch | null;
   log?: (line: string) => void;
   onSkillStats?: (stats: SkillCallStats) => void;
   onMimoStats?: (stats: MimoRunStats) => void;
@@ -85,6 +88,8 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
   const budget = options.budget ?? new Budget({ limitUsd: config.dailyBudgetUsd, file: config.cacheDir ? join(config.cacheDir, 'budget.json') : null });
   const exaKey = config.env.EXA_API_KEY?.trim();
   const search = options.search !== undefined ? options.search : exaKey ? createExaSearch(exaKey) : null;
+  const snowflake = snowflakeConfigFrom(config.env);
+  const guides = options.guides !== undefined ? options.guides : snowflake ? createGuideSearch(snowflake) : null;
   const log = options.log ?? (config.logRequests ? (line: string) => console.log(line) : () => {});
   const timeoutMs = config.timeouts.skillMs;
 
@@ -99,7 +104,21 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
     if (!mimoDefault || (!request.model && !request.effort)) return llm.forSkill('mimo');
     return llm.forSpec(await mimoSpec(request, llm, mimoDefault));
   };
-  const mimoSessions = new MimoSessions({ llm, budget, search, timeoutMs: config.timeouts.mimoMs, pickModel, onRunStats: onMimoStats, onRunEvent: options.onMimoEvent });
+  const mimoSessions = new MimoSessions({ llm, budget, search, guides, timeoutMs: config.timeouts.mimoMs, pickModel, onRunStats: onMimoStats, onRunEvent: options.onMimoEvent });
+
+  /** Guide excerpts for a place card. A slow or failed search means a card without them, never a failed card. */
+  async function placeCardGuides(request: PlaceCardRequest): Promise<GuideHit[]> {
+    if (!guides) return [];
+    const started = performance.now();
+    try {
+      const hits = await guides(placeCardGuideQuery(request), { countryCode: request.situation.countryCode }, { limit: 3 });
+      log(`place card guides: ${hits.length} excerpt(s), ${Math.round(performance.now() - started)} ms`);
+      return hits;
+    } catch (err) {
+      log(`place card guides skipped: ${err instanceof Error ? err.message : String(err)}`);
+      return [];
+    }
+  }
 
   function report(skill: SkillCallStats['skill'], source: CacheSource, generation: GenerationStats | undefined): void {
     const stats: SkillCallStats = { skill, source, ...(generation ? { generation } : {}) };
@@ -127,22 +146,23 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
     async placeCard(request: PlaceCardRequest) {
       const { key: modelKey } = await llm.forSkill('placeCard');
       const key = cacheKey(['place-card', PLACE_CARD_PROMPT_VERSION, modelKey, placeKey(request), request.situation.hourBucket, request.profile.version, request.situation.localLanguage]);
-      return cached('placeCard', key, (stats) =>
-        generateTyped({
+      return cached('placeCard', key, async (stats) => {
+        const hits = await placeCardGuides(request);
+        return generateTyped({
           llm,
           budget,
           skill: 'placeCard',
           label: 'place card',
           schema: PlaceCardModelOutput,
           system: placeCardSystem(languageInfo(request.situation.localLanguage), languageInfo(request.profile.homeLanguage)),
-          user: placeCardUser(request),
+          user: placeCardUser(request, hits),
           maxTokens: 1200,
           timeoutMs,
           normalize: normalizePlaceCard,
-          finalize: (output) => finalizePlaceCard(request, output),
+          finalize: (output) => finalizePlaceCard(request, output, new Date(), hits),
           stats,
-        }),
-      );
+        });
+      });
     },
 
     async discover(request: DiscoverRequest) {

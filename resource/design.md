@@ -132,7 +132,7 @@ A full-screen cover meant to be handed to someone else. It takes a `ShowContent`
 For all of them:
 - Plain system background (white or black), no gradient. Contrast comes first.
 - A phrase's local script is as large as fits (`minimumScaleFactor`), with romanization below it in small type and the gloss smallest, at the bottom.
-- Buttons: **Flip** (rotates 180° for someone across a counter) and **Done**. **Speak** comes in tier 2.
+- Buttons: **Flip** (rotates 180° for someone across a counter) and **Done**, plus **Speak** in the bottom bar (§8.1). It reads the phrase; on the allergy card, the lines and the request; on the taxi card, the phrase, then the name and address. Closing Show mode stops it.
 - **Tilt:** like Translate's face-to-face layout (§4.8), laying the phone flat or tipping it toward the other person flips the content to face them; raising it flips it back. Flip overrides until the next tilt.
 - A long phrase starts smaller (about 60% of a short one's size) so it reads in a few lines.
 - Screen brightness goes to max and the idle timer is off while it's open. Both are restored on close.
@@ -181,7 +181,7 @@ For all of them:
   - Round buttons: **Directions** (Apple Maps, the default mode), **Taxi** (§4.6), **Allergy** (§4.5; only with allergies, when the language has templates and you don't speak it) and **Ask Mimo** (§4.9).
   - **I'm here** within about 300 m of your live location: it makes this the current place (ending a preview first), then shows "You're here". Further away, or with no fix: **Preview** with the date and time picker (§4.2).
   - Mimo's why (for picks and From Mimo places).
-  - **What to say:** 2–3 phrase cards, each with the local script (the largest text), romanization (pinyin or romaji; on by default, can be turned off in Me), the gloss, a "because…" line of about 8 words at most, and **Show**. **Speak** arrives in tier 2.
+  - **What to say:** 2–3 phrase cards, each with the local script (the largest text), romanization (pinyin or romaji; on by default, can be turned off in Me), the gloss, a "because…" line of about 8 words at most, and **Show** and **Speak** (§8.1).
   - **Tips (1–2),** framed against your nationality where that helps ("No tipping, same as… / unlike Canada").
   - The address.
   - Where you speak the local language: tips only (no phrases and no Allergy).
@@ -488,6 +488,22 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
 - Picks fit the time of day, the profile's personality and the diet.
 - The device resolves each name with MapKit (§4.7) and silently drops misses.
 
+### 6.6 Where Mimo's answers come from (#75)
+
+Not every source on every message: that's slow, costs money, and off-topic excerpts make answers worse. Cheap sources that always matter are in the prompt; the rest are tools Mimo picks, at most two per message.
+
+| Tier | Source | When | Cost |
+| --- | --- | --- | --- |
+| In the prompt | Situation and map data: place, local time, `nearby` (MapKit on the device) | Every message | Free |
+| | Profile | Every message | Free |
+| | Trip memory (Tiger, §8.3): recent events and the most similar past ones, as `<trip_memory>` | Fetched before every message, with a time limit; skipped on failure | One SQL query |
+| Tools | `search_guides` (Snowflake, §8.4) | Customs, etiquette, tipping, paying, what and how to order, local food, how things work | About 0.4 s |
+| | `web_search` (Exa) | Facts that change: opening hours, events, closures, prices, news; or when asked to look something up | 1–2 s and money |
+| Checked after | `show_places` → MapKit on the device | Every place Mimo names; a name the map can't find is dropped | On device |
+
+- **When sources disagree, the most specific wins:** map data for what's actually nearby; the web for anything time-sensitive; the guides for customs and etiquette; memory only shapes suggestions and never overrides a fact; the model's own knowledge comes last, said with doubt when it's unsure.
+- **Place cards** have no tools and must be fast: the server fetches the top 3 guide excerpts for the kind of place and the country before the one model call (and trip memory, once it exists). No web search.
+
 ## 7. Contracts
 
 `contracts/` is the source of truth. It holds:
@@ -634,13 +650,13 @@ Relevant tracks: ElevenLabs, Gemini API, Tiger Data, Snowflake API, plus Best So
 
 ### 8.1 ElevenLabs: tier 2
 
-All spoken output goes through ElevenLabs: Speak on phrase cards and in Show mode, and on the allergy and taxi cards. Speech is always on demand, never in real time.
+All spoken output goes through ElevenLabs: Speak on phrase cards and in Show mode, which covers the allergy and taxi cards. Mimo's phrase blocks open Show mode, so they get Speak there. Speech is always on demand, never in real time. Tapping Speak again while it plays stops it (#71).
 
 - **Account:** the free tier can't use Voice Library voices over the API and gets blocked on shared IPs. Use the MLH ElevenLabs code (a free 3-month subscription) or Starter. Create a restricted key (Text to Speech only) with a credit limit.
-- **Voices:** stock voices only, one each for Mandarin, Japanese and English. Listen to candidates before hard-coding voice ids.
+- **Voice:** one voice from the account's own voices speaks all three languages (`eleven_flash_v2_5` is multilingual, and `language_code` pins the language). It's set as `ELEVENLABS_VOICE_ID` next to the key, not in code: the old stock voices only work on accounts made before March 2026, and they stop working on Dec 31, 2026 (#71). Listen before picking.
 - **Model:** `eleven_flash_v2_5` (low latency, includes Chinese and Japanese). `eleven_multilingual_v2` is an option because cached audio favours quality.
-- **Calls:** the device calls ElevenLabs directly, with the key in the gitignored `Secrets.xcconfig`.
-- **Caching:** audio is cached on the device by a hash of (text, voice, model), so repeated phrases are instant and free.
+- **Calls:** the device calls ElevenLabs directly, with `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` in the gitignored `Secrets.xcconfig` (Info.plist `RyokoElevenLabsAPIKey`, `RyokoElevenLabsVoiceID`). Without either, Speak uses the on-device voice.
+- **Caching:** audio is cached on the device by a hash of (text, language, voice, model), so repeated phrases are instant and free. Files older than 30 days are removed.
 - **Fallback:** `AVSpeechSynthesizer` when offline or on error.
 - **Audio session:** use `.playback` (the default category is silenced by the silent switch). Stop Translate's listening session before playing, so the two never overlap.
 
@@ -668,12 +684,19 @@ Durable storage and trip memory, on Tiger Cloud Postgres (the free plan is enoug
 
 ### 8.4 Snowflake: after core
 
-A travel knowledge base that Mimo cites for cultural tips.
+A travel knowledge base that Mimo cites for cultural tips. **Built (#75):** `pnpm guides:load` in `server/` loads it; 735 sections from 8 pages.
 
 - A `guides` table: Wikivoyage pages for the demo cities and etiquette. Wikivoyage text is CC BY-SA 4.0, so each row keeps attribution fields (article URL, licence) and cited tips link back to the article.
 - A Cortex Search service over that table, queried over REST with a programmatic access token. The account's authentication policy has to allow PATs.
 - For place cards, the server runs the search *before* building the prompt and injects the results, so the card stays fast. Mimo's chat gets a `search_guides` tool for culture questions, with a cited source.
 - Not used for user memory: Cortex Search refreshes on a delay, and per-user memory is small and changes constantly. That's Tiger Data's job.
+- **As built:**
+  - Pages: Tokyo, Tokyo/Shinjuku, Japan, Japanese cuisine, Shanghai, Shanghai/Jing'an, China, Chinese cuisine. City pages keep the useful sections (no Sleep, Get in or Go next); country pages keep Talk, Get around, Buy, Eat, Drink, Stay safe, Stay healthy, Respect, Cope, Connect.
+  - Chunks of up to about 1,200 characters per section, each prefixed "Page — Section:" so search can match the place; the URL carries the section anchor.
+  - Account: `RYOKO.GUIDES.GUIDES` and the `GUIDE_SEARCH` service (`ON BODY`, attributes `COUNTRY_CODE`, `CITY`, `TOPIC`, `TARGET_LAG = '1 day'`) on warehouse `RYOKO_WH` (XS, 60 s auto-suspend). The server's `RYOKO_SERVER` service user has role `RYOKO_APP` and a 30-day PAT.
+  - A trial account has AI features off until a credit card is on file (it isn't charged until an upgrade).
+  - Queries are filtered by the situation's country and cached in memory for an hour. A failed or slow search (3 s) means no guides, never a failed card or reply.
+  - A place-card tip that rests on an excerpt gets `source` (`{title, url}`, e.g. "Wikivoyage: Japan › Buy"), shown under the tip as a link. `search_guides` ends with the same `sources` as `web_search`; the app labels them "From Wikivoyage", one pill per section.
 
 ## 9. Styling
 
@@ -936,6 +959,8 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 68 | Translate's turns are manual: you say who's speaking by tapping their language, and everything heard stays in that turn until you tap the other. Soniox finalizes at each hand-over so last words stay put; strict language hints. Supersedes the automatic turn rule from #29 (kept for DEBUG) | user (auto switching too sensitive, text vanished on every switch) |
 | 69 | Me is a styled home instead of one long list: an avatar header (an SF Symbol you pick, kept on the device, not in the profile), where you're from, languages and this-or-that chips; the allergy card at a glance (local title, allergens with severity in words, tap for Show mode); Diet, Your usual and Home base; About me; and a Settings row that holds every profile page, the home base, Redo survey, romanization, credits and the developer section. §4.10 | user ("the Me screen looks like an afterthought") |
 | 70 | Every thinking orb is the Rubik's cube design (`.solving`) instead of one design per kind of work | user |
+| 71 | Speak: one ElevenLabs voice for every language, set in `Secrets.xcconfig` (`ELEVENLABS_VOICE_ID`) instead of a stock voice per language in code, because new accounts don't get the stock voices. Speak sits beside Show on phrase cards and in Show mode's bottom bar; Mimo's phrase blocks get it through Show mode. §8.1, §4.4 | research (ElevenLabs default voices: accounts made before March 2026 only) |
 | 72 | Ask Mimo shows the place as a preview above the first message (a small map with its pin, name, category and address) that opens its card on the Map; the "About <place>" chip at the top is removed. The subject is kept with the chat. §4.9 | user |
 | 73 | Mimo's model picker, like Codex's effort button: a level button in the composer opens a popover with the level, the model (menu by provider), a reset arrow and a slider. `GET /v1/mimo-models` and `model`/`effort` on Mimo messages; a fixed server catalog (GMI: DeepSeek V4.1 Flash, Qwen3.8 Flash, GPT-6.1 Sol, GPT-6 Luna; Gemini 3.8 Flash and 3.5 Flash-Lite once a Gemini key is set); a chat keeps its history across a model change. §4.9, §6.3, §6.4, §7.7 | user |
 | 74 | Translate locks Soniox to the speaker's language: each session listens for one language (strict hint), and a hand-over finalizes it and opens a new session locked to the other language. A strong bias, not a filter (best effort per Soniox), but better than detecting between the pair, which mixed languages. Key limit 10 → 30 a minute (a key per session). §4.8 | user ("sometimes u still mix languages") |
+| 75 | Where Mimo's answers come from: situation, map data, profile and (later) trip memory are always in the prompt; the travel guides (`search_guides`, Snowflake Cortex Search) and the web (`web_search`) are tools Mimo picks; places it names are checked against the map. The most specific source wins. Place cards fetch the guides before their one call, and tips can cite them (`Tip.source`). §6.6, §8.4 | user (a hierarchy for how Mimo uses its sources) |

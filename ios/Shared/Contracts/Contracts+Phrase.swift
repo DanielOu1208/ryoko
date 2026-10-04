@@ -40,4 +40,6 @@ nonisolated struct Phrase: Codable, Hashable, Sendable, Identifiable {
 nonisolated struct Tip: Codable, Hashable, Sendable {
     var text: String
     var basis: [Basis]
+    /// The travel guide the tip rests on (design §8.4), linked for attribution.
+    var source: WebSource?
 }

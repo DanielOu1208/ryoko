@@ -8,6 +8,10 @@
 	<string>$(AGENT_BASE_URL)</string>
 	<key>RyokoSonioxAPIKey</key>
 	<string>$(SONIOX_API_KEY)</string>
+	<key>RyokoElevenLabsAPIKey</key>
+	<string>$(ELEVENLABS_API_KEY)</string>
+	<key>RyokoElevenLabsVoiceID</key>
+	<string>$(ELEVENLABS_VOICE_ID)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

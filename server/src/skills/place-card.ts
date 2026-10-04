@@ -8,6 +8,8 @@
 // - local text is in the local script, and Chinese local text has no Latin letters
 // - Chinese romanization is pinyin-pro's, not the model's
 // Allergies and diet are hard limits in the prompt; there's no word filter on top.
+// Travel-guide excerpts (Snowflake, design §8.4) are fetched before the prompt is
+// built; a tip that rests on one gets its source link.
 
 import { createHash } from 'node:crypto';
 import { Type, type Static } from 'typebox';
@@ -17,9 +19,10 @@ import { ABOUT_ME_RULE, allowedBasis, hasLatinLetters, inLocalScript, languageIn
 import { romanizationFor } from './romanize.ts';
 import { Value } from 'typebox/value';
 import type { Finalized } from '../llm/typed.ts';
+import { guideSource, guidesForModel, type GuideHit } from '../guides/snowflake.ts';
 
-/** Bump when the prompt or checks change, so cached cards regenerate. pc-6: no allergen filter. pc-7: the profile only where it matters (#64). */
-export const PLACE_CARD_PROMPT_VERSION = 'pc-7';
+/** Bump when the prompt or checks change, so cached cards regenerate. pc-6: no allergen filter. pc-7: the profile only where it matters (#64). pc-8: travel guides (#75). */
+export const PLACE_CARD_PROMPT_VERSION = 'pc-8';
 
 /** snake_case or a profile field name in a "because…" line: the model leaking the request's keys. */
 const FIELD_NAME = /\b[a-z]+_[a-z_]+\b|\b(?:localTime|allowedBasis|homeLanguage|dietNotes|aboutMe)\b/;
@@ -43,6 +46,7 @@ export const PlaceCardModelOutput = Strict({
     Strict({
       text: Type.String({ minLength: 1, maxLength: 200, description: 'One or two short sentences in the home language' }),
       basis: BasisList,
+      guide: Type.Optional(Type.Integer({ minimum: 1, maximum: 5, description: 'The number of the guide excerpt this tip rests on, if any' })),
     }),
     { minItems: 1, maxItems: 3 },
   ),
@@ -84,16 +88,27 @@ Phrases:
 Tips:
 - "text": one or two short sentences in ${home.name}, at most 30 words, practical and specific to this place and time. Where it helps, frame it against the norms of the traveller's home country (tipping, payment, etiquette). Don't repeat the traveller's allergies, diet or tastes back to them.
 - "basis": 1–2 values from allowedBasis.
+- "guide": when the request has "guides" (excerpts from travel guides for this place's country), prefer tips they support that fit this place and time, in your own words, and set "guide" to the excerpt's number. Leave it out when the tip doesn't rest on an excerpt. Ignore excerpts that don't fit this place.
 
 "placeNameLocal": the place's name in ${local.name} script if you know it with confidence; otherwise leave it out. Never invent an address.`;
 }
 
-export function placeCardUser(request: PlaceCardRequest): string {
+export function placeCardUser(request: PlaceCardRequest, guides: readonly GuideHit[] = []): string {
   return JSON.stringify({
     traveller: promptProfile(request.profile, 'place-card'),
     situation: promptSituation(request.situation),
     allowedBasis: allowedBasis(request.profile, request.situation),
+    ...(guides.length > 0 ? { guides: guidesForModel([...guides], 500) } : {}),
   });
+}
+
+/** What to look up in the guides for this card: the kind of place, where, and what a visitor needs there. */
+export function placeCardGuideQuery(request: PlaceCardRequest): string {
+  const { place, city, district } = request.situation;
+  const where = district ? `${district}, ${city}` : city;
+  if (!place) return `Visiting ${where}: etiquette, paying and getting around`;
+  const kind = place.category.replace(/_/g, ' ');
+  return `At a ${kind} in ${where}: how to order, pay and behave`;
 }
 
 /** Every reason a phrase can't stay on the card. */
@@ -126,7 +141,7 @@ function phraseId(request: PlaceCardRequest, index: number, local: string): stri
 }
 
 /** Checks the model's card, drops what fails, and builds the contract response. */
-export function finalizePlaceCard(request: PlaceCardRequest, output: PlaceCardModelOutput, now = new Date()): Finalized<PlaceCardResponse> {
+export function finalizePlaceCard(request: PlaceCardRequest, output: PlaceCardModelOutput, now = new Date(), guides: readonly GuideHit[] = []): Finalized<PlaceCardResponse> {
   const local = languageInfo(request.situation.localLanguage);
   const home = languageInfo(request.profile.homeLanguage);
   const allowed = allowedBasis(request.profile, request.situation);
@@ -164,7 +179,9 @@ export function finalizePlaceCard(request: PlaceCardRequest, output: PlaceCardMo
       issues.push(line);
       return;
     }
-    if (tips.length < 2) tips.push({ text: tip.text.trim(), basis: tip.basis });
+    if (tips.length >= 2) return;
+    const guide = tip.guide ? guides[tip.guide - 1] : undefined;
+    tips.push({ text: tip.text.trim(), basis: tip.basis, ...(guide ? { source: guideSource(guide) } : {}) });
   });
 
   if (phrases.length < 2 || tips.length < 1) {

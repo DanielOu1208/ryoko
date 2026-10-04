@@ -130,6 +130,26 @@
             "minItems": 1,
             "maxItems": 2,
             "uniqueItems": true
+          },
+          "source": {
+            "type": "object",
+            "required": [
+              "title",
+              "url"
+            ],
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https?://"
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false
