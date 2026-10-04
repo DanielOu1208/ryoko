@@ -5,8 +5,9 @@
 # Easiest: copy the key, then run (works anywhere, including Claude Code's `!`):
 #   bash scripts/set-keys.sh soniox      # reads the Soniox key from the clipboard
 #   bash scripts/set-keys.sh exa         # reads the Exa key from the clipboard
+#   bash scripts/set-keys.sh foursquare  # reads the Foursquare service key from the clipboard
 #
-# Soniox keys are checked against the Soniox API before saving.
+# Each key is checked against its API before saving.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -17,11 +18,12 @@ usage() {
   echo "Usage: copy the key to the clipboard, then run one of:"
   echo "  bash scripts/set-keys.sh soniox"
   echo "  bash scripts/set-keys.sh exa"
+  echo "  bash scripts/set-keys.sh foursquare"
   exit 1
 }
 
 which="${1:-}"
-[ "$which" = "soniox" ] || [ "$which" = "exa" ] || usage
+[ "$which" = "soniox" ] || [ "$which" = "exa" ] || [ "$which" = "foursquare" ] || usage
 
 [ -f "$ENV_FILE" ] || cp "$ROOT/server/.env.example" "$ENV_FILE"
 [ -f "$XC_FILE" ] || cp "$ROOT/ios/Config/Secrets.example.xcconfig" "$XC_FILE"
@@ -66,6 +68,17 @@ case "$which" in
     fi
     set_key "$ENV_FILE" EXA_API_KEY "$key" "="
     echo "Exa key works (HTTP 200) and was saved (${#key} chars) to server/.env."
+    ;;
+  foursquare)
+    # A one-result Place Search (a Pro call, inside the free allowance).
+    status="$(curl -s -o /dev/null -w '%{http_code}' 'https://places-api.foursquare.com/places/search?ll=35.6896,139.7006&limit=1' -H "Authorization: Bearer $key" -H 'X-Places-Api-Version: 2025-06-17' -H 'accept: application/json')"
+    if [ "$status" != "200" ]; then
+      echo "Foursquare rejected this key (HTTP $status). Nothing was saved."
+      echo "Create a service API key at https://foursquare.com/developers (your project, then API keys), copy it, and run this again."
+      exit 1
+    fi
+    set_key "$ENV_FILE" FOURSQUARE_API_KEY "$key" "="
+    echo "Foursquare key works (HTTP 200) and was saved (${#key} chars) to server/.env."
     ;;
 esac
 
