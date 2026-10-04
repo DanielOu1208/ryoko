@@ -179,7 +179,7 @@ For all of them:
   - **Mimo picks** first: hidden gems and special spots from `discover` (§6.5), each with a one-line why.
   - Then the **nearest places** by distance (`MKLocalPointsOfInterestRequest`).
   - About 3 rows show at the small detent; scroll for more.
-  - Tapping a place makes it the current place and opens **Nearby** (`AppRouter.openNearby()`).
+  - Tapping a place makes it the current place and opens **Nearby** (`AppRouter.openNearby()`). Within about 300 m of your live location it becomes your live place; further away (or with no fix) it starts a **preview** of that place at the current time, and Nearby shows the Previewing banner.
   - Selecting a pin or search result, or long-pressing, shows that place's **details in the same sheet**, not a second sheet. A back control returns to the list.
   - First pass: build it, look at it on a device, iterate.
 - MapKit with the user's location, plus `.searchable` with `MKLocalSearchCompleter` suggestions. Queries can be in English or local script ("Heytea Jing'an", "喜茶 静安"). Picking a result moves the camera and shows the place's details in the sheet.
