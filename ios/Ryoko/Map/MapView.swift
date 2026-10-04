@@ -65,7 +65,7 @@ private struct MapHomeScreen: View {
         ZStack(alignment: .top) {
             map(anchor: anchor)
                 .safeAreaPadding(.top, belowSearch + Theme.grid)
-                .safeAreaPadding(.bottom, metrics.mapBottomPadding(for: model.detent))
+                .safeAreaPadding(.bottom, metrics.mapBottomPadding)
                 .ignoresSafeArea(.keyboard)
             if !cardIsFull {
                 // Only shows while the map is rotated, under the row's buttons.
@@ -201,7 +201,7 @@ private struct MapHomeScreen: View {
                 x: screenFrame.minX,
                 y: screenFrame.minY + top,
                 width: screenFrame.width,
-                height: max(screenFrame.height - top - metrics.mapBottomPadding(for: model.detent), 1)
+                height: max(screenFrame.height - top - metrics.mapBottomPadding, 1)
             ),
             viewports: MapHomeModel.CardViewports(
                 small: viewport(.small),
