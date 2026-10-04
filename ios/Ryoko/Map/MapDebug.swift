@@ -15,11 +15,15 @@ import UIKit
 /// - `-RyokoMapCard here|pick|nearby`: open the current place's card (as the
 ///   header's tap does), the first Mimo pick's, or the first nearby place's,
 ///   once there is one.
-/// - `-RyokoMapCardAction preview|taxi|allergy|phrase|here|mimo|directions|lookaround|close`:
+/// - `-RyokoMapCardAction preview|taxi|allergy|phrase|here|mimo|directions|lookaround|back`:
 ///   press that button on the card once it has loaded (`lookaround` taps the
-///   Look Around preview once there is one). (`-RyokoMapDetailsAction`
-///   is the old name; `-RyokoShow phrase|allergy|taxi` means
-///   `-RyokoMapCard here -RyokoMapCardAction <kind>`.)
+///   Look Around preview once there is one; `close` is the old name for
+///   `back`). (`-RyokoMapDetailsAction` is the old name; `-RyokoShow
+///   phrase|allergy|taxi` means `-RyokoMapCard here -RyokoMapCardAction <kind>`.)
+/// - `-RyokoMapBack <seconds>`: press Back that long after the card loads.
+/// - `-RyokoMapScrollList <points>`: scroll the list down that far before
+///   `-RyokoMapCard` opens a card (to see Back keep the scroll position).
+/// - `-RyokoMapDetent` also applies after `-RyokoMapCard` opens its card.
 /// - `-RyokoMapCardFailure offline|server`: the card's place-card request
 ///   fails like that (the error state, or the saved card when there is one).
 /// - `-RyokoMapCardLatency <seconds>`: the card's place card answers from
@@ -47,13 +51,28 @@ enum MapDebugOptions {
 
     static var detailsName: String? { defaults.string(forKey: "RyokoMapDetails") }
 
+    /// `-RyokoMapScrollList <points>`: scroll the list down this far once its
+    /// picks and nearby places are in, before a `-RyokoMapCard` opens.
+    static var listScroll: CGFloat? {
+        let points = defaults.double(forKey: "RyokoMapScrollList")
+        return points > 0 ? points : nil
+    }
+
+    /// `-RyokoMapBack <seconds>`: press the card's Back this long after it
+    /// has loaded (as `-RyokoMapCardAction back`, which waits 1.5 s).
+    static var backDelay: Duration? {
+        let seconds = defaults.double(forKey: "RyokoMapBack")
+        return seconds > 0 ? .seconds(seconds) : nil
+    }
+
     /// `-RyokoMapCard`, or `here` for `-RyokoShow`.
     static var card: String? {
         defaults.string(forKey: "RyokoMapCard") ?? (ShowDebugOptions.showAtLaunch != nil ? "here" : nil)
     }
 
     static var cardAction: String? {
-        defaults.string(forKey: "RyokoMapCardAction")
+        if backDelay != nil { return "back" }
+        return defaults.string(forKey: "RyokoMapCardAction")
             ?? defaults.string(forKey: "RyokoMapDetailsAction")
             ?? ShowDebugOptions.showAtLaunch?.rawValue
     }
@@ -146,6 +165,29 @@ enum MapDebugOptions {
             if let found = trailingBarMenuButton(in: subview, windowWidth: windowWidth) { return found }
         }
         return nil
+    }
+}
+
+/// `-RyokoMapScrollList`: scrolls the list once it's `ready`.
+struct MapListDebugScroll: ViewModifier {
+    let ready: Bool
+    @State private var position = ScrollPosition()
+    @State private var didScroll = false
+
+    func body(content: Content) -> some View {
+        if let points = MapDebugOptions.listScroll {
+            content
+                .scrollPosition($position)
+                .task(id: ready) {
+                    guard ready, !didScroll else { return }
+                    try? await Task.sleep(for: .milliseconds(600))
+                    didScroll = true
+                    RyokoLog.places.info("Debug: scrolling the list to \(points)")
+                    withAnimation(.smooth) { position.scrollTo(y: points) }
+                }
+        } else {
+            content
+        }
     }
 }
 

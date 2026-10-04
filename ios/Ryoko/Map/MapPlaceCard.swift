@@ -4,49 +4,75 @@ import os
 
 // MARK: - Header
 
-/// The card's header (design §4.7): the place's name, its local-script name,
-/// "Ramen · 350 m · 7:04 PM" (the place's own local time), and a close button
-/// that goes back to the list at the size it had.
+/// The card's header (design §4.7): "‹ Back" at the top left (the one way
+/// back to the list or results, at the size and scroll position they had),
+/// then the card's title (`MapPlaceCardTitle`). At accessibility text sizes
+/// the title scrolls with the card instead (`title` is nil here), so the
+/// pinned header never fills the panel.
 struct MapPlaceCardHeader: View {
+    let title: MapPlaceCardTitle?
+    /// What Back returns to, for VoiceOver: "the list" or "the results".
+    let backTo: String
+    let onBack: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: onBack) {
+                HStack(spacing: 3) {
+                    Image(systemName: "chevron.left")
+                        .fontWeight(.semibold)
+                    Text("Back")
+                }
+                .font(.body)
+                .foregroundStyle(.primary)
+                .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                .contentShape(.rect)
+            }
+            .buttonStyle(MapRowButtonStyle())
+            // The chevron's optical edge lines up with the name below.
+            .padding(.leading, -2)
+            .accessibilityLabel("Back")
+            .accessibilityHint("Back to \(backTo)")
+
+            if let title {
+                title
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Theme.margin)
+        .padding(.bottom, title == nil ? Theme.grid / 2 : Theme.grid * 1.5)
+    }
+}
+
+/// The place's name, its local-script name, and "Ramen · 350 m · 7:04 PM"
+/// (the place's own local time).
+struct MapPlaceCardTitle: View {
     let place: MapPlace
     let languageTag: String?
     /// The local-script name: MapKit's, or the place card's once it's loaded.
     let localName: String?
     let timeZone: TimeZone?
-    let onClose: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: Theme.grid * 1.5) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(place.title)
-                    .font(.title2.bold())
-                    .lineLimit(3)
-                    .accessibilityAddTraits(.isHeader)
-                if let shownLocalName, let languageTag {
-                    LocalText(shownLocalName, languageTag: languageTag)
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                }
-                TimelineView(.everyMinute) { context in
-                    Text(detailLine(at: context.date))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                }
+        VStack(alignment: .leading, spacing: 2) {
+            Text(place.title)
+                .font(.title2.bold())
+                .lineLimit(3)
+                .accessibilityAddTraits(.isHeader)
+            if let shownLocalName, let languageTag {
+                LocalText(shownLocalName, languageTag: languageTag)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
-
-            Button("Close", systemImage: "xmark", action: onClose)
-                .labelStyle(.iconOnly)
-                .font(.body.weight(.semibold))
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.circle)
-                .accessibilityLabel("Close")
-                .accessibilityHint("Back to the list")
+            TimelineView(.everyMinute) { context in
+                Text(detailLine(at: context.date))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
+            }
         }
-        .padding(.horizontal, Theme.margin)
-        .padding(.bottom, Theme.grid * 1.5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var shownLocalName: String? {
@@ -76,13 +102,13 @@ struct MapPlaceCardHeader: View {
 
 /// A place's card in the Map's sheet (design §4.7). Top to bottom:
 ///
-/// 0. A wide Look Around preview of the street, when Apple has imagery there
-///    (`PlaceThumbnailLoader`'s scene, shared with the list's thumbnail). Tap
-///    it for the full-screen Look Around viewer. With no scene there's
-///    nothing extra: the map above already shows the place.
-/// 1. Directions, Taxi, Allergy and Ask Mimo, as round buttons. Allergy shows
+/// 0. Directions, Taxi, Allergy and Ask Mimo, as round buttons. Allergy shows
 ///    only when the profile has allergies the local language has a card for,
-///    and you don't speak it.
+///    and you don't speak it. A collapsed card shows its header and these.
+/// 1. A wide Look Around preview of the street, when Apple has imagery there
+///    (`PlaceThumbnailLoader`'s scene). Tap it for the full-screen Look
+///    Around viewer. With no scene there's nothing extra: the map above
+///    already shows the place.
 /// 2. **I'm here** within about 300 m of your live location (it makes this
 ///    the current place), otherwise **Preview** with the date and time picker.
 /// 3. Mimo's why, for picks and From Mimo places.
@@ -96,6 +122,9 @@ struct MapPlaceCardHeader: View {
 /// The card never changes the situation by itself: only I'm here and Preview do.
 struct MapPlaceCard: View {
     let place: MapPlace
+    /// The name and details, here at the top when they don't fit the pinned
+    /// header (accessibility text sizes); otherwise nil.
+    var title: MapPlaceCardTitle?
     let model: MapHomeModel
     /// The list's centre, to borrow the situation's city for places near it.
     let anchor: Coordinate?
@@ -119,6 +148,9 @@ struct MapPlaceCard: View {
     @State private var showCount = 0
     @State private var lookAround: MKLookAroundScene?
     @State private var isLookingAround = false
+    @State private var scroll = ScrollPosition()
+
+    private var isCollapsed: Bool { model.detent == .small }
 
     var body: some View {
         let situation = area.map(cardSituation)
@@ -131,29 +163,53 @@ struct MapPlaceCard: View {
         let scene = lookAround ?? PlaceThumbnailLoader.shared.cachedScene(for: place.place).flatMap(\.self)
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.cardSpacing) {
-                if let scene {
-                    lookAroundPreview(scene)
+                // First, so a collapsed card still shows them (the panel's
+                // small size is the header plus their measured height). At
+                // accessibility sizes the title comes first, scrolling.
+                VStack(alignment: .leading, spacing: Theme.grid * 1.5) {
+                    if let title {
+                        title
+                            .padding(.horizontal, Theme.margin - MapListLayout.sideMargin)
+                    }
+                    MapPlaceActions(actions: actions(situation: situation, speaksLocal: speaksLocal))
+                        .padding(.top, Theme.grid / 2)
                 }
-                MapPlaceActions(actions: actions(situation: situation, speaksLocal: speaksLocal))
-                    .padding(.top, Theme.grid / 2)
-                hereOrPreview(situation: situation)
-                if let why = place.why {
-                    whyCard(why)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                    if abs(model.cardActionsHeight - height) > 0.5 { model.cardActionsHeight = height }
                 }
-                cardSection(situation: situation, speaksLocal: speaksLocal)
-                if case .droppedPin = place.source {} else if let address = place.place.address {
-                    Text(address)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .padding(.horizontal, Theme.grid)
+                // Collapsed, the card is its name and round buttons only:
+                // nothing below them shows, not even an edge of Look Around.
+                VStack(alignment: .leading, spacing: Theme.cardSpacing) {
+                    if let scene {
+                        lookAroundPreview(scene)
+                    }
+                    hereOrPreview(situation: situation)
+                    if let why = place.why {
+                        whyCard(why)
+                    }
+                    cardSection(situation: situation, speaksLocal: speaksLocal)
+                    if case .droppedPin = place.source {} else if let address = place.place.address {
+                        Text(address)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .padding(.horizontal, Theme.grid)
+                    }
                 }
+                .opacity(isCollapsed ? 0 : 1)
+                .accessibilityHidden(isCollapsed)
+                .animation(.smooth(duration: 0.2), value: isCollapsed)
             }
             .padding(.horizontal, MapListLayout.sideMargin)
             .padding(.bottom, Theme.grid * 4)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .scrollPosition($scroll)
         .debugLaunchScrollAnchor()
+        .onChange(of: model.detent) { _, detent in
+            // Collapsed, the card shows its name and round buttons.
+            if detent == .small { withAnimation(.smooth) { scroll.scrollTo(edge: .top) } }
+        }
         .lookAroundViewer(isPresented: $isLookingAround, initialScene: scene)
         .task(id: place.id) {
             guard lookAround == nil, let found = await PlaceThumbnailLoader.shared.scene(for: place.place) else { return }
@@ -500,8 +556,9 @@ struct MapPlaceCard: View {
         case "lookaround":
             for _ in 0..<40 where lookAround == nil { try? await Task.sleep(for: .milliseconds(250)) }
             isLookingAround = lookAround != nil
-        case "close":
-            try? await Task.sleep(for: .seconds(1.5))
+        case "close", "back":
+            // A restarted task runs this again; a cancelled one mustn't go back early.
+            do { try await Task.sleep(for: MapDebugOptions.backDelay ?? .seconds(1.5)) } catch { return }
             model.back()
         default: break
         }

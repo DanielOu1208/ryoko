@@ -169,10 +169,16 @@ struct MapPlaceList: View {
     let onSelect: (MapPlace) -> Void
     let onRetryPicks: () -> Void
     let onFindMe: () -> Void
+    /// The list's header, here at the top when it doesn't fit the pinned
+    /// header (accessibility text sizes); otherwise nil.
+    var header: MapListHeader?
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
+                if let header {
+                    header
+                }
                 if hasSituation {
                     picksSection
                     nearbySection

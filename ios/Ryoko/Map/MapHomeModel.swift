@@ -49,22 +49,39 @@ final class MapHomeModel {
 
     // MARK: Panel
 
-    var panel: Panel = .list
-    var detent: MapSheetDetent = .medium
-    /// Where closing a card goes: the list or results, at the size it had.
-    @ObservationIgnored private var returnPanel: Panel = .list
-    @ObservationIgnored private var returnDetent: MapSheetDetent = .medium
-    /// A card opened by tapping the map: deselecting closes it.
-    private(set) var detailsFromMap = false
-
-    var details: MapPlace? {
-        if case let .details(place) = panel { place } else { nil }
+    /// What the panel shows under a card: the list, or search results.
+    enum Base: Equatable {
+        case list
+        case results(query: String)
     }
+
+    /// The list or results. Stays alive under an open card, so Back finds it
+    /// where you left it, scroll position included.
+    private(set) var base: Base = .list
+    /// The open place card, shown in place of `base` (Apple Maps style).
+    private(set) var card: MapPlace?
+    var detent: MapSheetDetent = .medium
+    /// The size `base` had when a card opened: Back returns to it.
+    @ObservationIgnored private var returnDetent: MapSheetDetent = .medium
+
+    /// What the panel shows now.
+    var panel: Panel {
+        if let card { return .details(card) }
+        switch base {
+        case .list: return .list
+        case let .results(query): return .results(query: query)
+        }
+    }
+
+    var details: MapPlace? { card }
 
     /// What the open card has learned about its place, for the card's header:
     /// its area (city, time zone) and its local-script name from the place card.
     var detailsArea: PlaceArea?
     var detailsLocalName: String?
+    /// The height of the card's round buttons with their spacing, measured by
+    /// the card: collapsed, a card shows its header and these.
+    var cardActionsHeight: CGFloat = 96
 
     // MARK: Map
 
@@ -76,22 +93,42 @@ final class MapHomeModel {
     /// The map's safe area (between the search field and the resting list),
     /// in global coordinates: camera positions are framed in it.
     @ObservationIgnored private(set) var mapSafeArea: CGRect?
-    /// The map left visible above a card at its large size, in global
-    /// coordinates.
-    @ObservationIgnored private(set) var cardStrip: CGRect?
+    /// The map left visible above a card at each panel size, in global
+    /// coordinates. The card's place is centred in the one for `detent`.
+    @ObservationIgnored private(set) var cardViewports: CardViewports?
     /// A card that opened before the screen was measured (a cold start from
     /// the Live Activity), to frame again once it is.
     @ObservationIgnored private var pendingCardFocus: (id: String, coordinate: Coordinate)?
+    /// The last framing, so the same card at the same size isn't framed twice.
+    @ObservationIgnored private var lastCardFocus: (id: String, viewport: CGRect)?
     /// Your live location, to frame it with a card's place when it's close.
     @ObservationIgnored var userLocation: Coordinate?
 
-    /// `MapView`'s measurements, whenever they change.
-    func setMapGeometry(safeArea: CGRect, cardStrip strip: CGRect) {
+    /// The map visible above a card at each panel size.
+    struct CardViewports: Equatable {
+        var small: CGRect
+        var medium: CGRect
+        var large: CGRect
+
+        func rect(for detent: MapSheetDetent) -> CGRect {
+            switch detent {
+            case .small: small
+            case .medium: medium
+            case .large: large
+            }
+        }
+    }
+
+    /// `MapView`'s measurements, whenever they change. An open card is
+    /// framed again when the map above it changes.
+    func setMapGeometry(safeArea: CGRect, cardViewports viewports: CardViewports) {
         mapSafeArea = safeArea
-        cardStrip = strip
+        cardViewports = viewports
         if let pending = pendingCardFocus {
             pendingCardFocus = nil
-            if details?.id == pending.id { focusCard(on: pending.coordinate) }
+            if card?.id == pending.id { focusCard(on: pending.coordinate) }
+        } else {
+            followCard()
         }
     }
 
@@ -244,22 +281,24 @@ final class MapHomeModel {
 
     // MARK: - Cards
 
-    /// Opens `place`'s card in the panel (design §4.7): almost full height,
-    /// with the map gliding so the place sits, highlighted, in the strip of
-    /// map above it. Nothing about the situation changes.
-    func showDetails(_ place: MapPlace, fromMap: Bool) {
-        if details == nil {
-            returnPanel = panel
+    /// Opens `place`'s card in place of the list or results (design §4.7), at
+    /// the panel's size (the resting size when it was collapsed), with the map
+    /// gliding so the place sits, highlighted, in the map above it. With a
+    /// card already open, the new one replaces it, and Back still goes to the
+    /// list. Nothing about the situation changes.
+    func showDetails(_ place: MapPlace) {
+        if card == nil {
             returnDetent = detent
         }
-        if details?.id != place.id {
+        if card?.id != place.id {
             detailsArea = place.area
             detailsLocalName = nil
+            lastCardFocus = nil
         }
-        panel = .details(place)
-        detailsFromMap = fromMap
-        detent = .large
-        if !fromMap, let tag = markerTag(for: place) {
+        card = place
+        if detent == .small { detent = .medium }
+        // A tapped map feature is already selected (and has no tag).
+        if let tag = markerTag(for: place) {
             selection = MapSelection(tag)
         }
         focusCard(on: place.place.coordinate)
@@ -268,31 +307,33 @@ final class MapHomeModel {
     /// Replaces the place on the card with a fuller version of the same place
     /// (a map item arriving after a tap).
     func refineDetails(_ place: MapPlace, replacing placeholder: MapPlace) {
-        guard details == placeholder else { return }
+        guard card == placeholder else { return }
         if detailsArea == nil { detailsArea = place.area }
-        panel = .details(place)
+        card = place
     }
 
-    /// Closes the card (back to the list or results at the size they had),
-    /// or the results (back to the list). The map stays where it is.
+    /// Back from a card to the list or results, at the size and scroll
+    /// position they had; or from results to the list. The map stays where
+    /// it is.
     func back() {
-        switch panel {
-        case .details:
-            panel = returnPanel
+        if card != nil {
+            card = nil
             detent = returnDetent
-        case .results:
-            panel = .list
+        } else if case .results = base {
+            base = .list
             searchResults = []
             detent = .medium
-        case .list:
+        } else {
             return
         }
-        detailsFromMap = false
         detailsArea = nil
         detailsLocalName = nil
+        lastCardFocus = nil
+        // The only place code clears the selection, and the card has gone by
+        // then: `MapView` reads a nil selection under a card as a map tap.
         selection = nil
         droppedPin = nil
-        if case .list = panel { searchResults = [] }
+        if base == .list { searchResults = [] }
     }
 
     /// The tag of the marker that shows `place` on the map, so its card can
@@ -315,12 +356,18 @@ final class MapHomeModel {
         searchResults = places
         droppedPin = nil
         if places.count == 1, let only = places.first {
-            returnPanel = .list
-            returnDetent = .medium
-            showDetails(only, fromMap: false)
+            base = .list
+            showDetails(only)
             return
         }
-        panel = .results(query: query)
+        if card != nil {
+            card = nil
+            detailsArea = nil
+            detailsLocalName = nil
+            lastCardFocus = nil
+            selection = nil
+        }
+        base = .results(query: query)
         detent = .medium
         fit(places.map(\.place.coordinate))
     }
@@ -337,7 +384,7 @@ final class MapHomeModel {
             displayName: "Dropped pin"
         )
         droppedPin = placeholder
-        showDetails(placeholder, fromMap: false)
+        showDetails(placeholder)
 
         guard let request = MKReverseGeocodingRequest(location: coordinate.mapKitLocation),
               let item = try? await request.mapItems.first else { return }
@@ -403,35 +450,47 @@ final class MapHomeModel {
     /// Your location is framed with a card's place within this distance.
     static let cardFrameUserRadius: CLLocationDistance = 1_000
     /// A marker's balloon sits above its point: aim the point this far below
-    /// the strip's middle, so the pin looks centred.
+    /// the visible map's middle, so the pin looks centred.
     static let markerLift: CGFloat = 22
 
+    /// Frames the open card's place again for the panel's current size: after
+    /// a resize, or when the screen's measurements change.
+    func followCard() {
+        guard let card else { return }
+        focusCard(on: card.place.coordinate)
+    }
+
     /// Glides the camera, north up, so `coordinate` sits in the middle of the
-    /// strip of map above a card (`cardStrip`), at street level. Your location
-    /// is framed too when it's within 1 km and still fits.
+    /// map visible above the card at its current size (`cardViewports`), at
+    /// street level. Your location is framed too when it's within 1 km and
+    /// still fits.
     ///
     /// The map's safe area (`mapSafeArea`) doesn't follow the panel, so the
     /// camera's centre stays at its middle: the region is centred off the
-    /// place by however far the strip's middle is from there, and sized to
-    /// the safe area so MapKit frames it exactly.
+    /// place by however far the visible map's middle is from there, and sized
+    /// to the safe area so MapKit frames it exactly.
     func focusCard(on coordinate: Coordinate) {
-        guard let safeArea = mapSafeArea, let strip = cardStrip,
+        guard let safeArea = mapSafeArea, let viewport = cardViewports?.rect(for: detent),
               safeArea.width > 0, safeArea.height > 0 else {
-            if let details { pendingCardFocus = (details.id, coordinate) }
+            if let card { pendingCardFocus = (card.id, coordinate) }
             focus(on: coordinate, meters: 700)
             return
         }
+        if let card {
+            if let last = lastCardFocus, last.id == card.id, last.viewport == viewport { return }
+            lastCardFocus = (card.id, viewport)
+        }
         #if DEBUG
-        RyokoLog.places.info("Card focus on \(coordinate.lat), \(coordinate.lon): safe area \(String(describing: safeArea), privacy: .public), strip \(String(describing: strip), privacy: .public)")
+        RyokoLog.places.info("Card focus on \(coordinate.lat), \(coordinate.lon) at \(String(describing: self.detent), privacy: .public): safe area \(String(describing: safeArea), privacy: .public), viewport \(String(describing: viewport), privacy: .public)")
         #endif
-        let target = CGPoint(x: strip.midX, y: strip.midY + Self.markerLift)
+        let target = CGPoint(x: viewport.midX, y: viewport.midY + Self.markerLift)
         var metersPerPoint = Self.cardMetersPerPoint
         if let user = userLocation, user.mapDistance(to: coordinate) <= Self.cardFrameUserRadius {
             let offset = coordinate.mapVector(to: user)
             let margin: CGFloat = 28
-            let halfWidth = max(min(target.x - strip.minX, strip.maxX - target.x) - margin, 1)
-            let above = max(target.y - strip.minY - margin, 1)
-            let below = max(strip.maxY - target.y - margin, 1)
+            let halfWidth = max(min(target.x - viewport.minX, viewport.maxX - target.x) - margin, 1)
+            let above = max(target.y - viewport.minY - margin, 1)
+            let below = max(viewport.maxY - target.y - margin, 1)
             let needed = max(
                 abs(offset.east) / Double(halfWidth),
                 offset.north > 0 ? offset.north / Double(above) : -offset.north / Double(below)

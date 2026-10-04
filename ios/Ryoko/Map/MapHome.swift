@@ -156,12 +156,13 @@ extension MapPlace {
 /// The bottom panel's three snap points (Apple Maps style; sizes in
 /// `MapSheetMetrics`).
 enum MapSheetDetent: Int, CaseIterable, Comparable {
-    /// Just the header.
+    /// Just the header (a card: its name and round buttons).
     case small
-    /// About 45% of the space: where the list rests.
+    /// About 60% of the space: where the list rests. A card opens at the
+    /// list's size, or here when the list was collapsed.
     case medium
     /// The list up to the search field, or a card almost full height with a
-    /// strip of map above it. Cards open here.
+    /// strip of map above it.
     case large
 
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
