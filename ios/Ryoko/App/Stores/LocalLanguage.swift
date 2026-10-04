@@ -59,3 +59,18 @@ nonisolated struct LocalLanguage: Hashable, Sendable {
         return folded == "qc" || folded == "quebec" || folded == "ca-qc"
     }
 }
+
+nonisolated extension Profile {
+    /// Whether you speak `language` (a BCP-47 tag): the home language or a
+    /// spoken one, compared by primary subtag (`en-CA` speaks `en`; `zh-Hans`
+    /// speaks `zh-Hant`). Where you do, place cards show tips only, with no
+    /// phrases or allergy card (design §4.7), and there's no Live Activity.
+    func speaks(_ language: String) -> Bool {
+        let target = Self.primarySubtag(language)
+        return ([homeLanguage] + (spokenLanguages ?? [])).contains { Self.primarySubtag($0) == target }
+    }
+
+    private static func primarySubtag(_ tag: String) -> String {
+        String(tag.split(whereSeparator: { $0 == "-" || $0 == "_" }).first ?? "").lowercased()
+    }
+}

@@ -291,7 +291,7 @@ struct MapPlaceRow: View {
 
     let place: MapPlace
     let languageTag: String?
-    var selectHint = "Makes this your place and opens Nearby"
+    var selectHint = "Opens this place's card"
     let onSelect: () -> Void
     let onDetails: () -> Void
 

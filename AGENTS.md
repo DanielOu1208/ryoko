@@ -20,7 +20,7 @@ Ryoko is an iOS travel app. **Mimo** is its agent, served by a Node server. Befo
 | `ios/Ryoko.xcodeproj` | Integrator only. Nobody else edits `project.pbxproj` |
 | `ios/Shared/` | W2 shell. Shared types and protocols, compiled into the app **and** the widget extension |
 | `ios/Ryoko/App/` | W2 shell (tabs, theme, stores, API client) |
-| `ios/Ryoko/Nearby/`, `ios/Ryoko/Show/` | W3 Nearby and cards |
+| `ios/Ryoko/Show/` | W3 cards (Show mode, allergy, taxi). Nearby is removed; its pieces live in `Map/` |
 | `ios/Ryoko/Map/` | W4 Map (the home screen and its bottom sheet) |
 | `ios/Ryoko/Translate/` | W5 Translate |
 | `ios/Ryoko/Mimo/` | W6 Mimo tab |

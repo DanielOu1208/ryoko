@@ -1,9 +1,10 @@
 import Foundation
 import os
 
-/// The last place card Nearby showed for each place, saved on the device, so a
-/// failed load can fall back to it (design §4.12: offline shows the last cached
-/// card, marked as such). Only Nearby reads it; the server keeps its own cache.
+/// The last place card shown for each place, saved on the device, so a failed
+/// load can fall back to it (design §4.12: offline shows the last cached card,
+/// marked as such). Only the Map's place card reads it; the server keeps its
+/// own cache, and `MapHomeModel` keeps this session's cards in memory.
 ///
 /// Keyed by the place (its MapKit id, or name plus coordinates) and the local
 /// language, or by the city for a city-only situation. Holds the most recent
@@ -76,11 +77,11 @@ final class PlaceCardCache {
             encoder.dateEncodingStrategy = .iso8601
             try encoder.encode(entries).write(to: fileURL, options: .atomic)
         } catch {
-            RyokoLog.nearby.error("Couldn't save the place card: \(String(describing: error), privacy: .public)")
+            RyokoLog.placeCards.error("Couldn't save the place card: \(String(describing: error), privacy: .public)")
         }
     }
 }
 
 extension RyokoLog {
-    nonisolated static let nearby = Logger(subsystem: subsystem, category: "nearby")
+    nonisolated static let placeCards = Logger(subsystem: subsystem, category: "place-cards")
 }

@@ -88,12 +88,14 @@ struct RyokoApp: App {
 /// DEBUG launch arguments, for exercising the app from the command line:
 ///
 ///     xcrun simctl launch booted com.danielou.ryoko \
-///       -RyokoAPIMode fixture -RyokoSamplePreview 19 -RyokoInitialTab now
+///       -RyokoAPIMode fixture -RyokoSamplePreview 19 -RyokoInitialTab map
 ///
 /// - `-RyokoAPIMode fixture|live`: which API to use, for this launch only.
 /// - `-RyokoSamplePreview <hour>`: preview the sample Tokyo ramen shop at that
 ///   local hour.
-/// - `-RyokoInitialTab now|map|translate|mimo|me`: the tab to open on.
+/// - `-RyokoInitialTab map|translate|mimo|me`: the tab to open on. The old
+///   `nearby` and `now` open the Map, where Nearby's place card now lives.
+/// - Map (`-RyokoMapCard`, `-RyokoMapDetails`, …): see `MapDebugOptions`.
 /// - `-RyokoScrollToBottom 1`: open scrolling screens at the end (screenshots).
 /// - `-RyokoAutoConfirm 1`: in live mode, confirm the nearest place once found.
 /// - Live Activity (`-RyokoOpenURL`, `-RyokoActivityGallery`): see
@@ -117,7 +119,10 @@ enum DebugLaunchOptions {
     }
 
     static var initialTab: AppTab? {
-        UserDefaults.standard.string(forKey: initialTabKey).flatMap(AppTab.init(rawValue:))
+        guard let name = UserDefaults.standard.string(forKey: initialTabKey) else { return nil }
+        // Nearby was merged into the Map: its place card is the Map's sheet.
+        if name == "nearby" || name == "now" { return .map }
+        return AppTab(rawValue: name)
     }
 
     static var scrollAnchor: UnitPoint? {

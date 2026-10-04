@@ -270,7 +270,7 @@ private struct MapHomeScreen: View {
                     languageTag: situation?.localLanguage,
                     hasSituation: situation != nil && anchor != nil,
                     liveState: situationStore.liveState,
-                    onSelect: { makeCurrent($0, area: nil, anchor: anchor) },
+                    onSelect: { model.showDetails($0, fromMap: false) },
                     onDetails: { model.showDetails($0, fromMap: false) },
                     onRetryPicks: { model.picksAttempt += 1 },
                     onFindMe: { situationStore.refresh() },
@@ -335,7 +335,7 @@ private struct MapHomeScreen: View {
 
     // MARK: Actions
 
-    /// Makes `place` the current place, then opens Nearby (design §4.7).
+    /// Makes `place` the current place (design §4.7). You stay on the Map.
     private func makeCurrent(_ place: MapPlace, area knownArea: PlaceArea?, anchor: Coordinate?) {
         Task {
             var area = knownArea
@@ -349,7 +349,6 @@ private struct MapHomeScreen: View {
                 area: area
             ))
             confirmations += 1
-            router.openNearby()
         }
     }
 
@@ -425,6 +424,17 @@ private struct MapHomeScreen: View {
             if model.details != nil { model.back() }
             model.detent = .small
             model.fit(router.fromMimo.map(\.resolved.place.coordinate))
+        case .currentPlace:
+            guard let place = situationStore.situation?.place else { return }
+            model.showDetails(
+                MapPlace(
+                    place: place,
+                    source: .focus,
+                    timeZone: situationStore.situation?.zone,
+                    distanceMeters: anchor.map { place.coordinate.mapDistance(to: $0) }
+                ),
+                fromMap: false
+            )
         }
     }
 
