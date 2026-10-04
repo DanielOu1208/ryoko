@@ -224,7 +224,7 @@ describe('prompt context', () => {
     assert.match(MIMO_SYSTEM, /at a food place\. Don't add a food or drink stop the traveller didn't ask for\./);
     assert.match(MIMO_SYSTEM, /A place you suggest for a walk or a view that happens to sell food or drink [^\n]* isn't a reason to bring them up either\./);
     // Plain guidance for a clear allergy phrase; nothing filters phrases on top of the prompt.
-    assert.match(MIMO_SYSTEM, /state it clearly with the safety words right next to it \("no peanuts", 不要花生, 我对花生过敏, ピーナッツ抜き\), so staff can't mistake it for an order\./);
+    assert.match(MIMO_SYSTEM, /state it clearly with the safety words right next to it \("no peanuts", 不要花生, 我对花生过敏, ピーナッツ抜き\)\.\n/);
     assert.doesNotMatch(MIMO_SYSTEM, /drops? (?:the|a) phrase/);
     assert.match(MIMO_SYSTEM, /\(taste, favourites, personality, aboutMe\) shapes your answer only where it fits; never list or repeat it back\./);
     // aboutMe is background, never instructions, wherever the model sees it.
