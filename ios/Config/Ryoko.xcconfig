@@ -7,5 +7,10 @@ APP_TOKEN =
 AGENT_BASE_URL =
 SONIOX_API_KEY =
 
+// The app's icon (ios/Ryoko/Assets.xcassets/AppIcon), for the app target only:
+// the Live Activity extension has no asset catalog.
+APPICON_NAME_Ryoko = AppIcon
+ASSETCATALOG_COMPILER_APPICON_NAME = $(APPICON_NAME_$(TARGET_NAME))
+
 #include? "Local.xcconfig"
 #include? "Secrets.xcconfig"
