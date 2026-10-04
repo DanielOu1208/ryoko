@@ -12,6 +12,12 @@ nonisolated struct LiveRyokoAPI: RyokoAPI {
 
     /// Seconds a JSON request may take. Place cards target under 3 s.
     static let jsonTimeout: TimeInterval = 30
+    /// Seconds a typed translation may take (about 1.5 s on GMI). A newer
+    /// keystroke usually cancels it long before.
+    static let translateTimeout: TimeInterval = 15
+    /// Seconds to wait for a Soniox key before listening falls back to the
+    /// build's key: starting to listen shouldn't hang on a slow server.
+    static let sonioxKeyTimeout: TimeInterval = 6
     /// Seconds a Mimo stream may go without a byte. The server pings every 15 s
     /// and gives up on a run after 25–30 s.
     static let streamIdleTimeout: TimeInterval = 45
@@ -34,6 +40,14 @@ nonisolated struct LiveRyokoAPI: RyokoAPI {
 
     func allergyCard(_ request: AllergyCardRequest) async throws -> AllergyCardResponse {
         try await postJSON("v1/allergy-card", body: request)
+    }
+
+    func translate(_ request: TranslateRequest) async throws -> TranslateResponse {
+        try await postJSON("v1/translate", body: request, timeout: Self.translateTimeout)
+    }
+
+    func sonioxKey() async throws -> SonioxKeyResponse {
+        try await postJSON("v1/soniox-key", body: SonioxKeyRequest(), timeout: Self.sonioxKeyTimeout)
     }
 
     func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error> {
@@ -63,7 +77,8 @@ nonisolated struct LiveRyokoAPI: RyokoAPI {
     @concurrent
     private func postJSON<Body: Encodable & Sendable, Response: Decodable & Sendable>(
         _ path: String,
-        body: Body
+        body: Body,
+        timeout: TimeInterval = LiveRyokoAPI.jsonTimeout
     ) async throws -> Response {
         let config = try configuration()
         let urlRequest = try Self.makeRequest(
@@ -71,7 +86,7 @@ nonisolated struct LiveRyokoAPI: RyokoAPI {
             config: config,
             body: body,
             accept: "application/json",
-            timeout: Self.jsonTimeout
+            timeout: timeout
         )
         let started = ContinuousClock.now
         let data: Data

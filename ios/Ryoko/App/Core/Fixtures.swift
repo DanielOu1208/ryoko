@@ -22,6 +22,11 @@ nonisolated enum FixtureFile: String, CaseIterable, Sendable {
     case allergyCardResponse = "allergy-card.response.json"
     case allergyCardZhHansRequest = "allergy-card.zh-hans.request.json"
     case allergyCardZhHansResponse = "allergy-card.zh-hans.response.json"
+    case translateRequest = "translate.request.json"
+    case translateResponse = "translate.response.json"
+    case translateTokyoRequest = "translate.tokyo.request.json"
+    case translateTokyoResponse = "translate.tokyo.response.json"
+    case sonioxKeyResponse = "soniox-key.response.json"
     case mimoMessageRequest = "mimo-message.request.json"
     case mimoStream = "mimo.sse.txt"
     case mimoStreamZhHans = "mimo.zh-hans.sse.txt"
@@ -65,13 +70,19 @@ nonisolated struct FixtureVariants: Sendable {
         ("ja", .allergyCardResponse),
         ("zh-Hans", .allergyCardZhHansResponse)
     )
+    /// Typed text, by `request.to`: the Shanghai café order (zh-Hans) by default,
+    /// the Tokyo ramen order for Japanese.
+    static let translate = FixtureVariants(
+        ("zh-Hans", .translateResponse),
+        ("ja", .translateTokyoResponse)
+    )
     /// Mimo transcripts: the Tokyo ramen chat (ja) by default, the Shanghai café chat.
     static let mimoStream = FixtureVariants(
         ("ja", .mimoStream),
         ("zh-Hans", .mimoStreamZhHans)
     )
 
-    static let all: [FixtureVariants] = [placeCard, discover, allergyCard, mimoStream]
+    static let all: [FixtureVariants] = [placeCard, discover, allergyCard, translate, mimoStream]
 
     private init(_ defaultVariant: (String, FixtureFile), _ others: (String, FixtureFile)...) {
         variants = ([defaultVariant] + others).map { Variant(language: $0.0, file: $0.1) }

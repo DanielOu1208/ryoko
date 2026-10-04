@@ -34,6 +34,11 @@ allergy-card.request.json
 allergy-card.response.json
 allergy-card.zh-hans.request.json
 allergy-card.zh-hans.response.json
+translate.request.json
+translate.response.json
+translate.tokyo.request.json
+translate.tokyo.response.json
+soniox-key.response.json
 mimo-message.request.json
 mimo.sse.txt
 mimo.zh-hans.sse.txt

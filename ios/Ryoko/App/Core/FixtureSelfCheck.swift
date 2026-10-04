@@ -70,6 +70,9 @@ nonisolated enum FixtureSelfCheck {
             case .discoverResponse, .discoverTokyoResponse: try roundTrip(DiscoverResponse.self, data)
             case .allergyCardRequest, .allergyCardZhHansRequest: try roundTrip(AllergyCardRequest.self, data)
             case .allergyCardResponse, .allergyCardZhHansResponse: try roundTrip(AllergyCardResponse.self, data)
+            case .translateRequest, .translateTokyoRequest: try roundTrip(TranslateRequest.self, data)
+            case .translateResponse, .translateTokyoResponse: try roundTrip(TranslateResponse.self, data)
+            case .sonioxKeyResponse: try roundTrip(SonioxKeyResponse.self, data)
             case .mimoMessageRequest: try roundTrip(MimoMessageRequest.self, data)
             case .errorInvalidRequest, .errorSessionBusy: try roundTrip(ErrorEnvelope.self, data)
             case .mimoStream, .mimoStreamZhHans: break
@@ -81,7 +84,9 @@ nonisolated enum FixtureSelfCheck {
     /// Every endpoint response and transcript must be in a `FixtureVariants` table, for
     /// the language the server reads from it: its request's, or its phrases'.
     private static func checkVariantLanguage(_ file: FixtureFile, source: FixtureSource) throws {
-        let isVariant = file.isTranscript || (file.fileName.hasSuffix(".response.json") && !file.fileName.hasPrefix("error."))
+        // The Soniox key has one example and no language: it isn't a variant.
+        let isVariant = file.isTranscript
+            || (file.fileName.hasSuffix(".response.json") && !file.fileName.hasPrefix("error.") && file != .sonioxKeyResponse)
         guard isVariant else { return }
         guard let declared = FixtureVariants.all.flatMap(\.variants).first(where: { $0.file == file })?.language else {
             throw CheckError("not in any FixtureVariants table")
@@ -103,6 +108,8 @@ nonisolated enum FixtureSelfCheck {
                 actual = [try decoder.decode(DiscoverRequest.self, from: data).situation.localLanguage]
             case .allergyCardRequest, .allergyCardZhHansRequest:
                 actual = [try decoder.decode(AllergyCardRequest.self, from: data).language]
+            case .translateRequest, .translateTokyoRequest:
+                actual = [try decoder.decode(TranslateRequest.self, from: data).to]
             default:
                 throw CheckError("\(requestName) isn't an endpoint request")
             }

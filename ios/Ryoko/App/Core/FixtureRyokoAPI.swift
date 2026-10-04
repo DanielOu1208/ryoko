@@ -10,6 +10,10 @@ import Foundation
 ///   (Menya Kaze, Shinjuku picks); anything else gets Shanghai (Wutong Coffee, Jing'an picks).
 /// - Allergy card: by `request.language`. Chinese gets the kiwi card; anything else
 ///   the Japanese buckwheat card.
+/// - Translate: by `request.to`. Japanese gets the ramen order; anything else the
+///   café order, whatever was typed. The same language comes back as typed.
+/// - Soniox key: there's no key server, so it throws `.notConfigured` and
+///   Translate falls back to the build's key, as it does offline.
 /// - Mimo: by `situation.localLanguage`. Chinese replays `mimo.zh-hans.sse.txt`;
 ///   anything else `mimo.sse.txt`. Event by event, with the requested session id.
 nonisolated struct FixtureRyokoAPI: RyokoAPI {
@@ -42,6 +46,19 @@ nonisolated struct FixtureRyokoAPI: RyokoAPI {
     func allergyCard(_ request: AllergyCardRequest) async throws -> AllergyCardResponse {
         try await respond()
         return try load(AllergyCardResponse.self, FixtureVariants.allergyCard.file(for: request.language))
+    }
+
+    func translate(_ request: TranslateRequest) async throws -> TranslateResponse {
+        try await respond()
+        if request.from.lowercased() == request.to.lowercased() {
+            return TranslateResponse(translation: request.text.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return try load(TranslateResponse.self, FixtureVariants.translate.file(for: request.to))
+    }
+
+    func sonioxKey() async throws -> SonioxKeyResponse {
+        try await respond()
+        throw RyokoAPIError.notConfigured("fixtures have no Soniox key server")
     }
 
     func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error> {

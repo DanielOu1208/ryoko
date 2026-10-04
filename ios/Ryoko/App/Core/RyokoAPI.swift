@@ -15,6 +15,15 @@ nonisolated protocol RyokoAPI: Sendable {
     /// `POST /v1/allergy-card`: free-text allergens only. Chip allergens use the templates.
     func allergyCard(_ request: AllergyCardRequest) async throws -> AllergyCardResponse
 
+    /// `POST /v1/translate`: typed or edited text in Translate (tier 2).
+    /// Cancelling the calling task cancels the request, and the server stops
+    /// the generation unless someone else is waiting for the same text.
+    func translate(_ request: TranslateRequest) async throws -> TranslateResponse
+
+    /// `POST /v1/soniox-key`: a short-lived, single-use Soniox key for one
+    /// listening session (tier 2). The key is a secret: never log it.
+    func sonioxKey() async throws -> SonioxKeyResponse
+
     /// `POST /v1/sessions/:id/messages`: one Mimo run as a stream of events.
     ///
     /// - The stream throws `RyokoAPIError` if the request fails before streaming
@@ -24,6 +33,19 @@ nonisolated protocol RyokoAPI: Sendable {
     /// - Stopping iteration (or cancelling the consuming task) cancels the request,
     ///   which aborts the run on the server.
     func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error>
+}
+
+/// Tier 2 endpoints that a stand-in API (a DEBUG script, a preview) may not
+/// implement: they answer as if there's no server, so Translate falls back the
+/// way it does offline. `LiveRyokoAPI` and `FixtureRyokoAPI` implement both.
+nonisolated extension RyokoAPI {
+    func translate(_ request: TranslateRequest) async throws -> TranslateResponse {
+        throw RyokoAPIError.notConfigured("translate")
+    }
+
+    func sonioxKey() async throws -> SonioxKeyResponse {
+        throw RyokoAPIError.notConfigured("soniox-key")
+    }
 }
 
 /// Everything that can go wrong talking to the server, typed.
