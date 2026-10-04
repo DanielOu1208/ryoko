@@ -220,7 +220,10 @@ describe('prompt context', () => {
   test('Mimo keeps allergies and diet as quiet hard limits, brought up only around food', () => {
     assert.match(MIMO_SYSTEM, /Allergies and diet are hard limits[^\n]*never suggest food or drink that breaks them\./);
     assert.match(MIMO_SYSTEM, /only when the message is about eating or drinking[^\n]*or the traveller asks about them\./);
-    assert.match(MIMO_SYSTEM, /For anything else \(directions, sights[^\n]*\), don't bring them up\./);
+    assert.match(MIMO_SYSTEM, /For anything else \(directions, sights[^\n]*\), don't bring them up, even when the traveller is at a food place\./);
+    // Nor by the back door: an unasked food stop, or a sight that sells food, would bring the allergy phrase with it.
+    assert.match(MIMO_SYSTEM, /at a food place\. Don't add a food or drink stop the traveller didn't ask for\./);
+    assert.match(MIMO_SYSTEM, /A place you suggest for a walk or a view that happens to sell food or drink [^\n]* isn't a reason to bring them up either\./);
     // The phrase filter keeps an allergen only next to its safety words (safety.ts).
     assert.match(MIMO_SYSTEM, /put the safety words right next to it \("no peanuts", 不要花生, 我对花生过敏, ピーナッツ抜き\), or the app drops the phrase\./);
     assert.match(MIMO_SYSTEM, /\(taste, favourites, personality, aboutMe\) shapes your answer only where it fits; never list or repeat it back\./);
