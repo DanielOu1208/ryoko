@@ -255,8 +255,9 @@ struct MimoView: View {
     // MARK: Header
 
     /// Mimo centred at the top, as a contact in Messages: the animated avatar
-    /// with where you are and the local time under it, in one line. History on
-    /// the left and New chat on the right, level with the avatar.
+    /// with where you are and the local time under it, in one line (only the
+    /// avatar before there's a place). History on the left and New chat on the
+    /// right, level with the avatar.
     private func header(at date: Date) -> some View {
         let here = whereAndWhen(at: date)
         return HStack(alignment: .mimoAvatarMiddle) {
@@ -268,10 +269,12 @@ struct MimoView: View {
                     .alignmentGuide(.mimoAvatarMiddle) { $0[VerticalAlignment.center] }
                 // In a glass pill, like a contact's name in Messages, so it
                 // stays readable over the chat scrolling under it. The avatar
-                // and the tab already say Mimo, so the pill says where and when;
-                // a long place name gives way before the time does.
-                HStack(spacing: 0) {
-                    if let here {
+                // and the tab already say Mimo, so the pill says only where and
+                // when, and there's none before there's a place (the Where are
+                // you card covers that); a long place name gives way before
+                // the time does.
+                if let here {
+                    HStack(spacing: 0) {
                         Text(here.place)
                             .lineLimit(1)
                         if let time = here.time {
@@ -280,18 +283,15 @@ struct MimoView: View {
                                 .lineLimit(1)
                                 .fixedSize()
                         }
-                    } else {
-                        Text("Mimo")
-                            .lineLimit(1)
                     }
+                    .font(.subheadline.weight(.medium))
+                    // Like a navigation bar's title, it stops growing at the
+                    // accessibility sizes, so the place still fits beside the time.
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .padding(.horizontal, Theme.grid * 1.75)
+                    .padding(.vertical, Theme.grid / 2)
+                    .glassEffect(.regular, in: .capsule)
                 }
-                .font(.subheadline.weight(.medium))
-                // Like a navigation bar's title, it stops growing at the
-                // accessibility sizes, so the place still fits beside the time.
-                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                .padding(.horizontal, Theme.grid * 1.75)
-                .padding(.vertical, Theme.grid / 2)
-                .glassEffect(.regular, in: .capsule)
             }
             // One heading for VoiceOver, which still names Mimo.
             .accessibilityElement(children: .ignore)
