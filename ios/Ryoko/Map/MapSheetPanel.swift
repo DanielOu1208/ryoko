@@ -227,10 +227,14 @@ struct MapSheetMetrics: Equatable {
         }
     }
 
-    /// The map's bottom safe-area padding: the resting list and its gap, so
-    /// the map's legal notice, your location and fitted pins stay above it.
-    /// It doesn't follow the panel, so resizing the panel never moves the map.
-    var mapBottomPadding: CGFloat { medium + Self.bottomGap }
+    /// The map's bottom safe-area padding for a snapped height: the sheet and
+    /// its gap, so the Apple Maps logo and legal notice, your location and
+    /// fitted pins sit just above it. It follows the sheet only once it
+    /// settles (never during a drag), and stops at the resting height: a
+    /// large sheet covers the map anyway, as in Apple Maps.
+    func mapBottomPadding(for detent: MapSheetDetent) -> CGFloat {
+        min(height(for: detent), medium) + Self.bottomGap
+    }
 }
 
 extension MapSheetDetent {
