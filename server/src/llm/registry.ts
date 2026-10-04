@@ -68,7 +68,7 @@ export function outputBudget(maxTokens: number, options: SimpleStreamOptions): n
 /** What a skill needs to call its model. */
 export interface SkillModel {
   model: Model<Api>;
-  /** Stable id for cache keys and logs, e.g. `gmi:deepseek-ai/DeepSeek-V4.1-Flash`. */
+  /** Stable id for cache keys and logs, with the thinking level when it's on, e.g. `gmi:deepseek-ai/DeepSeek-V4.1-Flash@low`. */
   key: string;
   /** Options for every request: reasoning, low retry delays. Add maxTokens and signal per call. */
   options: SimpleStreamOptions;
@@ -157,7 +157,8 @@ export function createLlm(config: Config): Llm {
       }
       return {
         model,
-        key: `${spec.provider}:${spec.modelId}`,
+        // With the thinking level, so changing it regenerates cached results.
+        key: describeModel(spec),
         options: { ...BASE_REQUEST_OPTIONS, ...(spec.reasoning === 'off' ? {} : { reasoning: spec.reasoning as ThinkingLevel }) },
       };
     },

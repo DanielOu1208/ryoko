@@ -149,7 +149,7 @@ describe('per-skill model config', () => {
     assert.deepEqual(gmi.model.thinkingLevelMap, { off: 'none' });
     assert.equal(gmi.options.reasoning, undefined); // thinking off
     const google = await llm.forSkill('discover');
-    assert.equal(google.key, 'google:gemini-3.8-flash');
+    assert.equal(google.key, 'google:gemini-3.8-flash@low'); // the thinking level is part of the cache key
     assert.equal(google.options.reasoning, 'low');
     const keyless = createLlm(configFromEnv({ APP_TOKEN: 'x', CACHE_DIR: 'off' }));
     const error = await rejectsWith(keyless.forSkill('mimo'), 'model_error');
