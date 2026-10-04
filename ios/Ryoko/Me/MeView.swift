@@ -9,7 +9,7 @@ enum MeRoute: Hashable {
 
 /// The Me tab (design §4.10, #69). The home is about you at a glance:
 /// - a header with your avatar (a symbol you pick), where you're from, the
-///   languages you speak, and your this-or-that answers as chips
+///   languages you speak
 /// - the allergy card, ready to show (tap it to open Show mode)
 /// - diet, your usual and the home base, each opening its editor
 /// - "About me" in your own words
@@ -40,6 +40,8 @@ struct MeView: View {
                 }
             }
             .listSectionSpacing(Theme.grid * 3)
+            // The avatar sits just under the title, without the list's top gap.
+            .contentMargins(.top, Theme.grid, for: .scrollContent)
             .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.interactively)
             .background { SituationGradient() }

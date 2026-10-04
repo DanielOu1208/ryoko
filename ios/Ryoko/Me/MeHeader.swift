@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The top of Me (design §4.10, #69): your avatar, where you're from, the
-/// languages you speak, and your this-or-that answers as chips.
+/// The top of Me (design §4.10, #69): your avatar, where you're from and the
+/// languages you speak.
 ///
 /// The profile has no name or photo, so the avatar is an SF Symbol you pick,
 /// kept on this device only (`AppSettings`-style storage, not the profile, so
@@ -37,28 +37,8 @@ struct MeHeader: View {
                 .multilineTextAlignment(.center)
                 .accessibilityElement(children: .combine)
 
-                let chips = Self.chips(for: profile.personality)
-                if !chips.isEmpty {
-                    MeChipFlow(spacing: Theme.grid) {
-                        ForEach(chips, id: \.text) { chip in
-                            HStack(spacing: 6) {
-                                Image(systemName: chip.symbol)
-                                    .foregroundStyle(.secondary)
-                                Text(chip.text)
-                            }
-                            .font(.footnote.weight(.medium))
-                            .lineLimit(1)
-                            .fixedSize()
-                            .padding(.horizontal, Theme.grid * 1.5)
-                                .padding(.vertical, 6)
-                                .background(Theme.cardFill, in: .capsule)
-                        }
-                    }
-                    .accessibilityElement(children: .combine)
-                }
             }
             .frame(maxWidth: .infinity)
-            .padding(.top, Theme.grid) // room for the avatar's shadow
         }
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets())
@@ -97,30 +77,6 @@ struct MeHeader: View {
         }
         let names = tags.map(ProfileWording.language)
         return "Speaks \(names.formatted(.list(type: .and)))"
-    }
-
-    struct Chip {
-        var text: String
-        var symbol: String
-    }
-
-    /// The this-or-that answers, each with a symbol. Skipped ones are left out.
-    static func chips(for personality: Personality?) -> [Chip] {
-        guard let personality else { return [] }
-        var chips: [Chip] = []
-        if let rhythm = personality.rhythm {
-            chips.append(Chip(text: ProfileWording.rhythm(rhythm), symbol: rhythm == .earlyBird ? "sunrise" : "moon.stars"))
-        }
-        if let food = personality.food {
-            chips.append(Chip(text: ProfileWording.food(food), symbol: food == .localFavourite ? "fork.knife" : "cup.and.saucer"))
-        }
-        if let budget = personality.budget {
-            chips.append(Chip(text: ProfileWording.budget(budget), symbol: budget == .save ? "banknote" : "bag"))
-        }
-        if let vibe = personality.vibe {
-            chips.append(Chip(text: ProfileWording.vibe(vibe), symbol: vibe == .quiet ? "leaf" : "music.note"))
-        }
-        return chips
     }
 }
 
@@ -201,56 +157,5 @@ private struct MeAvatarPicker: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - Chips
-
-/// Lays its children out in rows, centred, wrapping when a row is full.
-struct MeChipFlow: Layout {
-    var spacing: CGFloat
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let rows = rows(for: subviews, width: proposal.width ?? .infinity)
-        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
-        let width = rows.map(\.width).max() ?? 0
-        return CGSize(width: proposal.width ?? width, height: height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var y = bounds.minY
-        for row in rows(for: subviews, width: bounds.width) {
-            var x = bounds.midX - row.width / 2
-            for index in row.indices {
-                let size = subviews[index].sizeThatFits(.unspecified)
-                subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2), proposal: ProposedViewSize(size))
-                x += size.width + spacing
-            }
-            y += row.height + spacing
-        }
-    }
-
-    private struct Row {
-        var indices: [Int] = []
-        var width: CGFloat = 0
-        var height: CGFloat = 0
-    }
-
-    private func rows(for subviews: Subviews, width: CGFloat) -> [Row] {
-        var rows: [Row] = []
-        var row = Row()
-        for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
-            let added = row.indices.isEmpty ? size.width : row.width + spacing + size.width
-            if added > width, !row.indices.isEmpty {
-                rows.append(row)
-                row = Row()
-            }
-            row.width = row.indices.isEmpty ? size.width : row.width + spacing + size.width
-            row.height = max(row.height, size.height)
-            row.indices.append(index)
-        }
-        if !row.indices.isEmpty { rows.append(row) }
-        return rows
     }
 }

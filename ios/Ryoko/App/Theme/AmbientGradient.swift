@@ -41,12 +41,12 @@ struct AmbientGradient: View {
                 MeshWash(
                     palette: Palette(colorScheme),
                     background: background,
-                    time: context.date.timeIntervalSinceReferenceDate * (mood == .listening ? 0.55 : 0.9),
+                    time: context.date.timeIntervalSinceReferenceDate * (mood == .listening ? 1.1 : 1.6),
                     presence: presence,
                     energy: energy
                 )
             }
-            .frame(height: proxy.size.height * (Theme.gradientHeightFraction + CGFloat(energy) * 0.14))
+            .frame(height: proxy.size.height * (Theme.gradientHeightFraction + CGFloat(energy) * 0.2))
             .frame(maxHeight: .infinity, alignment: .top)
         }
         // The level arrives about eight times a second: ease between readings.
@@ -70,8 +70,10 @@ struct AmbientGradient: View {
     }
 }
 
-/// A 3 × 3 mesh: the blue along the top, the fade across the middle, the page
-/// background along the bottom. With `presence` 0 it's a plain top-down wash.
+/// A 4 × 4 mesh: the blue along the top, a band between blue and the fade,
+/// the fade, and the page background along the bottom. In motion, waves run
+/// across the two middle rows and their colours lean toward the brighter blue
+/// and the periwinkle in turn. With `presence` 0 it's a plain top-down wash.
 /// `presence` and `energy` animate (the timeline only moves `time`), so the
 /// wash eases in and out of motion and between level readings.
 private struct MeshWash: View, Animatable {
@@ -90,30 +92,46 @@ private struct MeshWash: View, Animatable {
     }
 
     var body: some View {
-        let sway = presence * (0.05 + 0.06 * energy)
-        let tint = presence * (0.35 + 0.65 * energy)
+        // Kept small enough that the two middle rows never cross.
+        let sway = presence * (0.09 + 0.09 * energy)
+        let tint = presence * (0.45 + 0.55 * energy)
 
-        func wave(_ rate: Double, _ phase: Double) -> Double { sin(time * rate + phase) }
+        /// A wave travelling across the columns.
+        func wave(_ column: Int, _ rate: Double, _ phase: Double) -> Double {
+            sin(time * rate + Double(column) * 1.4 + phase)
+        }
         /// 0…1, for colour mixing.
-        func pulse(_ rate: Double, _ phase: Double) -> Double { (wave(rate, phase) + 1) / 2 }
+        func pulse(_ column: Int, _ rate: Double, _ phase: Double) -> Double {
+            (wave(column, rate, phase) + 1) / 2
+        }
 
-        let points: [SIMD2<Float>] = [
-            [0, 0], [0.5, 0], [1, 0],
-            [0, Float(0.55 + sway * wave(0.7, 0))],
-            [Float(0.5 + sway * 1.6 * wave(0.9, 1.3)), Float(0.55 + sway * wave(0.6, 2.1))],
-            [1, Float(0.55 + sway * wave(0.8, 4.0))],
-            [0, 1], [0.5, 1], [1, 1],
-        ]
-        let colors: [Color] = [
-            palette.top.mix(with: palette.vivid, by: tint * pulse(0.8, 0)),
-            palette.top.mix(with: palette.violet, by: tint * pulse(0.6, 2.0)),
-            palette.top.mix(with: palette.vivid, by: tint * pulse(0.7, 4.2)),
-            palette.fade.mix(with: palette.top, by: tint * 0.5 * pulse(0.5, 1.0)),
-            palette.fade.mix(with: palette.vivid, by: tint * 0.35 * pulse(0.9, 3.0)),
-            palette.fade.mix(with: palette.top, by: tint * 0.5 * pulse(0.55, 5.0)),
-            background, background, background,
-        ]
-        return MeshGradient(width: 3, height: 3, points: points, colors: colors, smoothsColors: true)
+        let columns: [Double] = [0, 1.0 / 3, 2.0 / 3, 1]
+        var points: [SIMD2<Float>] = []
+        for (row, base) in [0.0, 0.26, 0.6, 1.0].enumerated() {
+            let amplitude = row == 1 ? sway * 0.8 : row == 2 ? sway : 0
+            for (column, x) in columns.enumerated() {
+                let isEdge = column == 0 || column == columns.count - 1
+                let dx = isEdge || amplitude == 0 ? 0 : sway * 0.6 * wave(column, 0.7, Double(row) * 2.3)
+                let dy = amplitude * wave(column, 1.0, Double(row) * 1.7)
+                points.append([Float(x + dx), Float(base + dy)])
+            }
+        }
+
+        let band = palette.top.mix(with: palette.fade, by: 0.45)
+        var colors: [Color] = []
+        for column in columns.indices {
+            let accent = column.isMultiple(of: 2) ? palette.vivid : palette.violet
+            colors.append(palette.top.mix(with: accent, by: tint * pulse(column, 0.8, 0)))
+        }
+        for column in columns.indices {
+            let accent = column.isMultiple(of: 2) ? palette.violet : palette.vivid
+            colors.append(band.mix(with: accent, by: tint * pulse(column, 0.9, 2.0)))
+        }
+        for column in columns.indices {
+            colors.append(palette.fade.mix(with: palette.top, by: tint * 0.45 * pulse(column, 0.6, 4.0)))
+        }
+        colors += Array(repeating: background, count: columns.count)
+        return MeshGradient(width: 4, height: 4, points: points, colors: colors, smoothsColors: true)
     }
 }
 

@@ -288,7 +288,7 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
 A home about you at a glance, with the settings one push away (#69). The blue wash (§9.3) sits behind it.
 
 The home, top to bottom:
-- **Header:** a round avatar, "Traveller from <country>" (or "Traveller"), "Speaks <languages>", and the this-or-that answers as chips with symbols. The profile has no name or photo, so the avatar is an SF Symbol from a small set, picked from a sheet by tapping it. The pick is kept on the device (`RyokoMeAvatarSymbol`), not in the profile, so it never changes `profile.version`. Until one is picked it follows the rhythm answer: a sunrise for early birds, the moon for night owls, otherwise a walking figure.
+- **Header:** a round avatar, "Traveller from <country>" (or "Traveller") and "Speaks <languages>", just under the title. No chips. The profile has no name or photo, so the avatar is an SF Symbol from a small set, picked from a sheet by tapping it. The pick is kept on the device (`RyokoMeAvatarSymbol`), not in the profile, so it never changes `profile.version`. Until one is picked it follows the rhythm answer: a sunrise for early birds, the moon for night owls, otherwise a walking figure.
 - **Allergy card at a glance:** the card's title in the local script (when there are templates for where you are), each allergen with its severity in words, most serious first (red only for serious and life-threatening, §9.2), and "Tap to show it in <language>, full screen". Tapping opens Show mode through the same presenter as a place card's Allergy button; with no templates for where you are, tapping picks the language. "Edit allergies" opens the editor. With no allergies it's one quiet row that opens the editor.
 - **Your profile:** Diet, Your usual and Home base, each with its summary, opening its editor.
 - **About me** (#55): a multi-line field for anything you'd like Mimo to know, saved when typing pauses for about 1 s (and on leaving the field). The footer says Mimo uses it when it helps; a character count shows near the 500 limit (from 400). Redo survey keeps it.
@@ -690,11 +690,11 @@ Reference: Luma. Lots of whitespace, confident type, few controls, and colour th
 
 ### 9.3 Blue wash
 
-- A soft blue wash over the top ~45% of a screen, fading into the page background (`AmbientGradient`, a 3 × 3 `MeshGradient`). The same blue at every hour (#67; it used to follow the time of day, with orange mornings and evenings).
+- A soft blue wash over the top ~45% of a screen, fading into the page background (`AmbientGradient`, a 4 × 4 `MeshGradient`). The same blue at every hour (#67; it used to follow the time of day, with orange mornings and evenings).
 - **Colours** (tune on device): light `#ADD2FF` → `#DDECFF`, a little more saturated than before so it stands out from white; dark `#1E416A` → black. When it reacts, the top leans toward a brighter blue (`#86BAFF` / `#2A5F9E`) and a periwinkle (`#B6C0FF` / `#2E3A86`).
 - **It reacts to what's happening (#67):**
   - At rest it holds still.
-  - **Mimo working** (a reply streaming) and **Translate connecting**: the wash drifts slowly, its colours shifting between the blues, and grows a little.
+  - **Mimo working** (a reply streaming) and **Translate connecting**: waves run across the wash (a cycle every 4–6 s), its colours shifting between the blues, and it grows a little.
   - **Translate listening:** it swells and brightens with the microphone level, easing between readings.
   - It eases in and out of motion over about a second. Under Reduce Motion it never moves.
 
