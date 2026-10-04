@@ -68,7 +68,8 @@ private struct MapHomeScreen: View {
                 .safeAreaPadding(.bottom, metrics.mapBottomPadding(for: model.detent))
                 .ignoresSafeArea(.keyboard)
             if !cardIsFull {
-                mapButtons
+                // Only shows while the map is rotated, under the row's buttons.
+                MapCompass(scope: mapScope)
                     .padding(.top, belowSearch + Theme.grid)
                     .padding(.trailing, MapSheetMetrics.sideInset)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -81,7 +82,7 @@ private struct MapHomeScreen: View {
             }
             if !cardIsFull {
                 VStack(spacing: Theme.grid) {
-                    MapSearchBar(search: search, onSubmit: submit)
+                    MapSearchBar(search: search, onSubmit: submit) { mapButtons }
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { searchBarHeight = $0 }
                     if search.isPresented {
                         MapSearchSuggestions(suggestions: search.suggestions, onPick: pick)
@@ -233,17 +234,15 @@ private struct MapHomeScreen: View {
         }
     }
 
-    /// Under the search field on the trailing side: your location, then
-    /// Layers, then the compass while the map is rotated.
+    /// On the search pill's row, trailing: your location, then Layers.
     private var mapButtons: some View {
-        VStack(spacing: Theme.grid) {
+        HStack(spacing: Theme.grid) {
             MapUserLocationButton(scope: mapScope)
             MapLayersMenu(
                 layers: $model.layers,
                 fromMimoCount: router.fromMimo.count,
                 onClearFromMimo: { router.clearFromMimo() }
             )
-            MapCompass(scope: mapScope)
         }
         .buttonBorderShape(.circle)
     }

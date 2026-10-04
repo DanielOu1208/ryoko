@@ -8,17 +8,31 @@ import SwiftUI
 /// `search.isPresented` is the search mode: focusing the field starts it, and
 /// the cancel button, a picked suggestion or a submitted query ends it. Hiding
 /// the keyboard alone (scrolling the suggestions) keeps it.
-struct MapSearchBar: View {
+///
+/// At rest the field is a compact "Search" pill on the leading side, with the
+/// map buttons (`trailing`: your location, Layers) on the same row. Tapping it
+/// widens it to the full field, and the buttons step aside until search ends.
+struct MapSearchBar<Trailing: View>: View {
     @Bindable var search: MapSearch
     let onSubmit: () -> Void
+    @ViewBuilder var trailing: () -> Trailing
 
     @FocusState private var isFocused: Bool
     @ScaledMetric(relativeTo: .body) private var height: CGFloat = 48
+    @ScaledMetric(relativeTo: .body) private var pillWidth: CGFloat = 132
 
     var body: some View {
         GlassEffectContainer(spacing: Theme.grid) {
             HStack(spacing: Theme.grid) {
                 field
+                    // At rest the pill sits centred, with the buttons on the trailing side.
+                    .frame(maxWidth: .infinity)
+                    .overlay(alignment: .trailing) {
+                        if !search.isPresented {
+                            trailing()
+                                .transition(.blurReplace)
+                        }
+                    }
                 if search.isPresented {
                     Button("Cancel search", systemImage: "xmark") { search.end() }
                         .labelStyle(.iconOnly)
@@ -43,9 +57,23 @@ struct MapSearchBar: View {
     private var field: some View {
         HStack(spacing: Theme.grid) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
+                .fontWeight(.medium)
+                .foregroundStyle(.primary)
                 .accessibilityHidden(true)
-            TextField("Search places", text: $search.text)
+            TextField("Search places", text: $search.text, prompt: Text(""))
+                .fontWeight(.medium)
+                // Its own placeholder in the label colour: the system one is too
+                // faint over the glass and the map, and ignores a colour.
+                .overlay(alignment: .leading) {
+                    if search.text.isEmpty {
+                        Text(search.isPresented ? "Search places" : "Search")
+                            .fontWeight(.medium)
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
                 .focused($isFocused)
                 .submitLabel(.search)
                 .autocorrectionDisabled()
@@ -59,6 +87,8 @@ struct MapSearchBar: View {
         }
         .padding(.horizontal, 16)
         .frame(minHeight: height)
+        // A pill at rest; the full width while searching (or with a query).
+        .frame(width: search.isPresented || !search.text.isEmpty ? nil : pillWidth)
         .contentShape(.capsule)
         .onTapGesture { isFocused = true }
         .glassEffect(.regular.interactive(), in: .capsule)
