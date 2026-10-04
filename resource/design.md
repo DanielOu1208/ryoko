@@ -285,14 +285,22 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
 
 ### 4.10 Me tab
 
-Holds:
-- **About me** near the top (#55): a multi-line field for anything you'd like Mimo to know, saved when typing pauses for about 1 s (and on leaving the field). The footer says Mimo uses it when it helps; a character count shows near the 500 limit (from 400). Redo survey keeps it.
-- the profile sections from the survey (read-only in tier 1; editable in tier 2)
-- the home base for the taxi card
-- the romanization toggle, which only hides the row
-- a preview of the allergy card
-- an option to redo the survey (tier 2)
-- a small developer section: the server base URL override and "Reset to seed profile"
+A home about you at a glance, with the settings one push away (#69). The blue wash (§9.3) sits behind it.
+
+The home, top to bottom:
+- **Header:** a round avatar, "Traveller from <country>" (or "Traveller"), "Speaks <languages>", and the this-or-that answers as chips with symbols. The profile has no name or photo, so the avatar is an SF Symbol from a small set, picked from a sheet by tapping it. The pick is kept on the device (`RyokoMeAvatarSymbol`), not in the profile, so it never changes `profile.version`. Until one is picked it follows the rhythm answer: a sunrise for early birds, the moon for night owls, otherwise a walking figure.
+- **Allergy card at a glance:** the card's title in the local script (when there are templates for where you are), each allergen with its severity in words, most serious first (red only for serious and life-threatening, §9.2), and "Tap to show it in <language>, full screen". Tapping opens Show mode through the same presenter as a place card's Allergy button; with no templates for where you are, tapping picks the language. "Edit allergies" opens the editor. With no allergies it's one quiet row that opens the editor.
+- **Your profile:** Diet, Your usual and Home base, each with its summary, opening its editor.
+- **About me** (#55): a multi-line field for anything you'd like Mimo to know, saved when typing pauses for about 1 s (and on leaving the field). The footer says Mimo uses it when it helps; a character count shows near the 500 limit (from 400). Redo survey keeps it.
+- **Settings** (gear), which holds the rest:
+  - the profile sections from the survey, each opening its editor
+  - the home base for the taxi card
+  - an option to redo the survey
+  - the romanization toggle, which only hides the row
+  - credits
+  - a small developer section: the server base URL override and "Reset to seed profile"
+
+DEBUG: `-RyokoMeEdit <page>` opens Settings and that page's editor; `-RyokoScrollToBottom 1` opens Settings scrolled to the developer section.
 
 ### 4.11 Live Activity (tier 2)
 
@@ -916,3 +924,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 66 | Map fixes from use: a place's card opens at full height (supersedes #62's "at the same height"; Back still returns to the list's height); Mimo picks show as pins by default (the Hidden gems layer, renamed Mimo picks); Food & drink and Washrooms pin those places from a search of the visible map instead of filtering MapKit's own POIs, which showed next to nothing; Ask Mimo starts a new chat that asks about the place at once. §4.7, §4.9 | user |
 | 67 | The wash is blue at every hour (no orange mornings or evenings), a little more saturated in light mode, and it reacts: it drifts while Mimo works or Translate connects, and swells with the voice while Translate listens. Still under Reduce Motion | user |
 | 68 | Translate's turns are manual: you say who's speaking by tapping their language, and everything heard stays in that turn until you tap the other. Soniox finalizes at each hand-over so last words stay put; strict language hints. Supersedes the automatic turn rule from #29 (kept for DEBUG) | user (auto switching too sensitive, text vanished on every switch) |
+| 69 | Me is a styled home instead of one long list: an avatar header (an SF Symbol you pick, kept on the device, not in the profile), where you're from, languages and this-or-that chips; the allergy card at a glance (local title, allergens with severity in words, tap for Show mode); Diet, Your usual and Home base; About me; and a Settings row that holds every profile page, the home base, Redo survey, romanization, credits and the developer section. §4.10 | user ("the Me screen looks like an afterthought") |
