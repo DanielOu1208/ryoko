@@ -11,9 +11,18 @@ import UIKit
 ///
 /// - `-RyokoMapDetent small|medium|large`: the panel's starting size.
 /// - `-RyokoMapDetails <name>`: once you're located, resolve the name with the
-///   shared resolver and open its details.
-/// - `-RyokoMapDetailsAction preview|taxi|current|mimo`: with `-RyokoMapDetails`,
-///   press that button in the details once they're open.
+///   shared resolver and open its card (through `router.openMap(selecting:)`).
+/// - `-RyokoMapCard here|pick|nearby`: open the current place's card (as the
+///   header's tap does), the first Mimo pick's, or the first nearby place's,
+///   once there is one.
+/// - `-RyokoMapCardAction preview|taxi|allergy|phrase|here|mimo|directions`:
+///   press that button on the card once it has loaded. (`-RyokoMapDetailsAction`
+///   is the old name; `-RyokoShow phrase|allergy|taxi` means
+///   `-RyokoMapCard here -RyokoMapCardAction <kind>`.)
+/// - `-RyokoMapCardFailure offline|server`: the card's place-card request
+///   fails like that (the error state, or the saved card when there is one).
+/// - `-RyokoMapCardLatency <seconds>`: the card's place card answers from
+///   fixtures that slowly, to see the `.redacted` loading state.
 /// - `-RyokoMapDropPin <lat>,<lon>`: as if long-pressed there.
 /// - `-RyokoMapLayers food,washrooms,gems,mimo`: layers to turn on.
 /// - `-RyokoMapFromMimo 1`: put a sample three-stop plan (Shinjuku names) on
@@ -36,7 +45,33 @@ enum MapDebugOptions {
     }
 
     static var detailsName: String? { defaults.string(forKey: "RyokoMapDetails") }
-    static var detailsAction: String? { defaults.string(forKey: "RyokoMapDetailsAction") }
+
+    /// `-RyokoMapCard`, or `here` for `-RyokoShow`.
+    static var card: String? {
+        defaults.string(forKey: "RyokoMapCard") ?? (ShowDebugOptions.showAtLaunch != nil ? "here" : nil)
+    }
+
+    static var cardAction: String? {
+        defaults.string(forKey: "RyokoMapCardAction")
+            ?? defaults.string(forKey: "RyokoMapDetailsAction")
+            ?? ShowDebugOptions.showAtLaunch?.rawValue
+    }
+
+    static var cardFailure: RyokoAPIError? {
+        switch defaults.string(forKey: "RyokoMapCardFailure") {
+        case "offline":
+            .transport(.notConnectedToInternet)
+        case "server":
+            .server(status: 500, ErrorBody(code: .modelError, message: "Mimo couldn't write this card.", retryable: true))
+        default:
+            nil
+        }
+    }
+
+    static var cardLatency: Duration? {
+        let seconds = defaults.double(forKey: "RyokoMapCardLatency")
+        return seconds > 0 ? .seconds(seconds) : nil
+    }
 
     static var dropPin: Coordinate? {
         guard let text = defaults.string(forKey: "RyokoMapDropPin") else { return nil }
@@ -91,6 +126,15 @@ enum MapDebugOptions {
         return nil
     }
 
+    /// Logs whether the bundled allergy templates are complete, once.
+    static func runTemplateCheckOnce() {
+        guard !didCheckTemplates else { return }
+        didCheckTemplates = true
+        AllergyTemplates.selfCheck()
+    }
+
+    private static var didCheckTemplates = false
+
     /// The first view with a menu in the trailing half of the window.
     private static func trailingBarMenuButton(in view: UIView, windowWidth: CGFloat) -> UIView? {
         let hasMenu = view.interactions.contains { $0 is UIContextMenuInteraction }
@@ -101,6 +145,20 @@ enum MapDebugOptions {
             if let found = trailingBarMenuButton(in: subview, windowWidth: windowWidth) { return found }
         }
         return nil
+    }
+}
+
+/// Swaps the place card's API for a failing or slow fixture when asked to at
+/// launch (`-RyokoMapCardFailure`, `-RyokoMapCardLatency`).
+struct MapCardDebugAPIOverride: ViewModifier {
+    func body(content: Content) -> some View {
+        if let failure = MapDebugOptions.cardFailure {
+            content.environment(\.ryokoAPI, FixtureRyokoAPI(failure: failure))
+        } else if let latency = MapDebugOptions.cardLatency {
+            content.environment(\.ryokoAPI, FixtureRyokoAPI(latency: latency))
+        } else {
+            content
+        }
     }
 }
 #endif

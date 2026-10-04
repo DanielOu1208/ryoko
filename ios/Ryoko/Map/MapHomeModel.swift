@@ -15,7 +15,7 @@ final class MapHomeModel {
         case list
         /// Places matching a submitted search.
         case results(query: String)
-        /// One place's details, in the same panel.
+        /// One place's card, in the same panel.
         case details(MapPlace)
     }
 
@@ -50,16 +50,21 @@ final class MapHomeModel {
     // MARK: Panel
 
     var panel: Panel = .list
-    var detent: MapSheetDetent = .small
-    /// Where Back goes from details.
+    var detent: MapSheetDetent = .medium
+    /// Where closing a card goes: the list or results, at the size it had.
     @ObservationIgnored private var returnPanel: Panel = .list
-    @ObservationIgnored private var returnDetent: MapSheetDetent = .small
-    /// Details opened by tapping the map: deselecting closes them.
+    @ObservationIgnored private var returnDetent: MapSheetDetent = .medium
+    /// A card opened by tapping the map: deselecting closes it.
     private(set) var detailsFromMap = false
 
     var details: MapPlace? {
         if case let .details(place) = panel { place } else { nil }
     }
+
+    /// What the open card has learned about its place, for the card's header:
+    /// its area (city, time zone) and its local-script name from the place card.
+    var detailsArea: PlaceArea?
+    var detailsLocalName: String?
 
     // MARK: Map
 
@@ -67,6 +72,16 @@ final class MapHomeModel {
     var selection: MapSelection<String>?
     var visibleRegion: MKCoordinateRegion?
     var layers = MapLayers()
+
+    /// The map's safe area (between the search field and the resting list),
+    /// in global coordinates: camera positions are framed in it. `MapView`
+    /// keeps it up to date.
+    @ObservationIgnored var mapSafeArea: CGRect?
+    /// The map left visible above a card at its large size, in global
+    /// coordinates. `MapView` keeps it up to date.
+    @ObservationIgnored var cardStrip: CGRect?
+    /// Your live location, to frame it with a card's place when it's close.
+    @ObservationIgnored var userLocation: Coordinate?
 
     // MARK: Content
 
@@ -78,8 +93,8 @@ final class MapHomeModel {
     var picksAttempt = 0
 
     #if DEBUG
-    /// A details button to press once, from `-RyokoMapDetailsAction`.
-    var debugDetailsAction: String?
+    /// A card button to press once, from `-RyokoMapCardAction`.
+    var debugCardAction: String?
     #endif
 
     // MARK: Caches
@@ -125,8 +140,8 @@ final class MapHomeModel {
             return
         }
         picks = .loading([])
-        let request = DiscoverRequest(area: key.area, profile: profile, situation: situation)
         do {
+            let request = DiscoverRequest(area: key.area, profile: profile, situation: situation)
             let response = try await api.discover(request)
             var found: [MapPlace] = []
             for pick in response.places {
@@ -202,28 +217,39 @@ final class MapHomeModel {
         nearby = .idle
     }
 
-    // MARK: - Details
+    // MARK: - Cards
 
-    /// Shows `place` in the panel (design §4.7: the same sheet, with Back).
+    /// Opens `place`'s card in the panel (design §4.7): almost full height,
+    /// with the map gliding so the place sits, highlighted, in the strip of
+    /// map above it. Nothing about the situation changes.
     func showDetails(_ place: MapPlace, fromMap: Bool) {
         if details == nil {
             returnPanel = panel
             returnDetent = detent
         }
+        if details?.id != place.id {
+            detailsArea = place.area
+            detailsLocalName = nil
+        }
         panel = .details(place)
         detailsFromMap = fromMap
-        if detent == .small { detent = .medium }
-        focus(on: place.place.coordinate, meters: 700, liftForPanel: true)
+        detent = .large
+        if !fromMap, let tag = markerTag(for: place) {
+            selection = MapSelection(tag)
+        }
+        focusCard(on: place.place.coordinate)
     }
 
-    /// Replaces the place in details with a fuller version of the same place
+    /// Replaces the place on the card with a fuller version of the same place
     /// (a map item arriving after a tap).
     func refineDetails(_ place: MapPlace, replacing placeholder: MapPlace) {
         guard details == placeholder else { return }
+        if detailsArea == nil { detailsArea = place.area }
         panel = .details(place)
     }
 
-    /// Back from details (or from search results) to where you were.
+    /// Closes the card (back to the list or results at the size they had),
+    /// or the results (back to the list). The map stays where it is.
     func back() {
         switch panel {
         case .details:
@@ -232,29 +258,41 @@ final class MapHomeModel {
         case .results:
             panel = .list
             searchResults = []
-            detent = .small
+            detent = .medium
         case .list:
             return
         }
         detailsFromMap = false
+        detailsArea = nil
+        detailsLocalName = nil
         selection = nil
         droppedPin = nil
         if case .list = panel { searchResults = [] }
     }
 
+    /// The tag of the marker that shows `place` on the map, so its card can
+    /// highlight it. Tapped map features are highlighted by MapKit itself.
+    func markerTag(for place: MapPlace) -> String? {
+        switch place.source {
+        case .feature: nil
+        case .pick: layers.hiddenGems ? MapMarkerTag.gem.tag(place.id) : MapMarkerTag.focus.tag(place.id)
+        case .search: MapMarkerTag.search.tag(place.id)
+        case .droppedPin: MapMarkerTag.pin.tag(place.id)
+        case .fromMimo: layers.fromMimo ? MapMarkerTag.mimo.tag(place.id) : MapMarkerTag.focus.tag(place.id)
+        case .nearby, .focus: MapMarkerTag.focus.tag(place.id)
+        }
+    }
+
     // MARK: - Search
 
-    /// Shows search results in the panel, or the place itself when there's one.
+    /// Shows search results in the panel, or the place's card when there's one.
     func showResults(_ places: [MapPlace], for query: String) {
         searchResults = places
         droppedPin = nil
         if places.count == 1, let only = places.first {
             returnPanel = .list
-            returnDetent = .small
-            panel = .details(only)
-            detailsFromMap = false
-            detent = .medium
-            focus(on: only.place.coordinate, meters: 700, liftForPanel: true)
+            returnDetent = .medium
+            showDetails(only, fromMap: false)
             return
         }
         panel = .results(query: query)
@@ -265,7 +303,7 @@ final class MapHomeModel {
     // MARK: - Dropped pin
 
     /// A long-press: a pin at `coordinate` (from `MapProxy`, so MapKit's own
-    /// coordinate) and its details. The address arrives with reverse geocoding.
+    /// coordinate) and its card. The address arrives with reverse geocoding.
     func dropPin(at coordinate: Coordinate, origin: Coordinate?) async {
         let placeholder = MapPlace(
             place: Place(id: nil, name: "Dropped pin", localName: nil, category: .other, address: nil, coordinate: coordinate),
@@ -274,7 +312,6 @@ final class MapHomeModel {
             displayName: "Dropped pin"
         )
         droppedPin = placeholder
-        selection = nil
         showDetails(placeholder, fromMap: false)
 
         guard let request = MKReverseGeocodingRequest(location: coordinate.mapKitLocation),
@@ -334,19 +371,70 @@ final class MapHomeModel {
 
     // MARK: - Camera
 
-    /// Centres on `coordinate`. With `liftForPanel`, the point sits in the
-    /// upper part of the map, above a medium panel.
-    func focus(on coordinate: Coordinate, meters: CLLocationDistance = 700, liftForPanel: Bool = false) {
-        var center = coordinate
-        if liftForPanel {
-            center.lat -= meters / 111_320 * 0.3
+    /// About 600 m across the screen: street level for a card.
+    static let cardMetersPerPoint = 1.5
+    /// How far out a card zooms to fit your location too (about 2 km across).
+    static let cardMaxMetersPerPoint = 5.0
+    /// Your location is framed with a card's place within this distance.
+    static let cardFrameUserRadius: CLLocationDistance = 1_000
+    /// A marker's balloon sits above its point: aim the point this far below
+    /// the strip's middle, so the pin looks centred.
+    static let markerLift: CGFloat = 22
+
+    /// Glides the camera, north up, so `coordinate` sits in the middle of the
+    /// strip of map above a card (`cardStrip`), at street level. Your location
+    /// is framed too when it's within 1 km and still fits.
+    ///
+    /// The map's safe area (`mapSafeArea`) doesn't follow the panel, so the
+    /// camera's centre stays at its middle: the region is centred off the
+    /// place by however far the strip's middle is from there, and sized to
+    /// the safe area so MapKit frames it exactly.
+    func focusCard(on coordinate: Coordinate) {
+        guard let safeArea = mapSafeArea, let strip = cardStrip,
+              safeArea.width > 0, safeArea.height > 0 else {
+            focus(on: coordinate, meters: 700)
+            return
         }
-        withAnimation(.smooth) {
-            camera = .region(MKCoordinateRegion(around: center, meters: meters))
+        let target = CGPoint(x: strip.midX, y: strip.midY + Self.markerLift)
+        var metersPerPoint = Self.cardMetersPerPoint
+        if let user = userLocation, user.mapDistance(to: coordinate) <= Self.cardFrameUserRadius {
+            let offset = coordinate.mapVector(to: user)
+            let margin: CGFloat = 28
+            let halfWidth = max(min(target.x - strip.minX, strip.maxX - target.x) - margin, 1)
+            let above = max(target.y - strip.minY - margin, 1)
+            let below = max(strip.maxY - target.y - margin, 1)
+            let needed = max(
+                abs(offset.east) / Double(halfWidth),
+                offset.north > 0 ? offset.north / Double(above) : -offset.north / Double(below)
+            )
+            if needed <= Self.cardMaxMetersPerPoint {
+                metersPerPoint = max(metersPerPoint, needed)
+            }
+        }
+
+        // The place must appear at `target`; the camera's centre is the safe
+        // area's middle. Work out the centre that puts the place there.
+        let east = Double(target.x - safeArea.midX) * metersPerPoint
+        let north = Double(safeArea.midY - target.y) * metersPerPoint
+        let center = coordinate.mapOffset(east: -east, north: -north)
+        let region = MKCoordinateRegion(
+            center: center.mapKitCoordinate,
+            latitudinalMeters: Double(safeArea.height) * metersPerPoint,
+            longitudinalMeters: Double(safeArea.width) * metersPerPoint
+        )
+        withAnimation(.smooth(duration: 0.6)) {
+            camera = .region(region)
         }
     }
 
-    /// Fits a set of coordinates, with some margin.
+    /// Centres on `coordinate`, in the map above the resting list.
+    func focus(on coordinate: Coordinate, meters: CLLocationDistance = 700) {
+        withAnimation(.smooth) {
+            camera = .region(MKCoordinateRegion(around: coordinate, meters: meters))
+        }
+    }
+
+    /// Fits a set of coordinates, with some margin, above the resting list.
     func fit(_ coordinates: [Coordinate]) {
         guard let first = coordinates.first else { return }
         if coordinates.count == 1 {
@@ -358,15 +446,9 @@ final class MapHomeModel {
         for point in points.dropFirst() {
             rect = rect.union(MKMapRect(origin: point, size: MKMapSize(width: 0, height: 0)))
         }
-        let padX = max(rect.size.width * 0.3, 400)
-        let padY = max(rect.size.height * 0.3, 400)
-        // Extra room at the bottom for the panel.
-        rect = MKMapRect(
-            x: rect.origin.x - padX,
-            y: rect.origin.y - padY,
-            width: rect.size.width + padX * 2,
-            height: rect.size.height + padY * 3
-        )
+        let padX = max(rect.size.width * 0.2, 300)
+        let padY = max(rect.size.height * 0.2, 300)
+        rect = rect.insetBy(dx: -padX, dy: -padY)
         withAnimation(.smooth) {
             camera = .rect(rect)
         }
