@@ -197,7 +197,7 @@ Write down what you find. The results may change the spec.
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
 | T2.1 | Speak: ElevenLabs client (restricted key via the MLH code or Starter), audio cache, `AVSpeechSynthesizer` fallback, `.playback` session, stop Translate first | | todo | | |
-| T2.2 | Live Activity: attributes in `Shared/`, lock screen, Dynamic Island, deep link to Show, one at a time | | todo | | |
+| T2.2 | Live Activity: attributes in `Shared/`, lock screen, Dynamic Island, deep link to Show, one at a time | wf:live-activity | review | `worktree-wf_be317781-a93-1` | `LiveActivityCoordinator` (`App/LiveActivity/`) follows the situation: placeholder, then the card's top phrase (169–347 bytes); one at a time; ends at launch, on a new place, with no place, and after 2 h. Sim: island compact seen (screenshot with `--mask=black`), lock screen via `-RyokoActivityGallery` (the sim can't lock), cold-start `ryoko://show?phrase=` via `-RyokoOpenURL` (`simctl openurl` stops at "Open in Ryoko?"). Not yet seen on the phone |
 | T2.3 | Onboarding survey (7 pages) + editing in Me + redo survey | | todo | | |
 | T2.4 | Translate Type mode + tap-to-edit turns + `/v1/translate` | | todo | | |
 | T2.5 | Bottom Listening accessory + tab-bar minimize | | todo | | |
