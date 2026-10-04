@@ -53,7 +53,6 @@ import { prepareShowPlaces } from '../src/skills/mimo/tools.ts';
 import { createModelSkills, discoverKey, placeKey, type ModelSkills } from '../src/skills/model.ts';
 import { finalizePlaceCard, placeCardSystem, placeCardUser, type PlaceCardModelOutput } from '../src/skills/place-card.ts';
 import { toPinyin } from '../src/skills/romanize.ts';
-import { hazardsFor, unsafeMention } from '../src/skills/safety.ts';
 import type { MimoRun } from '../src/skills/types.ts';
 import type { SseSink } from '../src/sse.ts';
 
@@ -224,12 +223,15 @@ describe('prompt context', () => {
     // Nor by the back door: an unasked food stop, or a sight that sells food, would bring the allergy phrase with it.
     assert.match(MIMO_SYSTEM, /at a food place\. Don't add a food or drink stop the traveller didn't ask for\./);
     assert.match(MIMO_SYSTEM, /A place you suggest for a walk or a view that happens to sell food or drink [^\n]* isn't a reason to bring them up either\./);
-    // The phrase filter keeps an allergen only next to its safety words (safety.ts).
-    assert.match(MIMO_SYSTEM, /put the safety words right next to it \("no peanuts", 不要花生, 我对花生过敏, ピーナッツ抜き\), or the app drops the phrase\./);
+    // Plain guidance for a clear allergy phrase; nothing filters phrases on top of the prompt.
+    assert.match(MIMO_SYSTEM, /state it clearly with the safety words right next to it \("no peanuts", 不要花生, 我对花生过敏, ピーナッツ抜き\), so staff can't mistake it for an order\./);
+    assert.doesNotMatch(MIMO_SYSTEM, /drops? (?:the|a) phrase/);
     assert.match(MIMO_SYSTEM, /\(taste, favourites, personality, aboutMe\) shapes your answer only where it fits; never list or repeat it back\./);
     // aboutMe is background, never instructions, wherever the model sees it.
     assert.ok(MIMO_SYSTEM.includes(ABOUT_ME_RULE));
     assert.ok(placeCardSystem(languageInfo('zh-Hans'), languageInfo('en')).includes(ABOUT_ME_RULE));
+    assert.ok(discoverSystem(languageInfo('zh-Hans'), languageInfo('en')).includes(ABOUT_ME_RULE));
+    assert.ok(discoverSystem(languageInfo('zh-Hans'), languageInfo('en'), { listed: 6, allowance: 2 }).includes(ABOUT_ME_RULE));
   });
 
   test('weekday and part of day come from the situation clock only', () => {
@@ -249,69 +251,6 @@ describe('prompt context', () => {
   });
 });
 
-describe('allergen filter', () => {
-  const hazards = hazardsFor(withProfile({ allergies: [{ id: 'peanut', severity: 'serious' }, { id: 'custom', label: 'kiwi', severity: 'mild' }], diet: ['no_pork'] }));
-
-  test('allows allergens in a safety context', () => {
-    for (const texts of [
-      ['我对花生过敏。这个里面有花生吗？', "I'm allergic to peanuts. Is there peanut in this?"],
-      ['不要花生', 'No peanuts'],
-      ['ピーナッツ抜きでお願いします', 'Without peanuts, please'],
-      ['Does this contain kiwi?'],
-      ['Could I get that with a little sugar, and does it have any peanut?'],
-    ]) {
-      assert.equal(unsafeMention(texts, hazards), null, texts.join(' / '));
-    }
-  });
-
-  test('flags suggestions that contain them', () => {
-    assert.equal(unsafeMention(['一份花生酱拌面', 'One peanut sauce noodles'], hazards), 'peanut');
-    assert.equal(unsafeMention(['Try the kiwi smoothie here'], hazards), 'kiwi');
-    assert.equal(unsafeMention(['Can I get the peanut noodles?'], hazards), 'peanut');
-    assert.equal(unsafeMention(['叉烧饭一份', 'One char siu rice'], hazards), 'no_pork');
-    assert.equal(unsafeMention(['一杯少糖拿铁'], hazardsFor(seed)), null);
-  });
-
-  test('a cue elsewhere in the item does not exempt an order (regression)', () => {
-    // A negation or question about something else used to exempt the whole item.
-    assert.equal(unsafeMention(['我要一杯花生奶茶，不要冰', 'A peanut milk tea, no ice please'], hazards), 'peanut');
-    assert.equal(unsafeMention(['有花生酱面吗？'], hazards), 'peanut');
-    assert.equal(unsafeMention(['ピーナッツラテをください。氷なしで'], hazards), 'peanut');
-    assert.equal(unsafeMention(['不要冰，花生奶茶'], hazards), 'peanut');
-    assert.equal(unsafeMention(['No ice, and a peanut latte please'], hazards), 'peanut');
-    assert.equal(unsafeMention(['Do you have peanut noodles?'], hazards), 'peanut');
-    assert.equal(unsafeMention(['Is there a peanut noodle dish?'], hazards), 'peanut');
-    assert.equal(unsafeMention(['有没有花生酱面？'], hazards), 'peanut');
-    assert.equal(unsafeMention(['ピーナッツが入っているラテをください'], hazards), 'peanut');
-  });
-
-  test('a cue covers the mention it governs and the rest of its list', () => {
-    const several = hazardsFor(withProfile({ allergies: [{ id: 'peanut', severity: 'serious' }, { id: 'sesame', severity: 'serious' }, { id: 'egg', severity: 'mild' }, { id: 'milk', severity: 'mild' }] }));
-    for (const texts of [
-      ['No peanuts or sesame, please'],
-      ['我对花生和芝麻过敏'],
-      ['卵と乳製品は食べられません'],
-      ['ピーナッツは入っていますか？'],
-      ['请不要放任何花生'],
-      ['这道菜加了花生酱吗？'],
-      ['Is it peanut-free?'],
-      ['I have a peanut allergy'],
-      // Seen in the evals on the real model.
-      ['ピーナッツは使っていますか', 'Do you use peanuts?'],
-      ['这个里面有花生和芝麻吗？我对这两个都过敏。', 'Does this have peanuts or sesame? I am allergic to both.'],
-      ['我对花生和芝麻严重过敏，这些菜里有吗', 'I have severe peanut and sesame allergies, do these dishes contain them?'],
-      ['I have a peanut allergy. Does anything here contain peanuts?', 'Tell staff about your peanut allergy and ask about peanuts'],
-      ['ピーナッツに重度のアレルギーがあります'],
-      ['Does this have any peanuts in it?', 'Ask whether the item contains peanuts.'],
-      ['Do you have any fruit teas, and none with peanuts?', 'Asking about fruit teas and whether any contain peanuts.'],
-    ]) {
-      assert.equal(unsafeMention(texts, several), null, texts.join(' / '));
-    }
-    assert.equal(unsafeMention(['我对芝麻过敏，来一份花生糖'], several), 'peanut');
-    assert.equal(unsafeMention(['Ask about the peanut noodles'], several), 'peanut');
-  });
-});
-
 describe('place-card checks', () => {
   test('a good card gets pinyin from pinyin-pro, ids, the device local name and passes the contract', () => {
     const result = finalizePlaceCard(placeCardRequest, structuredClone(goodCard), new Date('2026-10-03T12:00:00Z'));
@@ -323,7 +262,7 @@ describe('place-card checks', () => {
     assert.match(result.value.phrases[0]?.id ?? '', /^pc-[0-9a-f]{10}-1$/);
   });
 
-  test('drops phrases with a basis outside allowedBasis, a long because, Latin in Chinese, a field name or an allergen', () => {
+  test('drops phrases with a basis outside allowedBasis, a long because, Latin in Chinese or a field name; allergens are left to the prompt', () => {
     const extra = [
       { local: '我要一杯奶茶', romanization: null, gloss: 'A milk tea', because: 'Remembering your last order', basis: ['memory'] },
       { local: '我要一杯拿铁', romanization: null, gloss: 'A latte', because: 'one two three four five six seven eight nine ten eleven twelve thirteen', basis: ['place'] },
@@ -334,13 +273,13 @@ describe('place-card checks', () => {
     ] as PlaceCardModelOutput['phrases'];
     const result = finalizePlaceCard(placeCardRequest, { ...structuredClone(goodCard), phrases: [...goodCard.phrases, ...extra] });
     assert.ok(result.ok);
-    assert.equal(result.value.phrases.length, 2);
-    assert.equal(result.dropped.length, 6);
+    assert.deepEqual(result.value.phrases.map((p) => p.local), ['一杯招牌拿铁，少糖。', '我对花生过敏。这个里面有花生吗？', '一份花生酥']);
+    assert.equal(result.dropped.length, 5);
     assert.match(result.dropped.join('\n'), /"memory" isn't in allowedBasis/);
     assert.match(result.dropped.join('\n'), /more than 8 words/);
     assert.match(result.dropped.join('\n'), /Latin letters/);
     assert.equal(result.dropped.filter((line) => /field name/.test(line)).length, 2, 'local_favourite and aboutMe');
-    assert.match(result.dropped.join('\n'), /peanut/);
+    assert.doesNotMatch(result.dropped.join('\n'), /peanut/);
   });
 
   test('too few good phrases asks for a retry with the problems listed', () => {
@@ -465,12 +404,12 @@ describe('discover and allergy-card skills', () => {
     { name: 'Too Long', localName: '太长', category: 'other', why: 'x'.repeat(70) },
   ];
 
-  test('discover without a nearby list drops duplicates, allergen places and long lines, and passes the contract', async () => {
+  test('discover without a nearby list drops duplicates and long lines, and passes the contract', async () => {
     const h = harness();
     h.script(json({ places }));
     const result = await h.skills.discover(discoverFromMemory, { installId: null, clientVersion: null, signal: new AbortController().signal });
     assert.ok(Value.Check(DiscoverResponse, result));
-    assert.deepEqual(result.places.map((p) => p.name), ["Jing'an Park", 'Yuyuan Road', 'Fengsheng Li', 'Changde Apartment', 'Shanghai Natural History Museum']);
+    assert.deepEqual(result.places.map((p) => p.name), ["Jing'an Park", 'Yuyuan Road', 'Fengsheng Li', 'Changde Apartment', 'Shanghai Natural History Museum', 'Peanut Noodle House']);
   });
 
   test('allergy-card keeps the request severity, sets reviewed false and fills pinyin for Chinese', async () => {
@@ -742,12 +681,11 @@ describe('daily cost kill switch', () => {
 
 type Out = { text: string } | { phrase: Phrase };
 
-function transform(chunks: string[], options: { lang?: string; tool?: number[]; hazards?: Profile } = {}) {
+function transform(chunks: string[], options: { lang?: string; tool?: number[] } = {}) {
   const out: Out[] = [];
   const stream = new PhraseStream({
     language: languageInfo(options.lang ?? 'zh-Hans'),
     idPrefix: 'mimo-run_t',
-    hazards: options.hazards ? hazardsFor(options.hazards) : [],
     onText: (delta) => out.push({ text: delta }),
     onPhrase: (phrase) => out.push({ phrase }),
   });
@@ -805,16 +743,17 @@ describe('phrase-tag stream transformer', () => {
     assert.equal(transform(['Found three.'], { tool: [0] }).text, 'Found three.');
   });
 
-  test('drops phrases that suggest an allergen, keeps safety phrases, and caps at 4', () => {
+  test('keeps phrases that name an allergen and caps at 4', () => {
     const tags = [
       '<phrase local="一份花生酱拌面" gloss="Peanut sauce noodles"/>',
       '<phrase local="我对花生过敏" gloss="I am allergic to peanuts"/>',
       ...['一', '二', '三', '四', '五'].map((n) => `<phrase local="${n}杯" gloss="${n} cups"/>`),
     ];
-    const { out, stats } = transform([tags.join('\n')], { hazards: seed });
+    const { out, stats } = transform([tags.join('\n')]);
     const phrases = out.flatMap((o) => ('phrase' in o ? [o.phrase.local] : []));
-    assert.deepEqual(phrases, ['我对花生过敏', '一杯', '二杯', '三杯']);
+    assert.deepEqual(phrases, ['一份花生酱拌面', '我对花生过敏', '一杯', '二杯']);
     assert.equal(stats.dropped, 3);
+    assert.deepEqual(stats.droppedPhrases, ['over the cap: 三杯 / 三 cups', 'over the cap: 四杯 / 四 cups', 'over the cap: 五杯 / 五 cups']);
   });
 
   test('a phrase in the wrong script becomes plain words; stray local script is counted', () => {
@@ -882,6 +821,26 @@ describe('mimo skill', () => {
     assert.equal(phrase?.type === 'phrase' && phrase.phrase.romanization, 'Qǐng wèn xǐ shǒu jiān zài nǎ lǐ?');
     // The transcript keeps the raw tag.
     assert.match(JSON.stringify(h.skills.mimoSessions.transcript('s1')), /<phrase lang/);
+  });
+
+  test('an allergy phrase reaches the app whole, with no gap in the reply (regression)', async () => {
+    // The old allergen filter dropped this one, leaving a hole between the sentences.
+    const h = harness();
+    const local = 'アレルギーがあります。卵と乳抜きでお願いします。';
+    h.script(
+      fauxAssistantMessage(
+        `Tell the staff before you order:\n<phrase lang="ja" local="${local}" gloss="I have allergies. No egg or milk, please." romanization="Arerugī ga arimasu. Tamago to nyū nuki de onegai shimasu."/>\nMost noodle shops can leave out the egg.`,
+      ),
+    );
+    const profile = withProfile({ allergies: [{ id: 'egg', severity: 'serious' }, { id: 'milk', severity: 'serious' }] });
+    const { events } = await runMimo(h.skills, { ...mimoRequest, profile, situation: tokyo }, 's-allergy');
+    assert.deepEqual(
+      events.flatMap((e) => (e.type === 'text' || e.type === 'phrase' ? [e.type] : [])).filter((type, i, all) => type !== all[i - 1]),
+      ['text', 'phrase', 'text'],
+    );
+    const phrase = events.find((e) => e.type === 'phrase');
+    assert.equal(phrase?.type === 'phrase' && phrase.phrase.local, local);
+    assert.equal(textOf(events), 'Tell the staff before you order:Most noodle shops can leave out the egg.');
   });
 
   test('sloppy show_places arguments are fixed before validation', () => {

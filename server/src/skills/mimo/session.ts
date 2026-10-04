@@ -14,7 +14,6 @@ import type { Budget } from '../../llm/budget.ts';
 import { costOf, outputBudget, providerErrorText, type Llm, type SkillModel } from '../../llm/registry.ts';
 import type { SseSink } from '../../sse.ts';
 import { languageInfo } from '../context.ts';
-import { hazardsFor } from '../safety.ts';
 import type { MimoContext, MimoRun } from '../types.ts';
 import type { WebSearch } from './exa.ts';
 import { PhraseStream, type PhraseStreamStats } from './phrase-stream.ts';
@@ -167,7 +166,6 @@ export class MimoSessions {
     const phrases = new PhraseStream({
       language,
       idPrefix: `mimo-${ctx.runId}`,
-      hazards: hazardsFor(request.profile),
       onText: (delta) => {
         firstTextMs ??= Math.round(performance.now() - started);
         send({ type: 'text', delta });

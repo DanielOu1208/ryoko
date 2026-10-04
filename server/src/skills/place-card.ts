@@ -6,8 +6,8 @@
 // - basis only names inputs that are filled in (allowedBasis)
 // - "because…" is about 10 words at most
 // - local text is in the local script, and Chinese local text has no Latin letters
-// - the allergen and diet filter, which allows safety mentions
 // - Chinese romanization is pinyin-pro's, not the model's
+// Allergies and diet are hard limits in the prompt; there's no word filter on top.
 
 import { createHash } from 'node:crypto';
 import { Type, type Static } from 'typebox';
@@ -15,12 +15,11 @@ import { BasisList, PlaceCardResponse, Strict, Nullable, type Basis, type CardPh
 import { describeErrors } from '../validate.ts';
 import { ABOUT_ME_RULE, allowedBasis, hasLatinLetters, inLocalScript, languageInfo, mostlyInScript, PERSONA, promptProfile, promptSituation, wordCount, type LanguageInfo } from './context.ts';
 import { romanizationFor } from './romanize.ts';
-import { hazardsFor, unsafeMention, type Hazard } from './safety.ts';
 import { Value } from 'typebox/value';
 import type { Finalized } from '../llm/typed.ts';
 
-/** Bump when the prompt or checks change, so cached cards regenerate. */
-export const PLACE_CARD_PROMPT_VERSION = 'pc-5';
+/** Bump when the prompt or checks change, so cached cards regenerate. pc-6: no allergen filter. */
+export const PLACE_CARD_PROMPT_VERSION = 'pc-6';
 
 /** snake_case or a profile field name in a "because…" line: the model leaking the request's keys. */
 const FIELD_NAME = /\b[a-z]+_[a-z_]+\b|\b(?:localTime|allowedBasis|homeLanguage|dietNotes|aboutMe)\b/;
@@ -102,7 +101,6 @@ export function phraseProblems(
   phrase: { local: string; gloss: string; because: string; basis: Basis[] },
   local: LanguageInfo,
   allowed: readonly Basis[],
-  hazards: readonly Hazard[],
 ): string[] {
   const problems: string[] = [];
   const badBasis = phrase.basis.filter((b) => !allowed.includes(b));
@@ -111,18 +109,14 @@ export function phraseProblems(
   if (FIELD_NAME.test(phrase.because)) problems.push(`"because" uses a field name; say it in plain words`);
   if (!inLocalScript(phrase.local, local)) problems.push(`"local" isn't written in ${local.name}`);
   else if (local.script === 'han' && hasLatinLetters(phrase.local)) problems.push('"local" contains Latin letters');
-  const hazard = unsafeMention([phrase.local, phrase.gloss], hazards);
-  if (hazard) problems.push(`it suggests ${hazard}, which the traveller must avoid`);
   return problems;
 }
 
-export function tipProblems(tip: { text: string; basis: Basis[] }, home: LanguageInfo, allowed: readonly Basis[], hazards: readonly Hazard[]): string[] {
+export function tipProblems(tip: { text: string; basis: Basis[] }, home: LanguageInfo, allowed: readonly Basis[]): string[] {
   const problems: string[] = [];
   const badBasis = tip.basis.filter((b) => !allowed.includes(b));
   if (badBasis.length > 0) problems.push(`basis ${badBasis.map((b) => `"${b}"`).join(', ')} isn't in allowedBasis`);
   if (!mostlyInScript(tip.text, home)) problems.push(`it isn't written in ${home.name}`);
-  const hazard = unsafeMention([tip.text], hazards);
-  if (hazard) problems.push(`it suggests ${hazard}, which the traveller must avoid`);
   return problems;
 }
 
@@ -136,13 +130,12 @@ export function finalizePlaceCard(request: PlaceCardRequest, output: PlaceCardMo
   const local = languageInfo(request.situation.localLanguage);
   const home = languageInfo(request.profile.homeLanguage);
   const allowed = allowedBasis(request.profile, request.situation);
-  const hazards = hazardsFor(request.profile);
   const dropped: string[] = [];
   const issues: string[] = [];
 
   const phrases: CardPhrase[] = [];
   output.phrases.forEach((phrase, index) => {
-    const problems = phraseProblems(phrase, local, allowed, hazards);
+    const problems = phraseProblems(phrase, local, allowed);
     if (problems.length > 0) {
       const line = `phrases[${index}] (${phrase.local} / ${phrase.gloss}): ${problems.join('; ')}`;
       dropped.push(line);
@@ -164,7 +157,7 @@ export function finalizePlaceCard(request: PlaceCardRequest, output: PlaceCardMo
 
   const tips: Tip[] = [];
   output.tips.forEach((tip, index) => {
-    const problems = tipProblems(tip, home, allowed, hazards);
+    const problems = tipProblems(tip, home, allowed);
     if (problems.length > 0) {
       const line = `tips[${index}]: ${problems.join('; ')}`;
       dropped.push(line);
