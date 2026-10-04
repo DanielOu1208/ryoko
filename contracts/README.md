@@ -47,6 +47,8 @@ The situation places (`Wutong Coffee` 梧桐咖啡 in Jing'an, `Menya Kaze` 麺�
 
 The tier 2 Translate endpoints have examples too: `translate[.tokyo].{request,response}.json` (typed text, one per target language, which the faux server picks by `to`) and `soniox-key.response.json`, whose key is an obvious placeholder. A real minted key is a secret and never goes in a file.
 
+`place-photos.{request,response}.json` (`POST /v1/place-photos`) are hand-written, never a Foursquare response: the urls are `https://example.com/` placeholders, and the third place shows "no photo" (no `url`). The faux server and the app's fixtures answer every place with no url.
+
 **`profile.seed.json`'s home base is a placeholder.** The hotel name, address and coordinate are made up and labelled as a placeholder. Replace them with the real hotel, with its coordinate from MapKit (design §4.7), before any demo.
 
 ## Allergy templates
