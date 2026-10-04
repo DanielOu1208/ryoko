@@ -52,20 +52,26 @@ struct SurveyPageForm<Extra: View>: View {
     private static var debugBottomID: String { "survey-form-bottom" }
     #endif
 
-    /// The page's one-line explanation, above the first section.
+    /// The page's one-line explanation, above the first section. It's an
+    /// empty section's header: a row would be clipped by the section's
+    /// rounded corners.
     private var intro: some View {
-        VStack(alignment: .leading, spacing: Theme.grid) {
-            if context == .survey, page == .origin {
-                Text("A few quick questions so Mimo can pick the right words for you. Skip anything, and change it later in Me.")
-                    .font(.body)
+        Section {
+        } header: {
+            VStack(alignment: .leading, spacing: Theme.grid) {
+                if context == .survey, page == .origin {
+                    Text("A few quick questions so Mimo can pick the right words for you. Skip anything, and change it later in Me.")
+                        .font(.body)
+                        .foregroundStyle(Color.primary)
+                }
+                Text(page.explanation)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.secondary)
             }
-            Text(page.explanation)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            .textCase(nil)
+            .fontWeight(.regular)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 0, leading: Theme.grid / 2, bottom: Theme.grid, trailing: Theme.grid / 2))
     }
 
     @ViewBuilder

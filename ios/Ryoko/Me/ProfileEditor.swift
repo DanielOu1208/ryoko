@@ -13,6 +13,7 @@ struct ProfileEditor: View {
     @State private var draft: SurveyDraft
     @Environment(ProfileStore.self) private var profileStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(page: SurveyPage, profile: Profile) {
         self.page = page
@@ -23,7 +24,7 @@ struct ProfileEditor: View {
         SurveyPageForm(page: page, draft: $draft, context: .editor) {
             answerStateSection
         }
-        .navigationTitle(page.title)
+        .navigationTitle(page.title(for: dynamicTypeSize))
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: draft) { _, edited in
             profileStore.update { edited.apply(page, to: &$0) }

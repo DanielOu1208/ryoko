@@ -118,10 +118,11 @@ private struct SurveyPageScreen: View {
     @Bindable var model: SurveyModel
     /// The page is showing search suggestions; Continue steps aside.
     @State private var hidesContinue = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         SurveyPageForm(page: page, draft: $model.draft)
-            .navigationTitle(page.title)
+            .navigationTitle(page.title(for: dynamicTypeSize))
             .navigationSubtitle(page.progress)
             .navigationBarTitleDisplayMode(.large)
             .toolbar {

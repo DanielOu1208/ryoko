@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// The seven survey pages (design §4.1), in order. Every page can be skipped;
 /// a skipped page is stored as `null` (design §7.2). Me edits the profile one
@@ -32,6 +32,25 @@ nonisolated enum SurveyPage: Int, CaseIterable, Identifiable, Hashable, Sendable
         case .thisOrThat: "This or that"
         case .homeBase: "Where you're staying"
         }
+    }
+
+    /// A title that fits the navigation bar at accessibility text sizes, where
+    /// large titles don't wrap.
+    var shortTitle: String {
+        switch self {
+        case .origin: "About you"
+        case .languages: "Languages"
+        case .diet: "Diet"
+        case .allergies: "Allergies"
+        case .usual: "Your usual"
+        case .thisOrThat: "This or that"
+        case .homeBase: "Home base"
+        }
+    }
+
+    /// `title`, or `shortTitle` at accessibility text sizes.
+    func title(for size: DynamicTypeSize) -> String {
+        size.isAccessibilitySize ? shortTitle : title
     }
 
     /// The row label in Me's profile section.
