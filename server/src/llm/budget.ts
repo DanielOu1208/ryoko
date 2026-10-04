@@ -27,7 +27,8 @@ function localDay(date: Date): string {
 }
 
 export class Budget {
-  readonly limitUsd: number;
+  /** The dashboard (/admin) can change it while the server runs. */
+  limitUsd: number;
   private readonly file: string | null;
   private readonly now: () => Date;
   private ledger: Ledger;
@@ -66,6 +67,12 @@ export class Budget {
       status: 503,
       retryable: false,
     });
+  }
+
+  /** Starts today over at zero (the dashboard's "Reset today's spend"). */
+  resetToday(): void {
+    this.current().spentUsd = 0;
+    this.persist();
   }
 
   add(usd: number): void {

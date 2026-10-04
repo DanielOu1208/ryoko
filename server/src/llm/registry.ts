@@ -22,6 +22,8 @@ const GMI_PRICES: Record<string, Model<'openai-completions'>['cost']> = {
   'deepseek-ai/DeepSeek-V4.1-Flash': { input: 0.3, output: 1.2, cacheRead: 0.006, cacheWrite: 0 },
   'Qwen/Qwen3.8-Flash': { input: 0.16, output: 0.47, cacheRead: 0.016, cacheWrite: 0.2 },
 };
+/** The GMI models with known prices: the dashboard suggests these. */
+export const GMI_MODEL_IDS = Object.keys(GMI_PRICES);
 const UNKNOWN_PRICE = { input: 1, output: 4, cacheRead: 0, cacheWrite: 0 };
 
 /** The env var holding each provider's key. */

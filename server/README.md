@@ -16,7 +16,18 @@ pnpm --dir server evals              # canned situations on the REAL model (a fe
 server/scripts/smoke.sh              # curls every endpoint of a running server; reads the token from server/.env
 ```
 
-`MODEL` in the environment overrides `server/.env`, so `MODEL=faux` works without editing the file. Config is `server/.env` (copy `.env.example`); the server exits with a clear message if `APP_TOKEN` is missing.
+`MODEL` in the environment overrides `server/.env`, so `MODEL=faux` works without editing the file.
+
+## Dashboard
+
+Open `http://127.0.0.1:8792/admin` on the Mac running the server: one terminal-style screen of five panels that fills the window (each scrolls on its own; below 1000 × 560 they stack).
+
+- **Top bar:** what Mimo is doing now, Mimo's default model and thinking level, today's spend, cache entries, chats in memory, uptime, pid.
+- **1 Now:** stats over the activity in memory (replies, average time to first text and to the full reply, skill calls, cache hit rate, failures, cost), then the live run: the message, each tool call with its arguments (the search query, the places it named) and result, Mimo's reasoning text (which the app never gets) and the reply as it streams. Idle, it shows the last reply. Place cards, picks, allergy cards and translations show while they run.
+- **3 Activity / 4 Detail:** the last 40 replies and skill calls (time, took, cost, from cache or generated, failures); click one for its detail, and TRANSCRIPT opens the server's copy of that chat. Each reply shows the model it actually ran on, since a chat can use another.
+- **5 System:** spend against the budget, clear the cache, reset today's spend, forget all chats, which keys are set (never their values), limits, and the chats in memory (click one for its transcript).
+- **2 Models:** `MODEL`, each `MODEL_<SKILL>` and `MODEL_<SKILL>_REASONING`, `DAILY_BUDGET_USD`, `FAUX_PACE`, `FAUX_LATENCY_MS`, checked like `server/.env` and kept until a restart (it prints the `.env` lines to keep them). Changing a model rebuilds the skills, so Mimo's chats start fresh; the cache and the day's spend carry over.
+- **Local only:** forwarded requests (Funnel) and non-loopback hosts get a 404, and changes need an `X-Ryoko-Admin: 1` header, so other sites can't post to it. No token needed. The code is in `src/admin/`; it keeps the activity in memory.
 
 ## Layout
 
@@ -37,6 +48,7 @@ server/scripts/smoke.sh              # curls every endpoint of a running server;
 | `src/skills/mimo/` | `session.ts` (Agent per session, guardrails), `phrase-stream.ts` (phrase tags → events), `tools.ts`, `exa.ts`, `prompt.ts` |
 | `src/llm/` | `registry.ts` (pi-ai Models, the GMI provider, per-skill models), `typed.ts` (typed output), `budget.ts` (daily kill switch) |
 | `src/cache.ts` | Persisted LRU with in-flight de-duplication |
+| `src/admin/` | The dashboard: `page.html`, its local-only API (`routes.ts`), runtime settings (`runtime.ts`) and the activity log (`activity.ts`) |
 | `src/soniox.ts` | Mints temporary Soniox keys for `POST /v1/soniox-key` |
 | `evals/run.ts` | Evals against the real model |
 

@@ -29,6 +29,7 @@ const server = serve({ fetch: app.fetch, hostname: HOST, port: config.port }, (i
   // The pid is for stopping this server alone: every agent's server has the
   // same command line, so `pkill -f` would stop theirs too (AGENTS.md).
   console.log(`Ryoko server on http://${HOST}:${info.port} (${describeConfig(config)}), pid ${process.pid}`);
+  console.log(`Dashboard: http://${HOST}:${info.port}/admin`);
 });
 
 server.on('error', (err: NodeJS.ErrnoException) => {

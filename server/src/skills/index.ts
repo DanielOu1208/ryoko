@@ -3,12 +3,13 @@
 
 import type { Config } from '../config.ts';
 import { createFauxSkills } from './faux.ts';
-import { createModelSkills } from './model.ts';
+import { createModelSkills, type ModelSkillsOptions } from './model.ts';
 import type { Skills } from './types.ts';
 
 export type { MimoContext, MimoRun, SkillContext, Skills } from './types.ts';
 
-export function createSkills(config: Config): Skills {
+/** `options` (the shared cache and budget, stats hooks) apply to the model-backed skills only. */
+export function createSkills(config: Config, options: ModelSkillsOptions = {}): Skills {
   if (config.model === 'faux') return createFauxSkills(config.faux);
-  return createModelSkills(config);
+  return createModelSkills(config, options);
 }

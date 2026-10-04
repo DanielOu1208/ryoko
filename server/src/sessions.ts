@@ -19,6 +19,11 @@ export class SessionLocks {
   isBusy(sessionId: string): boolean {
     return this.active.has(sessionId);
   }
+
+  /** Sessions with a run going now. */
+  get running(): string[] {
+    return [...this.active];
+  }
 }
 
 /** Session ids come from the app (a UUID); keep them short and URL-safe. */

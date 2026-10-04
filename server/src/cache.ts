@@ -190,6 +190,12 @@ export class ResponseCache {
     }
   }
 
+  /** Drops every stored value. Generations already running still land when they finish. */
+  clear(): void {
+    this.entries.clear();
+    this.markDirty();
+  }
+
   /** Writes pending changes now. */
   flush(): void {
     clearTimeout(this.writeTimer);

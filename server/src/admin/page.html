@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mimo activity</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #000; --panel: #060606; --line: #262626; --amber: #ff9f1c; --amber-dim: #7a4c0d; --text: #e6e6e6; --dim: #8a8a8a;
+    --yellow: #ffd23f; --green: #3ddc84; --red: #ff5050; --cyan: #4cc9f0; --sel: #2a1a03;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 12px/1.4 ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; display: flex; flex-direction: column; overflow: hidden; }
+  .a { color: var(--amber); } .d { color: var(--dim); } .y { color: var(--yellow); } .g { color: var(--green); } .r { color: var(--red); } .c { color: var(--cyan); } .w { color: var(--text); }
+  b { font-weight: 600; }
+
+  /* Top bar */
+  #bar { display: flex; align-items: stretch; border-bottom: 1px solid var(--amber-dim); flex: none; white-space: nowrap; overflow: hidden; }
+  #bar .brand { background: var(--amber); color: #000; font-weight: 700; padding: 5px 10px; letter-spacing: .08em; }
+  #bar .f { padding: 5px 10px; border-right: 1px solid var(--line); }
+  #bar .f .k { color: var(--amber); margin-right: 6px; }
+  #bar .grow { flex: 1; }
+  #state.live { color: var(--yellow); }
+  #state.live::before { content: "■ "; animation: blink 1s steps(1) infinite; }
+  #state.idle::before { content: "□ "; color: var(--dim); }
+  #state.off { color: var(--red); }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Grid: everything on one screen, each panel scrolls on its own. */
+  #grid { flex: 1; min-height: 0; display: grid; gap: 1px; background: var(--line);
+    grid-template-columns: 1.15fr 1fr 0.95fr; grid-template-rows: minmax(0, 46fr) minmax(0, 54fr);
+    grid-template-areas: "now now models" "activity detail system"; }
+  .panel { background: var(--panel); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .ph { display: flex; align-items: center; gap: 10px; background: #111; border-bottom: 1px solid var(--line); padding: 3px 8px; flex: none; }
+  .ph .t { background: var(--amber); color: #000; font-weight: 700; padding: 0 6px; letter-spacing: .05em; white-space: nowrap; flex: none; }
+  .ph .sub { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ph .grow { flex: 1; }
+  .pb { flex: 1; min-height: 0; overflow: auto; padding: 6px 8px; }
+  .pb::-webkit-scrollbar, .scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+  .pb::-webkit-scrollbar-thumb, .scroll::-webkit-scrollbar-thumb { background: #2a2a2a; }
+  #now { grid-area: now; } #models { grid-area: models; } #activity { grid-area: activity; } #detail { grid-area: detail; } #system { grid-area: system; }
+  @media (max-width: 1000px), (max-height: 560px) {
+    body { overflow: auto; display: block; }
+    #grid { display: block; }
+    .panel { min-height: 320px; border-bottom: 1px solid var(--line); }
+    .pb { max-height: 70vh; }
+    .live-grid { grid-template-columns: 1fr !important; }
+  }
+
+  /* Now */
+  #kpis { display: flex; flex-wrap: wrap; gap: 4px 18px; padding-bottom: 6px; border-bottom: 1px dashed var(--line); margin-bottom: 6px; }
+  #kpis .k { color: var(--amber); margin-right: 5px; }
+  #now .pb { display: flex; flex-direction: column; }
+  .live-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .col { min-height: 0; display: flex; flex-direction: column; }
+  .col h4 { margin: 0 0 3px; color: var(--amber); font-weight: 600; font-size: 11px; letter-spacing: .06em; flex: none; }
+  .scroll { flex: 1; min-height: 0; overflow: auto; }
+  .stream { white-space: pre-wrap; word-break: break-word; }
+  .caret::after { content: "█"; color: var(--yellow); animation: blink 1s steps(1) infinite; }
+  .phase { color: var(--yellow); font-weight: 700; font-size: 14px; letter-spacing: .04em; }
+  .line { display: flex; gap: 8px; }
+  .msg-q { color: var(--cyan); margin: 4px 0 6px; word-break: break-word; }
+  .step { margin: 2px 0; word-break: break-word; }
+  .spin::before { content: "◐"; color: var(--yellow); animation: spin .8s steps(1) infinite; }
+  @keyframes spin { 25% { content: "◓"; } 50% { content: "◑"; } 75% { content: "◒"; } }
+  .phr { display: block; margin-top: 3px; } .phr .l { color: var(--yellow); }
+  .others { margin-bottom: 6px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th { text-align: left; color: var(--amber); font-weight: 600; padding: 4px 4px 3px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); white-space: nowrap; }
+  td { padding: 2px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid #111; }
+  tr.click { cursor: pointer; } tr.click:hover td { background: #141414; } tr.sel td { background: var(--sel); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Detail */
+  .facts { display: grid; grid-template-columns: max-content 1fr; gap: 1px 10px; margin-bottom: 6px; }
+  .facts .k { color: var(--amber); }
+  .sec { color: var(--amber); margin: 8px 0 2px; font-weight: 600; letter-spacing: .06em; font-size: 11px; }
+  .trole { color: var(--amber); margin-top: 8px; } .trole.user { color: var(--cyan); }
+  summary { cursor: pointer; }
+
+  /* Forms and buttons */
+  input, select { font: inherit; color: var(--yellow); background: #000; border: 1px solid var(--line); border-bottom-color: var(--amber-dim); padding: 2px 5px; width: 100%; min-width: 0; border-radius: 0; }
+  input::placeholder { color: #666; }
+  input:focus, select:focus { outline: none; border-color: var(--amber); }
+  input.over, select.over { border-color: var(--yellow); background: #140f00; }
+  .form { display: grid; grid-template-columns: 82px 1fr 104px; gap: 3px 6px; align-items: center; }
+  .form .lbl { color: var(--amber); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .form3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px 8px; margin-top: 8px; }
+  .form3 label { color: var(--amber); display: grid; gap: 2px; white-space: nowrap; }
+  button { font: inherit; color: var(--amber); background: #000; border: 1px solid var(--amber-dim); padding: 1px 8px; cursor: pointer; border-radius: 0; letter-spacing: .03em; }
+  button:hover:not(:disabled) { background: var(--amber); color: #000; }
+  button.danger { color: var(--red); border-color: #5a1a1a; } button.danger:hover:not(:disabled) { background: var(--red); color: #000; }
+  button.on { background: var(--amber); color: #000; }
+  button:disabled { opacity: .35; cursor: default; }
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 1px 10px; }
+  .kv .k { color: var(--amber); }
+  .meter { height: 6px; background: #1a1a1a; margin: 3px 0 2px; } .meter i { display: block; height: 100%; background: var(--amber); } .meter.hot i { background: var(--red); }
+  .note { color: var(--dim); margin-top: 6px; word-break: break-word; }
+  #toast { position: fixed; right: 10px; bottom: 10px; background: var(--amber); color: #000; padding: 4px 10px; font-weight: 600; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 60%; }
+  #toast.show { opacity: 1; } #toast.error { background: var(--red); }
+</style>
+</head>
+<body>
+<div id="bar">
+  <span class="brand">MIMO</span>
+  <span class="f"><span id="state" class="idle">CONNECTING</span></span>
+  <span class="f"><span class="k">MODEL</span><span id="b-model" class="y"></span></span>
+  <span class="f"><span class="k">SPEND</span><span id="b-spend"></span></span>
+  <span class="f"><span class="k">CACHE</span><span id="b-cache"></span></span>
+  <span class="f"><span class="k">CHATS</span><span id="b-chats"></span></span>
+  <span class="grow"></span>
+  <span class="f"><span class="k">UP</span><span id="b-up"></span></span>
+  <span class="f"><span class="k">PID</span><span id="b-pid"></span></span>
+  <span class="f" id="b-clock"></span>
+</div>
+
+<div id="grid">
+  <section class="panel" id="now">
+    <div class="ph"><span class="t">1 NOW</span><span class="sub" id="now-sub">what Mimo is doing</span></div>
+    <div class="pb" id="now-body"></div>
+  </section>
+
+  <section class="panel" id="models">
+    <div class="ph"><span class="t">2 MODELS</span><span class="sub">apply · lasts until restart</span></div>
+    <div class="pb">
+      <div class="form" id="form"></div>
+      <div class="form3" id="form3"></div>
+      <div class="btns"><button id="apply" disabled>APPLY</button><button id="reset" disabled>RESET TO .ENV</button><span class="y" id="apply-hint"></span></div>
+      <div class="note" id="overrides"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="activity">
+    <div class="ph"><span class="t">3 ACTIVITY</span><span class="sub" id="act-sub"></span><span class="grow"></span><button data-f="all" class="on">ALL</button><button data-f="mimo">MIMO</button></div>
+    <div class="pb" id="act-body" style="padding-top:0"></div>
+  </section>
+
+  <section class="panel" id="detail">
+    <div class="ph"><span class="t">4 DETAIL</span><span class="sub" id="detail-sub">click a row</span><span class="grow"></span><button id="detail-back" hidden>BACK</button></div>
+    <div class="pb" id="detail-body"></div>
+  </section>
+
+  <section class="panel" id="system">
+    <div class="ph"><span class="t">5 SYSTEM</span><span class="sub" id="sys-sub"></span></div>
+    <div class="pb" id="sys-body"></div>
+  </section>
+</div>
+<div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+const usd = (n) => '$' + (n >= 1 ? n.toFixed(2) : n.toFixed(4));
+const secs = (ms) => ms == null ? '—' : ms >= 1000 ? (ms / 1000).toFixed(1) + 's' : Math.round(ms) + 'ms';
+const clock = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+const ago = (t) => { const s = Math.round((now() - t) / 1000); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago`; };
+const uptime = (s) => { const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? `${h}h${String(m).padStart(2, '0')}m` : `${m}m${String(Math.floor(s % 60)).padStart(2, '0')}s`; };
+const short = (id) => id && id.length > 14 ? id.slice(0, 8) + '…' : id;
+const avg = (xs) => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+
+const CODES = { mimo: ['MIMO', 'c'], placeCard: ['CARD', 'w'], discover: ['PICKS', 'w'], allergyCard: ['ALLERGY', 'w'], translate: ['XLATE', 'w'] };
+const SKILLS = { mimo: ['MODEL_MIMO', 'MIMO'], placeCard: ['MODEL_PLACE_CARD', 'PLACE CARD'], discover: ['MODEL_DISCOVER', 'PICKS'], allergyCard: ['MODEL_ALLERGY_CARD', 'ALLERGY'], translate: ['MODEL_TRANSLATE', 'TRANSLATE'] };
+const TOOLS = { show_places: 'SHOW_PLACES', web_search: 'WEB_SEARCH' };
+const PHASES = { thinking: 'THINKING', writing: 'WRITING', tool: 'USING A TOOL' };
+const RUNNING = { placeCard: 'WRITING PLACE CARD', discover: 'PICKING PLACES', allergyCard: 'WRITING ALLERGY CARD', translate: 'TRANSLATING' };
+
+let status = null, offset = 0, loaded = {}, filter = 'all', actSig = '', detailSig = '';
+let selected = null; // {type: 'activity' | 'chat', id}
+const now = () => Date.now() + offset;
+
+/** gmi:deepseek-ai/DeepSeek-V4.1-Flash@high, or {provider, modelId, reasoning} → name and thinking. */
+function model(m) {
+  if (!m || m === 'fixtures') return { name: 'FIXTURES', provider: 'faux', think: null };
+  if (typeof m === 'string') {
+    const [, provider, id, level] = /^([^:]+):(.*?)(?:@(\w+))?$/.exec(m) ?? [null, '', m, null];
+    return { name: id.split('/').pop(), provider, think: level ?? 'off' };
+  }
+  return { name: m.modelId.split('/').pop(), provider: m.provider, think: m.reasoning };
+}
+const modelText = (m) => { const p = model(m); return p.think ? `${p.name} · think ${p.think}` : p.name; };
+
+function toast(text, error = false) {
+  const el = $('toast');
+  el.textContent = text;
+  el.className = 'show' + (error ? ' error' : '');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => el.className = '', error ? 6000 : 2500);
+}
+
+async function api(path, body) {
+  const init = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Ryoko-Admin': '1' }, body: JSON.stringify(body) };
+  const res = await fetch('/admin/api/' + path, init);
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
+  return json;
+}
+
+/** Re-renders a panel, keeping its scroll position; inner [data-follow] boxes follow their end when they were at it. */
+function render(el, html) {
+  const follow = [...el.querySelectorAll('[data-follow]')].map((s) => ({ top: s.scrollTop, atEnd: s.scrollHeight - s.scrollTop - s.clientHeight < 20 }));
+  const top = el.scrollTop;
+  el.innerHTML = html;
+  el.scrollTop = top;
+  [...el.querySelectorAll('[data-follow]')].forEach((s, i) => { const st = follow[i]; s.scrollTop = !st || st.atEnd ? s.scrollHeight : st.top; });
+}
+
+// ---- Pieces ----
+
+const phaseOf = (a) => {
+  if (a.kind !== 'mimo') return RUNNING[a.kind];
+  if (a.phase === 'tool') { const s = [...a.steps].reverse().find((x) => x.state === 'running'); return s ? `CALLING ${TOOLS[s.name] ?? s.name}` : PHASES.tool; }
+  return PHASES[a.phase] ?? 'WORKING';
+};
+
+function stepsHtml(a) {
+  return a.steps.map((s) => {
+    const mark = s.state === 'running' ? '<span class="spin"></span>' : s.state === 'done' ? '<span class="g">✓</span>' : '<span class="r">✗</span>';
+    return `<div class="step">${mark} <span class="a">${TOOLS[s.name] ?? esc(s.name)}</span> ${esc(s.input ?? '')}${s.result ? `<div class="d">  → ${esc(s.result)}</div>` : ''}</div>`;
+  }).join('') || '<span class="d">none</span>';
+}
+
+const phrasesHtml = (a) => a.phrases.map((p) => `<span class="phr"><span class="l">${esc(p.local)}</span>${p.romanization ? ` <span class="d">${esc(p.romanization)}</span>` : ''} <span class="w">= ${esc(p.gloss)}</span></span>`).join('');
+
+function resultCell(a) {
+  if (a.state === 'running') return '<span class="y">RUN</span>';
+  if (a.state === 'failed') return '<span class="r">FAIL</span>';
+  if (a.kind === 'mimo') return a.result === 'stop' ? '<span class="g">OK</span>' : `<span class="y">${esc((a.result ?? 'done').toUpperCase())}</span>`;
+  return a.result === 'cache' ? '<span class="d">CACHE</span>' : a.result === 'shared' ? '<span class="d">SHARED</span>' : '<span class="g">GEN</span>';
+}
+
+// ---- Panels ----
+
+function drawBar(s, running) {
+  const mimo = running.find((a) => a.kind === 'mimo') ?? running[0];
+  const st = $('state');
+  st.className = mimo ? 'live' : 'idle';
+  st.innerHTML = mimo ? `${esc(phaseOf(mimo))} <span data-since="${mimo.startedAt}"></span>` : 'IDLE';
+  $('b-model').textContent = s.models ? modelText(s.models.mimo) : 'FIXTURES (MODEL=faux)';
+  $('b-spend').innerHTML = s.budget ? `${usd(s.budget.spentUsd)} <span class="d">/ ${usd(s.budget.limitUsd)}</span>` : '<span class="d">—</span>';
+  $('b-cache').textContent = s.cache ? s.cache.entries : '—';
+  $('b-chats').textContent = s.model === 'faux' ? '—' : s.mimo.sessions.length;
+  $('b-up').textContent = uptime((s.server.now - s.server.startedAt) / 1000);
+  $('b-pid').textContent = `${s.server.pid} :${s.server.port}`;
+}
+
+function liveColumns(a, live) {
+  const follow = live ? 'data-follow' : '';
+  return `<div class="live-grid">
+    <div class="col"><div class="scroll">${live ? `<div class="phase">${esc(phaseOf(a))} <span class="w" data-since="${a.startedAt}"></span></div>` : ''}
+      <div class="d">${esc(modelText(a.model))} · chat ${esc(short(a.sessionId))}</div>
+      <div class="msg-q">&gt; ${esc(a.title)}</div><h4>TOOLS</h4>${stepsHtml(a)}</div></div>
+    <div class="col"><h4>THINKING</h4><div class="scroll stream d" ${follow}>${esc(a.thinking) || '—'}</div></div>
+    <div class="col"><h4>REPLY</h4><div class="scroll" ${follow}><span class="stream ${live && a.phase === 'writing' ? 'caret' : ''}">${esc(a.text) || (live ? '' : '<span class="d">—</span>')}</span>${phrasesHtml(a)}</div></div>
+  </div>`;
+}
+
+function drawNow(s, running) {
+  const list = s.activity;
+  const replies = list.filter((a) => a.kind === 'mimo' && a.state !== 'running');
+  const calls = list.filter((a) => a.kind !== 'mimo' && a.state !== 'running');
+  const fails = list.filter((a) => a.state === 'failed').length;
+  const kpi = (k, v) => `<span><span class="k">${k}</span>${v}</span>`;
+  const kpis = [
+    kpi('REPLIES', replies.length),
+    kpi('AVG FIRST TEXT', secs(avg(replies.filter((a) => a.firstTextMs != null).map((a) => a.firstTextMs)))),
+    kpi('AVG REPLY', secs(avg(replies.filter((a) => a.endedAt).map((a) => a.endedAt - a.startedAt)))),
+    kpi('SKILL CALLS', calls.length),
+    kpi('CACHE HIT', calls.length ? Math.round(calls.filter((a) => a.result === 'cache' || a.result === 'shared').length / calls.length * 100) + '%' : '—'),
+    kpi('FAILS', `<span class="${fails ? 'r' : ''}">${fails}</span>`),
+    kpi('COST', usd(list.reduce((t, a) => t + (a.costUsd ?? 0), 0))),
+  ].join('');
+  const mimo = running.find((a) => a.kind === 'mimo');
+  const others = running.filter((a) => a !== mimo).map((a) => `<div class="line"><span class="spin"></span><span class="y">${RUNNING[a.kind] ?? a.kind}</span><span class="w">${esc(a.title)}</span><span class="d" data-since="${a.startedAt}"></span></div>`).join('');
+  $('now-sub').textContent = `stats over the last ${list.length} in memory`;
+  let body = `<div id="kpis">${kpis}</div>`;
+  if (others) body += `<div class="others">${others}</div>`;
+  if (mimo) {
+    body += liveColumns(mimo, true);
+  } else {
+    const last = list.find((a) => a.kind === 'mimo');
+    if (!others) body += `<div class="d" style="margin-bottom:6px">NO ACTIVE RUN.${last ? ` LAST REPLY ${ago(last.endedAt ?? last.startedAt).toUpperCase()}:` : ' WAITING FOR THE APP.'}</div>`;
+    if (last) body += liveColumns(last, false);
+  }
+  render($('now-body'), body);
+}
+
+function drawActivity(s) {
+  const rows = s.activity.filter((a) => filter === 'all' || a.kind === 'mimo');
+  const sig = filter + JSON.stringify(rows.map((a) => [a.id, a.state, a.result, a.costUsd, a.endedAt])) + JSON.stringify(selected);
+  $('act-sub').textContent = `${rows.length} rows`;
+  if (sig === actSig) return;
+  actSig = sig;
+  if (!rows.length) { render($('act-body'), `<div class="d" style="padding-top:6px">${s.model === 'faux' ? 'FIXTURE MODE: SCRIPTED REPLIES, NO THINKING OR COST.' : 'NOTHING YET. USE THE APP.'}</div>`); return; }
+  const body = rows.map((a) => {
+    const [code, cls] = CODES[a.kind];
+    const sel = selected?.type === 'activity' && selected.id === a.id ? ' sel' : '';
+    return `<tr class="click${sel}" data-id="${esc(a.id)}"><td>${clock(a.startedAt)}</td><td class="${cls}">${code}</td><td class="w">${esc(a.kind === 'mimo' ? '> ' + a.title : a.title)}</td>
+      <td class="num">${a.endedAt ? secs(a.endedAt - a.startedAt) : '<span class="y">…</span>'}</td><td class="num">${a.costUsd ? usd(a.costUsd) : '<span class="d">—</span>'}</td><td>${resultCell(a)}</td></tr>`;
+  }).join('');
+  render($('act-body'), `<table><colgroup><col style="width:68px"><col style="width:62px"><col><col style="width:52px"><col style="width:66px"><col style="width:54px"></colgroup>
+    <thead><tr><th>TIME</th><th>TYPE</th><th>SUBJECT</th><th class="num">TOOK</th><th class="num">COST</th><th>RES</th></tr></thead><tbody>${body}</tbody></table>`);
+}
+
+function drawDetail(s) {
+  if (selected?.type === 'chat') return; // a transcript stays until BACK or another row
+  const a = (selected && s.activity.find((x) => x.id === selected.id)) ?? s.activity.find((x) => x.kind === 'mimo') ?? s.activity[0];
+  $('detail-back').hidden = true;
+  if (!a) { detailSig = ''; render($('detail-body'), '<span class="d">NOTHING TO SHOW YET.</span>'); $('detail-sub').textContent = 'click a row'; return; }
+  const sig = JSON.stringify(a);
+  if (sig === detailSig) return;
+  detailSig = sig;
+  $('detail-sub').textContent = `${CODES[a.kind][0]} · ${clock(a.startedAt)}${selected ? '' : ' · latest'}`;
+  const facts = [
+    ['STATE', resultCell(a) + (a.result && a.kind === 'mimo' ? ` <span class="d">${esc(a.result)}</span>` : '')],
+    ['MODEL', esc(modelText(a.model))],
+    ['TOOK', a.endedAt ? secs(a.endedAt - a.startedAt) : `<span data-since="${a.startedAt}"></span> …`],
+    a.firstTextMs != null && ['FIRST TEXT', secs(a.firstTextMs)],
+    a.turns != null && ['TURNS', a.turns],
+    a.costUsd != null && ['COST', usd(a.costUsd)],
+    a.sessionId && ['CHAT', `${esc(a.sessionId)} <button data-chat="${esc(a.sessionId)}">TRANSCRIPT</button>`],
+  ].filter(Boolean).map(([k, v]) => `<span class="k">${k}</span><span>${v}</span>`).join('');
+  let html = `<div class="facts">${facts}</div><div class="sec">${a.kind === 'mimo' ? 'MESSAGE' : 'SUBJECT'}</div><div class="${a.kind === 'mimo' ? 'c' : 'w'}">${esc(a.title)}</div>`;
+  if (a.error) html += `<div class="sec">ERROR</div><div class="r">${esc(a.error)}</div>`;
+  if (a.kind === 'mimo') {
+    html += `<div class="sec">TOOLS</div>${stepsHtml(a)}`;
+    html += `<div class="sec">THINKING</div><div class="stream d">${esc(a.thinking) || '—'}</div>`;
+    html += `<div class="sec">REPLY</div><div class="stream">${esc(a.text) || '<span class="d">—</span>'}</div>${phrasesHtml(a)}`;
+  }
+  render($('detail-body'), html);
+}
+
+async function showChat(id) {
+  try {
+    const t = await api('sessions/' + encodeURIComponent(id));
+    selected = { type: 'chat', id };
+    actSig = '';
+    drawActivity(status);
+    drawSystem(status);
+    $('detail-sub').textContent = `TRANSCRIPT ${t.id}`;
+    $('detail-back').hidden = false;
+    $('detail-body').innerHTML = t.messages.map((m) => m.role === 'system'
+      ? `<details><summary class="a">SYSTEM PROMPT AND CONTEXT</summary><div class="stream d">${esc(m.text)}</div></details>`
+      : `<div class="trole ${esc(m.role)}">${m.role === 'toolResult' ? 'TOOL' : esc(m.role.toUpperCase())}</div><div class="stream ${m.role === 'toolResult' ? 'd' : ''}">${esc(m.text) || '<span class="d">(empty)</span>'}</div>`).join('');
+    $('detail-body').scrollTop = 0;
+  } catch (err) {
+    toast(err.message.startsWith('No Mimo session') ? 'THAT CHAT IS GONE (A RESTART OR A MODEL CHANGE CLEARS CHATS)' : err.message, true);
+  }
+}
+
+function drawSystem(s) {
+  const b = s.budget;
+  const pct = b ? (b.limitUsd > 0 ? Math.min(100, b.spentUsd / b.limitUsd * 100) : 100) : 0;
+  const keys = Object.entries(s.keys).map(([k, set]) => `<span>${k}</span><span class="${set ? 'g' : 'y'}">${set ? 'SET' : 'MISSING'}</span>`).join('');
+  const t = s.limits.timeouts;
+  const faux = s.model === 'faux';
+  const chats = s.mimo.sessions.map((c) => `<tr class="click${selected?.type === 'chat' && selected.id === c.id ? ' sel' : ''}" data-chat="${esc(c.id)}"><td class="w">${esc(c.id)}</td><td class="num">${c.messages - 1}</td><td>${ago(c.lastUsed)}</td><td>${c.running || s.mimo.running.includes(c.id) ? '<span class="y">RUN</span>' : ''}</td></tr>`).join('');
+  $('sys-sub').textContent = `node ${s.server.node}`;
+  render($('sys-body'), `
+    <div class="kv"><span class="k">SPEND TODAY</span><span>${b ? `${usd(b.spentUsd)} / ${usd(b.limitUsd)} · ${pct.toFixed(0)}%` : '<span class="d">fixtures</span>'}</span></div>
+    <div class="meter ${pct >= 90 ? 'hot' : ''}"><i style="width:${pct}%"></i></div>
+    <div class="btns" style="margin-top:6px">
+      <button id="clear-cache" ${s.cache ? '' : 'disabled'}>CLEAR CACHE${s.cache ? ` (${s.cache.entries})` : ''}</button>
+      <button id="reset-budget" ${b ? '' : 'disabled'}>RESET SPEND</button>
+      <button id="clear-sessions" class="danger" ${faux ? 'disabled' : ''}>FORGET CHATS</button>
+    </div>
+    <div class="sec">KEYS</div><div class="kv">${keys}</div>
+    <div class="sec">LIMITS</div><div class="kv">
+      <span>RATE LIMIT</span><span>${s.limits.rateLimitPerMinute}/min</span><span>SKILL TIMEOUT</span><span>${secs(t.skillMs)}</span>
+      <span>MIMO TIMEOUT</span><span>${secs(t.mimoMs)}</span><span>TRANSLATE TIMEOUT</span><span>${secs(t.translateMs)}</span></div>
+    <div class="sec">CHATS IN MEMORY</div>
+    ${chats ? `<table><colgroup><col><col style="width:44px"><col style="width:70px"><col style="width:36px"></colgroup><thead><tr><th>ID</th><th class="num">MSGS</th><th>LAST</th><th></th></tr></thead><tbody>${chats}</tbody></table>` : `<div class="d">${faux ? 'fixture mode keeps no chats' : 'none yet'}</div>`}`);
+}
+
+// ---- Settings (panel 2) ----
+
+function drawForm(s) {
+  const v = Object.fromEntries(s.settings.map((x) => [x.key, x]));
+  loaded = Object.fromEntries(s.settings.map((x) => [x.key, x.value]));
+  const cls = (key) => v[key].overridden ? 'over' : '';
+  const input = (key, placeholder, extra = '') => `<input name="${key}" value="${esc(v[key].value)}" placeholder="${esc(placeholder)}" class="${cls(key)}" ${extra}>`;
+  const think = (key, eff) => `<select name="${key}" class="${cls(key)}" title="${key}">${['', ...s.choices.reasoning].map((r) => `<option value="${r}" ${v[key].value === r ? 'selected' : ''}>${r || `auto: ${eff ?? '—'}`}</option>`).join('')}</select>`;
+  let html = `<datalist id="model-choices">${['faux', ...s.choices.models].map((m) => `<option value="${esc(m)}">`).join('')}</datalist>`;
+  html += `<span class="a">SKILL</span><span class="a">MODEL <span class="d">provider[:id]</span></span><span class="a">THINK</span>`;
+  html += `<span class="lbl" title="MODEL">DEFAULT</span>${input('MODEL', 'gmi', 'list="model-choices" title="MODEL"')}<span></span>`;
+  for (const [skill, [key, label]] of Object.entries(SKILLS)) {
+    const eff = s.models ? model(s.models[skill]) : null;
+    html += `<span class="lbl" title="${key}">${label}</span>${input(key, eff ? eff.name : 'fixtures', `list="model-choices" title="${key}"`)}${think(key + '_REASONING', eff?.think)}`;
+  }
+  $('form').innerHTML = html;
+  $('form3').innerHTML = `<label>BUDGET $/DAY${input('DAILY_BUDGET_USD', '15', 'inputmode="decimal"')}</label><label>FAUX PACE${input('FAUX_PACE', '1', 'inputmode="decimal"')}</label><label>FAUX DELAY MS${input('FAUX_LATENCY_MS', '0', 'inputmode="numeric"')}</label>`;
+  $('apply').disabled = true;
+  $('apply-hint').textContent = '';
+  const lines = Object.entries(s.overrides);
+  $('reset').disabled = lines.length === 0;
+  $('overrides').innerHTML = lines.length
+    ? `<span class="y">OVERRIDES</span> (put in server/.env to keep): <span class="w">${esc(lines.map(([k, val]) => `${k}=${val}`).join('  '))}</span>`
+    : 'Grey = current (blank uses DEFAULT). A model change starts Mimo chats fresh.';
+}
+
+function changes() {
+  const out = {};
+  for (const el of document.querySelectorAll('#form [name], #form3 [name]')) if (el.value.trim() !== loaded[el.name]) out[el.name] = el.value.trim();
+  return out;
+}
+
+async function act(path, body, done) {
+  try {
+    const result = await api(path, body);
+    status = result.status ?? result;
+    drawForm(status);
+    drawAll(status);
+    toast(done(result));
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+// ---- Loop ----
+
+function drawAll(s) {
+  const running = s.activity.filter((a) => a.state === 'running');
+  drawBar(s, running);
+  drawNow(s, running);
+  drawActivity(s);
+  drawDetail(s);
+  drawSystem(s);
+  tick();
+}
+
+function tick() {
+  $('b-clock').textContent = clock(now());
+  for (const el of document.querySelectorAll('[data-since]')) el.textContent = secs(now() - Number(el.dataset.since));
+}
+
+async function poll() {
+  let busy = false;
+  try {
+    const s = await api('status');
+    offset = s.server.now - Date.now();
+    if (!status) drawForm(s);
+    status = s;
+    drawAll(s);
+    busy = s.activity.some((a) => a.state === 'running');
+  } catch {
+    $('state').className = 'off';
+    $('state').textContent = 'OFFLINE · RETRYING';
+  }
+  setTimeout(poll, document.hidden ? 4000 : busy ? 400 : 1500);
+}
+
+document.addEventListener('click', (e) => {
+  if (!status) return;
+  const chat = e.target.closest('[data-chat]');
+  if (chat) return showChat(chat.dataset.chat);
+  const row = e.target.closest('#act-body tr[data-id]');
+  if (row) { selected = { type: 'activity', id: row.dataset.id }; detailSig = ''; drawActivity(status); drawDetail(status); drawSystem(status); return; }
+  const f = e.target.dataset?.f;
+  if (f) {
+    filter = f;
+    for (const b of document.querySelectorAll('[data-f]')) b.classList.toggle('on', b.dataset.f === f);
+    drawActivity(status);
+    return;
+  }
+  if (e.target.id === 'clear-cache') return confirm('Clear every cached place card, list of picks, allergy card and translation?') && act('cache/clear', {}, () => 'CACHE CLEARED');
+  if (e.target.id === 'reset-budget') return confirm("Reset today's spend to $0?") && act('budget/reset', {}, () => 'SPEND RESET');
+  if (e.target.id === 'clear-sessions') return confirm('Forget every Mimo chat? Open chats in the app lose their history on the server.') && act('sessions/clear', {}, () => 'CHATS FORGOTTEN');
+});
+$('detail-back').onclick = () => { selected = null; detailSig = ''; actSig = ''; drawActivity(status); drawDetail(status); drawSystem(status); };
+$('models').addEventListener('input', () => {
+  const pending = changes();
+  const n = Object.keys(pending).length;
+  $('apply').disabled = n === 0;
+  $('apply-hint').textContent = n ? `${n} CHANGE${n > 1 ? 'S' : ''} PENDING` : '';
+  for (const el of document.querySelectorAll('#form [name], #form3 [name]')) el.classList.toggle('over', el.name in pending || status.overrides[el.name] !== undefined);
+});
+$('models').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !$('apply').disabled) $('apply').click(); });
+$('apply').onclick = () => act('settings', changes(), (r) => r.rebuilt ? 'APPLIED · SKILLS RESTARTED, CHATS START FRESH' : 'APPLIED');
+$('reset').onclick = () => act('settings/reset', {}, (r) => r.rebuilt ? 'BACK TO .ENV · SKILLS RESTARTED' : 'BACK TO .ENV');
+
+setInterval(tick, 250);
+poll();
+</script>
+</body>
+</html>

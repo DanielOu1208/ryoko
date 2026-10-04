@@ -14,7 +14,7 @@ import { ALLERGY_CARD_PROMPT_VERSION, allergyCardModelOutput, allergyCardSystem,
 import { languageInfo } from './context.ts';
 import { DISCOVER_PROMPT_VERSION, discoverGrounding, DiscoverModelOutput, discoverSystem, discoverUser, finalizeDiscover, geohash, nearbyKey } from './discover.ts';
 import { createExaSearch, type WebSearch } from './mimo/exa.ts';
-import { MimoSessions, type MimoRunStats } from './mimo/session.ts';
+import { MimoSessions, type MimoRunEvent, type MimoRunStats } from './mimo/session.ts';
 import { finalizePlaceCard, normalizePlaceCard, PLACE_CARD_PROMPT_VERSION, PlaceCardModelOutput, placeCardSystem, placeCardUser } from './place-card.ts';
 import {
   finalizeTranslate,
@@ -43,6 +43,8 @@ export interface ModelSkillsOptions {
   log?: (line: string) => void;
   onSkillStats?: (stats: SkillCallStats) => void;
   onMimoStats?: (stats: MimoRunStats) => void;
+  /** Mimo's thinking and tool arguments as they happen (the dashboard). */
+  onMimoEvent?: (runId: string, event: MimoRunEvent) => void;
 }
 
 export interface ModelSkills extends Skills {
@@ -90,7 +92,7 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
     for (const dropped of stats.phrases.droppedPhrases) log(`  dropped phrase (${dropped})`);
     options.onMimoStats?.(stats);
   };
-  const mimoSessions = new MimoSessions({ llm, budget, search, timeoutMs: config.timeouts.mimoMs, onRunStats: onMimoStats });
+  const mimoSessions = new MimoSessions({ llm, budget, search, timeoutMs: config.timeouts.mimoMs, onRunStats: onMimoStats, onRunEvent: options.onMimoEvent });
 
   function report(skill: SkillCallStats['skill'], source: CacheSource, generation: GenerationStats | undefined): void {
     const stats: SkillCallStats = { skill, source, ...(generation ? { generation } : {}) };

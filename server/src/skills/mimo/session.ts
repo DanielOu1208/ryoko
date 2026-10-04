@@ -44,6 +44,12 @@ export interface MimoRunStats {
   rejectedEvents: number;
 }
 
+/** What a run does that the app never sees (thinking, tool arguments), for the dashboard. */
+export type MimoRunEvent =
+  | { type: 'model'; key: string }
+  | { type: 'thinking'; delta: string }
+  | { type: 'tool_call'; id: string; name: string; args: unknown };
+
 export interface MimoDeps {
   llm: Llm;
   budget: Budget;
@@ -51,6 +57,7 @@ export interface MimoDeps {
   search: WebSearch | null;
   timeoutMs: number;
   onRunStats?: (stats: MimoRunStats) => void;
+  onRunEvent?: (runId: string, event: MimoRunEvent) => void;
 }
 
 interface Session {
@@ -85,6 +92,24 @@ export class MimoSessions {
 
   get size(): number {
     return this.sessions.size;
+  }
+
+  /** Every session, most recently used first (for the dashboard). */
+  summaries(): { id: string; model: string; lastUsed: number; messages: number; running: boolean }[] {
+    return [...this.sessions]
+      .map(([id, session]) => ({
+        id,
+        model: session.modelKey,
+        lastUsed: session.lastUsed,
+        messages: session.agent.state.messages.length,
+        running: session.agent.state.isStreaming,
+      }))
+      .reverse();
+  }
+
+  /** Forgets every session. A run already going finishes on its own agent; the route's lock still holds it. */
+  clear(): void {
+    this.sessions.clear();
   }
 
   /** The transcript of a session (for tests and debugging). */
@@ -148,6 +173,7 @@ export class MimoSessions {
   private async run(session: Session, skillModel: SkillModel, request: MimoMessageRequest, ctx: MimoContext, sink: SseSink): Promise<StopReason> {
     const { agent } = session;
     const started = performance.now();
+    this.deps.onRunEvent?.(ctx.runId, { type: 'model', key: skillModel.key });
     const state: RunState = { turns: 0, toolCalls: [], toolLimit: false, turnLimit: false };
     let firstTextMs: number | null = null;
     let costUsd = 0;
@@ -196,8 +222,9 @@ export class MimoSessions {
       switch (event.type) {
         case 'message_update': {
           const update = event.assistantMessageEvent;
-          // Only answer text is streamed; thinking events are dropped.
+          // Only answer text is streamed; thinking goes to the dashboard alone.
           if (update.type === 'text_delta') phrases.push(update.delta);
+          else if (update.type === 'thinking_delta') this.deps.onRunEvent?.(ctx.runId, { type: 'thinking', delta: update.delta });
           break;
         }
         case 'message_end': {
@@ -208,6 +235,7 @@ export class MimoSessions {
           break;
         }
         case 'tool_execution_start':
+          this.deps.onRunEvent?.(ctx.runId, { type: 'tool_call', id: event.toolCallId, name: event.toolName, args: event.args });
           phrases.toolBoundary();
           if (isMimoTool(event.toolName)) send({ type: 'tool_start', id: event.toolCallId, name: event.toolName, label: TOOL_LABELS[event.toolName] });
           break;

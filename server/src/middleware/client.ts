@@ -16,7 +16,7 @@ export type AppEnv = { Variables: ClientInfo };
 
 const INSTALL_ID = /^[A-Za-z0-9._-]{1,64}$/;
 
-function isLoopback(address: string): boolean {
+export function isLoopback(address: string): boolean {
   return address === '::1' || address.startsWith('127.') || address.startsWith('::ffff:127.');
 }
 
