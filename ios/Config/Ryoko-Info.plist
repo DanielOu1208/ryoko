@@ -8,6 +8,17 @@
 	<string>$(AGENT_BASE_URL)</string>
 	<key>RyokoSonioxAPIKey</key>
 	<string>$(SONIOX_API_KEY)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.danielou.ryoko</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ryoko</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
