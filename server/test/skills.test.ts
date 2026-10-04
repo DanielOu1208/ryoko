@@ -18,6 +18,7 @@ import {
   type AllergyCardRequest,
   type DiscoverRequest,
   type MimoMessageRequest,
+  type NearbyPlace,
   type Phrase,
   type PlaceCardRequest,
   type Profile,
@@ -33,11 +34,22 @@ import { costOf, createLlm, providerErrorText, staticLlm } from '../src/llm/regi
 import { generateTyped, parseJsonObject } from '../src/llm/typed.ts';
 import { allergyCardModelOutput, finalizeAllergyCard } from '../src/skills/allergy-card.ts';
 import { allowedBasis, languageInfo, promptProfile, timeFacts } from '../src/skills/context.ts';
-import { geohash } from '../src/skills/discover.ts';
+import {
+  DISCOVER_PROMPT_VERSION,
+  discoverGrounding,
+  type DiscoverModelOutput,
+  discoverSystem,
+  discoverUser,
+  finalizeDiscover,
+  geohash,
+  nearbyKey,
+  nearbyPlaces,
+  onNearbyList,
+} from '../src/skills/discover.ts';
 import type { SearchResponse } from '../src/skills/mimo/exa.ts';
 import { PhraseStream } from '../src/skills/mimo/phrase-stream.ts';
 import { prepareShowPlaces } from '../src/skills/mimo/tools.ts';
-import { createModelSkills, placeKey, type ModelSkills } from '../src/skills/model.ts';
+import { createModelSkills, discoverKey, placeKey, type ModelSkills } from '../src/skills/model.ts';
 import { finalizePlaceCard, type PlaceCardModelOutput } from '../src/skills/place-card.ts';
 import { toPinyin } from '../src/skills/romanize.ts';
 import { hazardsFor, unsafeMention } from '../src/skills/safety.ts';
@@ -51,6 +63,9 @@ const shanghai = example<Situation>('situation.shanghai-cafe.json');
 const tokyo = example<Situation>('situation.tokyo-ramen.json');
 const placeCardRequest: PlaceCardRequest = { profile: seed, situation: shanghai };
 const mimoRequest: MimoMessageRequest = { ...example<MimoMessageRequest>('mimo-message.request.json'), situation: shanghai, nearby: [] };
+const discoverExample = example<DiscoverRequest>('discover.request.json');
+/** The example without its nearby list: names from memory, as before grounding. */
+const { nearby: _exampleNearby, ...discoverFromMemory } = discoverExample;
 
 function withProfile(changes: Partial<Profile>): Profile {
   const next = { ...seed, ...changes };
@@ -417,10 +432,10 @@ describe('discover and allergy-card skills', () => {
     { name: 'Too Long', localName: '太长', category: 'other', why: 'x'.repeat(70) },
   ];
 
-  test('discover drops duplicates, allergen places and long lines, and passes the contract', async () => {
+  test('discover without a nearby list drops duplicates, allergen places and long lines, and passes the contract', async () => {
     const h = harness();
     h.script(json({ places }));
-    const result = await h.skills.discover(example<DiscoverRequest>('discover.request.json'), { installId: null, clientVersion: null, signal: new AbortController().signal });
+    const result = await h.skills.discover(discoverFromMemory, { installId: null, clientVersion: null, signal: new AbortController().signal });
     assert.ok(Value.Check(DiscoverResponse, result));
     assert.deepEqual(result.places.map((p) => p.name), ["Jing'an Park", 'Yuyuan Road', 'Fengsheng Li', 'Changde Apartment', 'Shanghai Natural History Museum']);
   });
@@ -445,6 +460,145 @@ describe('discover and allergy-card skills', () => {
     const card = await h.skills.allergyCard(example<AllergyCardRequest>('allergy-card.zh-hans.request.json'), { installId: null, clientVersion: null, signal: new AbortController().signal });
     assert.equal(card.items[0]?.home, 'I must not eat kiwi.');
     assert.equal(h.faux.state.callCount, 2);
+  });
+});
+
+// --- discover grounded in the nearby places (design #54) ---
+
+describe('discover grounded in nearby places', () => {
+  const ctx = () => ({ installId: null, clientVersion: null, signal: new AbortController().signal });
+  /** One pick per place on the example's nearby list (Wutong Coffee, Jing'an Temple, Jing'an Park, Wujiang Road, Fuxing Park). */
+  const listed = [
+    { name: 'Wutong Coffee', localName: '梧桐咖啡', category: 'cafe', why: 'A quiet latte under the plane trees' },
+    { name: "Jing'an Temple", localName: '静安寺', category: 'temple_shrine', why: 'Golden halls in the middle of the city' },
+    { name: "Jing'an Park", localName: '静安公园', category: 'park', why: 'Shady benches and old plane trees' },
+    { name: 'Wujiang Road snack street', localName: '吴江路小吃街', category: 'restaurant', why: 'Pan-fried buns and quick local snacks' },
+    { name: 'Fuxing Park', localName: '复兴公园', category: 'park', why: 'Locals dancing and playing cards' },
+  ];
+  const unlisted = [
+    { name: 'Yuyuan Road', localName: '愚园路', category: 'shopping', why: 'Leafy street of small shops' },
+    { name: 'Changde Apartment', localName: '常德公寓', category: 'other', why: "Eileen Chang's old building" },
+    { name: 'Fengsheng Li', localName: '丰盛里', category: 'shopping', why: 'Restored lane with tea stalls' },
+    { name: 'Shanghai Natural History Museum', localName: '上海自然博物馆', category: 'museum', why: 'Big, cool and quiet on weekdays' },
+  ];
+  type Pick = (typeof listed)[number];
+  const output = (picks: Pick[]) => ({ places: picks }) as DiscoverModelOutput;
+
+  test('the prompt carries the nearby names and the pick-from-the-list rules', () => {
+    const grounding = discoverGrounding(discoverExample);
+    assert.deepEqual(grounding, { listed: 5, allowance: 2 });
+    const system = discoverSystem(languageInfo('zh-Hans'), languageInfo('en'), grounding);
+    assert.match(system, /Pick your 5–8 places from it/);
+    assert.match(system, /at most 2 places that aren't on the list/);
+    assert.match(system, /independent and local spots over chains/);
+    assert.match(system, /Inventing or guessing a place is far worse than a short list/);
+    assert.doesNotMatch(system, /The list is short/);
+    const user = JSON.parse(discoverUser(discoverExample)) as { nearby: { name: string; localName?: string }[] };
+    assert.deepEqual(user.nearby.map((p) => p.name), ['Wutong Coffee', "Jing'an Temple", "Jing'an Park", 'Wujiang Road snack street', 'Fuxing Park']);
+    assert.equal(user.nearby[1]?.localName, '静安寺');
+  });
+
+  test('without nearby places (absent or empty) the prompt has no nearby section', () => {
+    for (const request of [discoverFromMemory, { ...discoverExample, nearby: [] }]) {
+      assert.equal(discoverGrounding(request), null);
+      assert.doesNotMatch(discoverSystem(languageInfo('zh-Hans'), languageInfo('en'), discoverGrounding(request)), /nearby|on the list/);
+      assert.doesNotMatch(discoverUser(request), /nearby/);
+    }
+  });
+
+  test('the model sees the list nearest first, once per name; a short list may be filled up', async () => {
+    const nearby: NearbyPlace[] = [
+      { name: 'Fuxing Park', localName: '复兴公园', category: 'park', distanceMeters: 1450 },
+      { name: 'Wutong Coffee', localName: '梧桐咖啡', category: 'cafe', distanceMeters: 40 },
+      { name: 'wutong  coffee', category: 'cafe', distanceMeters: 900 },
+    ];
+    const request = { ...discoverExample, nearby };
+    assert.deepEqual(nearbyPlaces(request).map((p) => p.distanceMeters), [40, 1450]);
+    const grounding = discoverGrounding(request);
+    assert.deepEqual(grounding, { listed: 2, allowance: 3 });
+    assert.match(discoverSystem(languageInfo('zh-Hans'), languageInfo('en'), grounding), /at most 3 places that aren't on the list[\s\S]*The list is short/);
+
+    const h = harness();
+    h.script(json(output([listed[0]!, listed[4]!, ...unlisted.slice(0, 3)])));
+    const result = await h.skills.discover(request, ctx());
+    assert.equal(result.places.length, 5);
+    assert.match(systemText(h.contexts[0]!), /Pick your 5–8 places from it/);
+    assert.match(lastUserText(h.contexts[0]!), /"nearby":\[\{"name":"Wutong Coffee"/);
+  });
+
+  test('a pick matches the list ignoring case, spaces and punctuation, or by containment either way', () => {
+    const nearby = nearbyPlaces(discoverExample);
+    assert.ok(onNearbyList({ name: 'JING’AN  park' }, nearby));
+    assert.ok(onNearbyList({ name: 'Wutong Coffee Roasters' }, nearby), 'the pick contains the listed name');
+    assert.ok(onNearbyList({ name: 'Fuxing' }, nearby), 'the listed name contains the pick');
+    assert.ok(onNearbyList({ name: 'Jingan Temple Shanghai', localName: '静安寺' }, nearby));
+    assert.ok(onNearbyList({ name: 'Old Temple', localName: '静安寺' }, nearby), 'the local name matches');
+    assert.ok(!onNearbyList({ name: 'Yuyuan Road', localName: '愚园路' }, nearby));
+    assert.ok(!onNearbyList({ name: 'Fu' }, nearby), 'too short to count as contained');
+  });
+
+  test('more than 2 unlisted picks: the extras beyond 2 are dropped', () => {
+    const picks = [listed[1]!, { ...listed[2]!, name: "JING'AN  PARK" }, unlisted[0]!, { ...listed[0]!, name: 'Wutong Coffee Roasters' }, unlisted[1]!, unlisted[2]!, listed[4]!, unlisted[3]!];
+    const result = finalizeDiscover(discoverExample, output(picks));
+    assert.ok(result.ok);
+    assert.deepEqual(result.value.places.map((p) => p.name), ["Jing'an Temple", "JING'AN  PARK", 'Yuyuan Road', 'Wutong Coffee Roasters', 'Changde Apartment', 'Fuxing Park']);
+    assert.equal(result.dropped.length, 2);
+    assert.match(result.dropped[0]!, /Fengsheng Li.*isn't on the "nearby" list/);
+    assert.match(result.dropped[1]!, /Shanghai Natural History Museum/);
+    // Without a nearby list nothing counts as unlisted.
+    const fromMemory = finalizeDiscover(discoverFromMemory, output(picks));
+    assert.ok(fromMemory.ok);
+    assert.equal(fromMemory.value.places.length, 8);
+  });
+
+  test('fewer than 5 left after dropping the extras is one retry with the problems listed', async () => {
+    const h = harness();
+    h.script(json(output([listed[0]!, listed[1]!, ...unlisted])), json(output(listed)));
+    const result = await h.skills.discover(discoverExample, ctx());
+    assert.deepEqual(result.places.map((p) => p.name), listed.map((p) => p.name));
+    assert.equal(h.faux.state.callCount, 2);
+    const retry = lastUserText(h.contexts[1]!);
+    assert.match(retry, /That reply had problems/);
+    assert.match(retry, /Pick from the "nearby" list, copying each name exactly: at most 2 places that aren't on it/);
+    assert.match(retry, /at least 5 places that pass these rules \(4 did\)/);
+  });
+
+  test('two ungrounded replies are 502 invalid_model_output', async () => {
+    const h = harness();
+    h.script(json(output([listed[0]!, ...unlisted])), json(output([listed[1]!, ...unlisted])));
+    await rejectsWith(h.skills.discover(discoverExample, ctx()), 'invalid_model_output');
+    assert.equal(h.skills.cache.size, 0);
+  });
+
+  test('the cache key changes with the nearby names, not their order; the old prompt version is retired', async () => {
+    const reordered = { ...discoverExample, nearby: [...discoverExample.nearby!].reverse() };
+    const changed = { ...discoverExample, nearby: [...discoverExample.nearby!.slice(0, 4), { name: 'Yuyuan Road', localName: '愚园路', category: 'shopping' as const, distanceMeters: 800 }] };
+    assert.equal(nearbyKey(discoverFromMemory), 'none');
+    assert.equal(nearbyKey({ ...discoverExample, nearby: [] }), 'none');
+    assert.match(nearbyKey(discoverExample), /^[0-9a-f]{16}$/);
+    assert.equal(discoverKey(reordered, 'm'), discoverKey(discoverExample, 'm'));
+    assert.notEqual(discoverKey(changed, 'm'), discoverKey(discoverExample, 'm'));
+    assert.notEqual(discoverKey(discoverFromMemory, 'm'), discoverKey(discoverExample, 'm'));
+    assert.notEqual(DISCOVER_PROMPT_VERSION, 'dc-3');
+
+    const h = harness();
+    h.script(json(output(listed)), json(output(listed)));
+    await h.skills.discover(discoverExample, ctx());
+    await h.skills.discover(reordered, ctx());
+    assert.equal(h.faux.state.callCount, 1);
+    await h.skills.discover({ ...changed, nearby: [...changed.nearby, discoverExample.nearby![4]!] }, ctx());
+    assert.equal(h.faux.state.callCount, 2);
+  });
+
+  test('concurrent discover calls for the same area and list share one generation', async () => {
+    const h = harness();
+    h.script(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return json(output(listed));
+    });
+    const [a, b] = await Promise.all([h.skills.discover(discoverExample, ctx()), h.skills.discover({ ...discoverExample, nearby: [...discoverExample.nearby!].reverse() }, ctx())]);
+    assert.deepEqual(a, b);
+    assert.equal(h.faux.state.callCount, 1);
   });
 });
 
