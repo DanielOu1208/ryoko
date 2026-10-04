@@ -302,10 +302,9 @@ struct MimoView: View {
                 .disabled(chat.isEmpty && router.mimoSubject == nil)
         }
         .pageMargins()
-        // Up into the status bar's band, to leave the chat more room: the
-        // avatar's canvas has room around the body, which sits just under the
-        // Dynamic Island, and the buttons stay below the status bar's icons.
-        .padding(.top, -Theme.grid * 2.5)
+        // A little into the status bar's band, to leave the chat more room,
+        // with clear space between the avatar and the Dynamic Island.
+        .padding(.top, -Theme.grid)
     }
 
     // MARK: Transcript
