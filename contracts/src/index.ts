@@ -9,6 +9,8 @@ export * from './phrase.ts';
 export * from './place-card.ts';
 export * from './discover.ts';
 export * from './allergy-card.ts';
+export * from './translate.ts';
+export * from './soniox-key.ts';
 export * from './tools.ts';
 export * from './mimo.ts';
 export * from './errors.ts';

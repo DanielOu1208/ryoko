@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/SonioxKeyResponse.schema.json",
+  "title": "SonioxKeyResponse",
+  "type": "object",
+  "required": [
+    "apiKey",
+    "expiresAt"
+  ],
+  "properties": {
+    "apiKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Temporary Soniox key for one real-time WebSocket session"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

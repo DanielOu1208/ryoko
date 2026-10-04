@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/TranslateResponse.schema.json",
+  "title": "TranslateResponse",
+  "type": "object",
+  "required": [
+    "translation"
+  ],
+  "properties": {
+    "translation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1500,
+      "description": "The text in the `to` language"
+    }
+  },
+  "additionalProperties": false
+}
