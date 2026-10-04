@@ -257,7 +257,15 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
 - **Sessions:**
   - The device creates a session id, and a new one on **New chat**. The transcript is kept on the device.
   - **Ask Mimo about this place** (from a place sheet) opens the tab with that place attached as the subject, without changing the active situation.
-- **Avatar:** to be explored later (an animated character, in the style of a companion avatar). Leave room for it in the tab's header.
+- **Avatar:** Mimo has an animated avatar: a single monochrome blob with two eyes that morphs between states.
+  - **Engine:** ported to Swift from [bloub](https://github.com/jeremy-prt/bloub) (MIT; see THIRD_PARTY_NOTICES.md). Its motion is measured from the x.ai bot avatar.
+  - **Look:** Mimo uses its own preset (a different body shape and rest expression), so it isn't a replica of xAI's mascot.
+  - **Rendering:** SwiftUI `Canvas` + `TimelineView`. The body uses `.primary`; the eyes are cut-outs. It respects Reduce Motion.
+  - **Moods:** idle (gaze drift, blinks), listening, thinking (while a tool runs or a reply is pending), talking (while text streams), happy (briefly when a reply completes).
+  - **Where it appears:**
+    - the Mimo tab header, driven by the chat state
+    - next to "Mimo picks" in the Map sheet
+    - the Mimo tab icon (a frozen rest pose as a template image)
 
 ### 4.10 Me tab
 
@@ -834,3 +842,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 42 | Tabs are Translate · Nearby · Map · Mimo · Me; the app opens on Map (centre). "Now" is renamed **Nearby** | user |
 | 43 | The Map has an Apple Maps-style bottom sheet: Mimo picks (hidden gems, special spots) first, then the nearest places; about 3 rows visible, scroll for more. Tapping a place makes it current and opens Nearby. Place details show in the same sheet. A first pass, to iterate on | user |
 | 44 | Web search uses **Exa** rather than Tavily (the user already has an Exa key) | user |
+| 45 | Mimo avatar: Swift port of bloub's engine (MIT) with Mimo's own look; shown in the Mimo header, the Map sheet's Mimo picks and the Mimo tab icon | user |

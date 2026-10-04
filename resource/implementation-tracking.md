@@ -144,6 +144,14 @@ Write down what you find. The results may change the spec.
 | W7.8 | Caching (persisted LRU, in-flight de-duplication), prefetch on situation change, daily cost kill switch | wf:W7 | done |  | Persisted LRU in server/.cache (survives restart, 2 ms hits), in-flight de-duplication, daily budget kill switch (pi usage + Exa cost); $0.18 spent so far |
 | W7.9 | `server/evals/run.ts` with the canned situations (§6.4) | wf:W7 | done |  | server/evals/run.ts on real GMI (RUNS=2): place-card/discover/allergy 100% valid. 89 offline tests pass; check-contracts --live 193/193 |
 
+### W8. Mimo avatar (design §4.9, decision #45)
+
+| # | Task | Owner | Status | Branch/PR | Notes |
+| --- | --- | --- | --- | --- | --- |
+| W8.1 | Port bloub's `src/bot/` engine to Swift (pure `sample(t)`, exact measured constants, MIT header + THIRD_PARTY_NOTICES.md) with a numeric exactness check against the TS engine | agent:avatar | doing | | Lane: ios/Ryoko/Avatar/ |
+| W8.2 | `MimoAvatarView(mood:size:)` (Canvas + TimelineView, .primary body, eye cut-outs, Reduce Motion), `MimoMood` (idle/listening/thinking/talking/happy), Mimo's own style preset, `MimoAvatarIcon` template image, DEBUG gallery | agent:avatar | doing | | |
+| W8.3 | Integrate: Mimo tab header (mood follows the chat stream/tool/done), Map sheet "Mimo picks" header, Mimo tab icon in RootTabView, credits line in Me | | todo | | After the W3–W7 fix round is committed |
+
 ## 3. Tier 2
 
 | # | Task | Owner | Status | Branch/PR | Notes |
