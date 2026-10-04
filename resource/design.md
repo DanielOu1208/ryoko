@@ -280,14 +280,22 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
 
 ### 4.10 Me tab
 
-Holds:
-- **About me** near the top (#55): a multi-line field for anything you'd like Mimo to know, saved when typing pauses for about 1 s (and on leaving the field). The footer says Mimo uses it when it helps; a character count shows near the 500 limit (from 400). Redo survey keeps it.
-- the profile sections from the survey (read-only in tier 1; editable in tier 2)
-- the home base for the taxi card
-- the romanization toggle, which only hides the row
-- a preview of the allergy card
-- an option to redo the survey (tier 2)
-- a small developer section: the server base URL override and "Reset to seed profile"
+A home about you at a glance, with the settings one push away (#69). The time-of-day gradient sits behind it.
+
+The home, top to bottom:
+- **Header:** a round avatar, "Traveller from <country>" (or "Traveller"), "Speaks <languages>", and the this-or-that answers as chips with symbols. The profile has no name or photo, so the avatar is an SF Symbol from a small set, picked from a sheet by tapping it. The pick is kept on the device (`RyokoMeAvatarSymbol`), not in the profile, so it never changes `profile.version`. Until one is picked it follows the rhythm answer: a sunrise for early birds, the moon for night owls, otherwise a walking figure.
+- **Allergy card at a glance:** the card's title in the local script (when there are templates for where you are), each allergen with its severity in words, most serious first (red only for serious and life-threatening, §9.2), and "Tap to show it in <language>, full screen". Tapping opens Show mode through the same presenter as a place card's Allergy button; with no templates for where you are, tapping picks the language. "Edit allergies" opens the editor. With no allergies it's one quiet row that opens the editor.
+- **Your profile:** Diet, Your usual and Home base, each with its summary, opening its editor.
+- **About me** (#55): a multi-line field for anything you'd like Mimo to know, saved when typing pauses for about 1 s (and on leaving the field). The footer says Mimo uses it when it helps; a character count shows near the 500 limit (from 400). Redo survey keeps it.
+- **Settings** (gear), which holds the rest:
+  - the profile sections from the survey, each opening its editor
+  - the home base for the taxi card
+  - an option to redo the survey
+  - the romanization toggle, which only hides the row
+  - credits
+  - a small developer section: the server base URL override and "Reset to seed profile"
+
+DEBUG: `-RyokoMeEdit <page>` opens Settings and that page's editor; `-RyokoScrollToBottom 1` opens Settings scrolled to the developer section.
 
 ### 4.11 Live Activity (tier 2)
 
@@ -912,3 +920,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 64 | The profile only where it matters, tightened: Mimo brings up allergies or diet only when asked or when ordering at a food or drink place (finding or planning places isn't ordering), at most one allergy phrase, never explains a suggestion by the profile, never claims it as its own, and its prompt names no example allergens. Place cards: allergy, diet, taste and favourites are allowed bases only at food places; at most one profile phrase per card. A before/after check: Mimo's unasked allergy mentions 5 of 18 replies → 1 of 28; profile phrases on non-food cards 7 of 12 → 0 of 12; allergy phrases kept when ordering (3 of 3) and on food cards | user (Mimo and cards kept bringing up allergies and preferences) |
 | 65 | Loading where Mimo is working is a thinking orb (`haplollc/ThinkingOrbs` 1.1.0, MIT, a SwiftUI port of Jakub Antalik's thinking-orbs) on one card with a short line, not a `.redacted` skeleton stack. When the content arrives the card dissolves into the first card and the rest rise in one by one. Picks, place cards, Mimo's places, locating and the allergy row; busy buttons keep the system spinner. No text shimmer (§9.7). §4.3, §4.7, §4.12, §9.5 | user |
 | 66 | Map fixes from use: a place's card opens at full height (supersedes #62's "at the same height"; Back still returns to the list's height); Mimo picks show as pins by default (the Hidden gems layer, renamed Mimo picks); Food & drink and Washrooms pin those places from a search of the visible map instead of filtering MapKit's own POIs, which showed next to nothing; Ask Mimo starts a new chat that asks about the place at once. §4.7, §4.9 | user |
+| 69 | Me is a styled home instead of one long list: an avatar header (an SF Symbol you pick, kept on the device, not in the profile), where you're from, languages and this-or-that chips; the allergy card at a glance (local title, allergens with severity in words, tap for Show mode); Diet, Your usual and Home base; About me; and a Settings row that holds every profile page, the home base, Redo survey, romanization, credits and the developer section. §4.10 | user ("the Me screen looks like an afterthought") |
