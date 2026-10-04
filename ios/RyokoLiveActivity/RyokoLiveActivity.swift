@@ -2,66 +2,90 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
+/// The Live Activity for the active place (design §4.11). The views are in
+/// `Shared/RyokoActivityViews.swift`; this wires them into the lock screen and
+/// the Dynamic Island, and links every tap to Show mode for the phrase
+/// (`ryoko://show?phrase=<id>`), or to Nearby while there's no phrase yet.
+///
+/// - Lock screen: place name, local time, the top phrase and its gloss.
+/// - Dynamic Island: compact is the category symbol and a short place name,
+///   minimal is the symbol, expanded is the phrase.
 struct RyokoLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RyokoActivityAttributes.self) { context in
-            LockScreenView(context: context)
+            ActivityLockScreenView(attributes: context.attributes, state: context.state)
+                .widgetURL(RyokoDeepLink(phrase: context.state.phrase).url)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     Image(systemName: context.attributes.categorySymbol)
+                        .font(.title3)
+                        .accessibilityHidden(true)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    LocalTimeText(timeZoneID: context.attributes.timeZoneID)
+                    ActivityClock(timeZoneID: context.attributes.timeZoneID)
+                        .font(.subheadline)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     Text(context.attributes.placeName)
+                        .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 2) {
-                        Text(context.state.phraseLocal).font(.headline)
-                        Text(context.state.phraseGloss).font(.caption).foregroundStyle(.secondary)
-                    }
+                    ActivityPhraseLines(state: context.state, style: .island)
+                        .padding(.top, 4)
                 }
             } compactLeading: {
                 Image(systemName: context.attributes.categorySymbol)
+                    .accessibilityLabel(context.attributes.placeName)
             } compactTrailing: {
-                Text(context.attributes.placeName)
+                // `shortPlaceName` is at most 12 characters, so it needs no width cap.
+                Text(context.attributes.shortPlaceName)
+                    .font(.subheadline.weight(.medium))
                     .lineLimit(1)
-                    .frame(maxWidth: 64)
+                    .minimumScaleFactor(0.8)
             } minimal: {
                 Image(systemName: context.attributes.categorySymbol)
+                    .accessibilityLabel(context.attributes.placeName)
             }
+            .widgetURL(RyokoDeepLink(phrase: context.state.phrase).url)
+            .keylineTint(.primary)
         }
     }
 }
 
-private struct LockScreenView: View {
-    let context: ActivityViewContext<RyokoActivityAttributes>
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: context.attributes.categorySymbol)
-                Text(context.attributes.placeName).font(.headline).lineLimit(1)
-                Spacer()
-                LocalTimeText(timeZoneID: context.attributes.timeZoneID)
-                    .font(.caption)
-            }
-            Text(context.state.phraseLocal).font(.title3)
-            Text(context.state.phraseGloss).font(.caption).foregroundStyle(.secondary)
-        }
-        .padding()
-    }
+#if DEBUG
+#Preview("Lock screen", as: .content, using: ActivitySamples.tokyo) {
+    RyokoLiveActivity()
+} contentStates: {
+    ActivitySamples.loading
+    ActivitySamples.tokyoReady
 }
 
-private struct LocalTimeText: View {
-    let timeZoneID: String
-
-    var body: some View {
-        var style = Date.FormatStyle(date: .omitted, time: .shortened)
-        style.timeZone = TimeZone(identifier: timeZoneID) ?? .current
-        return Text(Date.now, format: style)
-    }
+#Preview("Lock screen, live", as: .content, using: ActivitySamples.shanghai) {
+    RyokoLiveActivity()
+} contentStates: {
+    ActivitySamples.shanghaiReady
+    ActivitySamples.unavailable
 }
+
+#Preview("Island expanded", as: .dynamicIsland(.expanded), using: ActivitySamples.tokyo) {
+    RyokoLiveActivity()
+} contentStates: {
+    ActivitySamples.tokyoReady
+}
+
+#Preview("Island compact", as: .dynamicIsland(.compact), using: ActivitySamples.shanghai) {
+    RyokoLiveActivity()
+} contentStates: {
+    ActivitySamples.shanghaiReady
+}
+
+#Preview("Island minimal", as: .dynamicIsland(.minimal), using: ActivitySamples.tokyo) {
+    RyokoLiveActivity()
+} contentStates: {
+    ActivitySamples.tokyoReady
+}
+#endif

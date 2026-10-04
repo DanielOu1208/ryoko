@@ -34,6 +34,8 @@ struct RyokoApp: App {
     @State private var placeResolver: any PlaceResolver = LivePlaceResolver()
     /// The Speech workstream replaces the fixture here.
     @State private var speechService: any SpeechService = FixtureSpeechService()
+    /// The Live Activity for the active place (design §4.11), and its `ryoko://` links.
+    @State private var liveActivities = LiveActivityCoordinator()
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -52,9 +54,19 @@ struct RyokoApp: App {
                 .environment(\.ryokoAPI, apiStore.api)
                 .environment(\.placeResolver, placeResolver)
                 .environment(\.speechService, speechService)
+                .task {
+                    liveActivities.start(situationStore: situationStore, profileStore: profileStore, apiStore: apiStore)
+                    #if DEBUG
+                    if let url = LiveActivityDebugOptions.openURLAtLaunch { liveActivities.open(url, router: router) }
+                    if LiveActivityDebugOptions.runsScript { await LiveActivityDebugOptions.runScript(on: situationStore) }
+                    #endif
+                }
+                // The Live Activity's taps (`ryoko://show?phrase=<id>`), on a cold start too.
+                .onOpenURL { url in liveActivities.open(url, router: router) }
                 #if DEBUG
                 .task { await DebugLaunchOptions.apply(to: situationStore) }
                 .overlay { if MimoAvatarGallery.launchRequested { MimoAvatarGallery().background(.background) } }
+                .overlay { if LiveActivityGallery.launchRequested { LiveActivityGallery() } }
                 #endif
         }
         .onChange(of: scenePhase) { _, phase in
@@ -76,6 +88,8 @@ struct RyokoApp: App {
 /// - `-RyokoInitialTab now|map|translate|mimo|me`: the tab to open on.
 /// - `-RyokoScrollToBottom 1`: open scrolling screens at the end (screenshots).
 /// - `-RyokoAutoConfirm 1`: in live mode, confirm the nearest place once found.
+/// - Live Activity (`-RyokoOpenURL`, `-RyokoActivityGallery`): see
+///   `LiveActivityDebugOptions`.
 enum DebugLaunchOptions {
     static let samplePreviewKey = "RyokoSamplePreview"
     static let initialTabKey = "RyokoInitialTab"
