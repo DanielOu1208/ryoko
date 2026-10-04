@@ -15,7 +15,7 @@ import UIKit
 /// - `-RyokoMapCard here|pick|nearby`: open the current place's card (as the
 ///   header's tap does), the first Mimo pick's, or the first nearby place's,
 ///   once there is one.
-/// - `-RyokoMapCardAction preview|taxi|allergy|phrase|here|mimo|directions`:
+/// - `-RyokoMapCardAction preview|taxi|allergy|phrase|here|mimo|directions|close`:
 ///   press that button on the card once it has loaded. (`-RyokoMapDetailsAction`
 ///   is the old name; `-RyokoShow phrase|allergy|taxi` means
 ///   `-RyokoMapCard here -RyokoMapCardAction <kind>`.)

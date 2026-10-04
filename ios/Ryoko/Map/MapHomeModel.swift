@@ -74,14 +74,26 @@ final class MapHomeModel {
     var layers = MapLayers()
 
     /// The map's safe area (between the search field and the resting list),
-    /// in global coordinates: camera positions are framed in it. `MapView`
-    /// keeps it up to date.
-    @ObservationIgnored var mapSafeArea: CGRect?
+    /// in global coordinates: camera positions are framed in it.
+    @ObservationIgnored private(set) var mapSafeArea: CGRect?
     /// The map left visible above a card at its large size, in global
-    /// coordinates. `MapView` keeps it up to date.
-    @ObservationIgnored var cardStrip: CGRect?
+    /// coordinates.
+    @ObservationIgnored private(set) var cardStrip: CGRect?
+    /// A card that opened before the screen was measured (a cold start from
+    /// the Live Activity), to frame again once it is.
+    @ObservationIgnored private var pendingCardFocus: (id: String, coordinate: Coordinate)?
     /// Your live location, to frame it with a card's place when it's close.
     @ObservationIgnored var userLocation: Coordinate?
+
+    /// `MapView`'s measurements, whenever they change.
+    func setMapGeometry(safeArea: CGRect, cardStrip strip: CGRect) {
+        mapSafeArea = safeArea
+        cardStrip = strip
+        if let pending = pendingCardFocus {
+            pendingCardFocus = nil
+            if details?.id == pending.id { focusCard(on: pending.coordinate) }
+        }
+    }
 
     // MARK: Content
 
@@ -405,9 +417,13 @@ final class MapHomeModel {
     func focusCard(on coordinate: Coordinate) {
         guard let safeArea = mapSafeArea, let strip = cardStrip,
               safeArea.width > 0, safeArea.height > 0 else {
+            if let details { pendingCardFocus = (details.id, coordinate) }
             focus(on: coordinate, meters: 700)
             return
         }
+        #if DEBUG
+        RyokoLog.places.info("Card focus on \(coordinate.lat), \(coordinate.lon): safe area \(String(describing: safeArea), privacy: .public), strip \(String(describing: strip), privacy: .public)")
+        #endif
         let target = CGPoint(x: strip.midX, y: strip.midY + Self.markerLift)
         var metersPerPoint = Self.cardMetersPerPoint
         if let user = userLocation, user.mapDistance(to: coordinate) <= Self.cardFrameUserRadius {

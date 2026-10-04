@@ -460,6 +460,9 @@ struct MapPlaceCard: View {
         case "here", "current": onHere(place, area)
         case "mimo": router.askMimo(about: place.place)
         case "directions": await MapDirections.open(place)
+        case "close":
+            try? await Task.sleep(for: .seconds(1.5))
+            model.back()
         default: break
         }
     }

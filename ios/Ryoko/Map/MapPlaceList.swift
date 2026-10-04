@@ -91,7 +91,12 @@ struct MapListHeader: View {
                 .compactMap(\.self)
                 .filter { !$0.isEmpty }
                 .joined(separator: "\u{00A0}· ")
-            HStack(alignment: .firstTextBaseline, spacing: Theme.grid * 0.75) {
+            // The badge goes above the text at accessibility sizes, so the
+            // text keeps the full width.
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Theme.grid / 2))
+                : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Theme.grid * 0.75))
+            layout {
                 if isPreview { PreviewingBadge() }
                 Text(text)
                     .font(.subheadline)

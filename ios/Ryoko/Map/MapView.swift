@@ -36,6 +36,8 @@ private struct MapHomeScreen: View {
     @Namespace private var mapScope
     /// The space between the status bar and the tab bar (global), keyboard or not.
     @State private var screenFrame = CGRect(x: 0, y: 0, width: 400, height: 700)
+    /// `screenFrame` has been measured (not the placeholder above).
+    @State private var isMeasured = false
     @State private var searchBarHeight: CGFloat = 48
     @State private var headerHeight: CGFloat = 56
     @State private var confirmations = 0
@@ -93,13 +95,16 @@ private struct MapHomeScreen: View {
         .background {
             Color.clear
                 .ignoresSafeArea(.keyboard)
-                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screenFrame = $0 }
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+                    screenFrame = frame
+                    isMeasured = true
+                }
         }
-        .onChange(of: cardStrip(belowSearch: belowSearch), initial: true) { _, strip in
-            model.cardStrip = strip
-        }
-        .onChange(of: mapSafeArea(belowSearch: belowSearch, metrics: metrics), initial: true) { _, safeArea in
-            model.mapSafeArea = safeArea
+        .onChange(of: cardGeometry(belowSearch: belowSearch, metrics: metrics), initial: true) { _, geometry in
+            // Only real measurements: a card that opened before them is
+            // framed again once they arrive.
+            guard let geometry else { return }
+            model.setMapGeometry(safeArea: geometry.safeArea, cardStrip: geometry.strip)
         }
         .onChange(of: situationStore.lastFix, initial: true) { _, fix in
             model.userLocation = fix
@@ -154,32 +159,38 @@ private struct MapHomeScreen: View {
         #endif
     }
 
-    /// The map's safe area in global coordinates: the screen minus the
-    /// padding for the search field and the resting list. Camera positions
-    /// are framed in it, and its middle is the camera's centre.
-    private func mapSafeArea(belowSearch: CGFloat, metrics: MapSheetMetrics) -> CGRect {
-        let top = belowSearch + Theme.grid
-        return CGRect(
-            x: screenFrame.minX,
-            y: screenFrame.minY + top,
-            width: screenFrame.width,
-            height: max(screenFrame.height - top - metrics.mapBottomPadding, 1)
-        )
+    private struct CardGeometry: Equatable {
+        var safeArea: CGRect
+        var strip: CGRect
     }
 
-    /// The map left above a card at its large size, in global coordinates.
-    private func cardStrip(belowSearch: CGFloat) -> CGRect {
+    /// In global coordinates, once the screen is measured:
+    /// - the map's safe area: the screen minus the padding for the search
+    ///   field and the resting list. Camera positions are framed in it, and
+    ///   its middle is the camera's centre;
+    /// - the strip of map left above a card at its large size.
+    private func cardGeometry(belowSearch: CGFloat, metrics: MapSheetMetrics) -> CardGeometry? {
+        guard isMeasured else { return nil }
+        let top = belowSearch + Theme.grid
         let cardHeight = MapSheetMetrics(
             screen: screenFrame.height,
             belowSearch: belowSearch,
             header: headerHeight,
             isCard: true
         ).large
-        return CGRect(
-            x: screenFrame.minX,
-            y: screenFrame.minY,
-            width: screenFrame.width,
-            height: max(screenFrame.height - MapSheetMetrics.bottomGap - cardHeight, 44)
+        return CardGeometry(
+            safeArea: CGRect(
+                x: screenFrame.minX,
+                y: screenFrame.minY + top,
+                width: screenFrame.width,
+                height: max(screenFrame.height - top - metrics.mapBottomPadding, 1)
+            ),
+            strip: CGRect(
+                x: screenFrame.minX,
+                y: screenFrame.minY,
+                width: screenFrame.width,
+                height: max(screenFrame.height - MapSheetMetrics.bottomGap - cardHeight, 44)
+            )
         )
     }
 
