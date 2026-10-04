@@ -4,6 +4,8 @@
 # - every contracts/examples file (and its bundled copy) decodes and encodes back
 #   to the same JSON,
 # - LangCode and CategorySlug match contracts/tables/,
+# - the profile version (CanonicalJSON) matches contracts/src/canonical.ts, with
+#   and without the optional aboutMe,
 # - the SSE line reader, the situation clock and the API error mapping behave,
 # - Translate's Soniox key provider falls back to the build's key only when the
 #   server can't hand one out (T2.6).
@@ -42,6 +44,7 @@ xcrun swiftc \
   "$CORE/Fixtures.swift" \
   "$CORE/FixtureRyokoAPI.swift" \
   "$CORE/FixtureSelfCheck.swift" \
+  "$ROOT/ios/Ryoko/App/Stores/CanonicalJSON.swift" \
   "$ROOT/ios/Ryoko/Translate/SonioxProtocol.swift" \
   "$ROOT/ios/Ryoko/Translate/SonioxSession.swift" \
   "$ROOT/ios/Ryoko/Translate/SonioxKeys.swift" \

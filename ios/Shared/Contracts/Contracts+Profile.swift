@@ -2,7 +2,8 @@ import Foundation
 
 // Mirror of contracts/src/profile.ts (design §7.2).
 // In the profile, `nil` means the survey page or field was skipped and is
-// written as `null`; an empty array means "none".
+// written as `null`; an empty array means "none". The profile's one optional
+// key, `aboutMe`, is left out instead.
 
 nonisolated enum Diet: String, Codable, Hashable, Sendable, CaseIterable {
     case vegetarian
@@ -130,13 +131,20 @@ nonisolated struct Profile: Codable, Hashable, Sendable {
     var taste: Taste?
     var personality: Personality?
     var homeBase: HomeBase?
+    /// The traveller's own words about themselves, typed in Me ("About me").
+    /// Optional in the contract: the key is left out when there's none, never
+    /// `null` or empty, so profiles from before it existed keep their version.
+    /// Set it through `Profile.cleanedAboutMe(_:)`.
+    var aboutMe: String?
 
     private enum CodingKeys: String, CodingKey {
         case version, nationality, homeLanguage, spokenLanguages, diet, dietNotes
-        case allergies, favourites, taste, personality, homeBase
+        case allergies, favourites, taste, personality, homeBase, aboutMe
     }
 
-    // Every key is required by the contract, so skipped fields are written as `null`.
+    // The contract's required keys are always written, so skipped fields are
+    // `null`. `aboutMe` is optional: written only when set. (Decoding is
+    // synthesized, so a missing `aboutMe` key reads as nil.)
     func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(version, forKey: .version)
@@ -150,5 +158,48 @@ nonisolated struct Profile: Codable, Hashable, Sendable {
         try c.encode(taste, forKey: .taste)
         try c.encode(personality, forKey: .personality)
         try c.encode(homeBase, forKey: .homeBase)
+        try c.encodeIfPresent(aboutMe, forKey: .aboutMe)
+    }
+}
+
+// MARK: - About me
+
+nonisolated extension Profile {
+    /// The contract's `maxLength` for `aboutMe`.
+    static let aboutMeLimit = 500
+
+    /// How much of `aboutMeLimit` the text uses, counted in Unicode scalars.
+    ///
+    /// The server checks `maxLength` with TypeBox, whose character count is
+    /// never more than the number of scalars, but can be more than Swift's
+    /// characters (Thai and Hindi marks, skin tones, `\r\n`). Counting scalars
+    /// keeps a capped text valid in any script; for most text it's the same as
+    /// the number of characters.
+    static func aboutMeLength(of text: String) -> Int {
+        text.unicodeScalars.count
+    }
+
+    /// `text` cut to `aboutMeLimit` at a character boundary, untrimmed (the
+    /// field while typing).
+    static func cappedAboutMe(_ text: String) -> String {
+        guard aboutMeLength(of: text) > aboutMeLimit else { return text }
+        var capped = ""
+        var used = 0
+        for character in text {
+            let size = character.unicodeScalars.count
+            guard used + size <= aboutMeLimit else { break }
+            capped.append(character)
+            used += size
+        }
+        return capped
+    }
+
+    /// The value to store: trimmed and capped, or nil when nothing is left
+    /// (the contract allows no empty string).
+    static func cleanedAboutMe(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let cleaned = cappedAboutMe(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
     }
 }
