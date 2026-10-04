@@ -27,21 +27,27 @@ struct MimoView: View {
     @State private var celebrating = false
     @State private var showsHistory = false
     /// How far a swipe has moved the chat while opening or closing the sidebar.
-    @GestureState private var sidebarDrag: CGFloat = 0
+    @State private var sidebarDrag: CGFloat = 0
     /// When a sideways swipe last moved the chat (`isSwipingSidebar`).
     @State private var sidebarSwipedAt = Date.distantPast
+    /// Whether the swipe's pan is under way (`MimoSidebarSwipe`).
+    @State private var sidebarSwipe = MimoSidebarSwipe.Tracker()
+    /// Goes up with each move of a swipe, for the stuck-swipe watchdog.
+    @State private var sidebarSwipeTick = 0
     /// The saved chats, read when the sidebar opens.
     @State private var history: [MimoChatSummary] = []
     @FocusState private var isComposing: Bool
     /// Whether the composer is open as the text field rather than tucked into
-    /// the corner button (`showsComposerField`). Scrolling toward the end of the
-    /// chat opens it; scrolling back, or closing the keyboard, tucks it away.
+    /// the corner button (`showsComposerField`). Coming to rest at the end of
+    /// the chat opens it; scrolling back, or closing the keyboard, tucks it away.
     @State private var isComposerOpen = false
     /// The corner button was tapped: focus the field once it's on screen.
     @State private var focusesComposerOnOpen = false
-    /// Where the chat was scrolled when the composer last opened or closed, for
-    /// measuring the next scroll from. Nil when no scroll is under way.
+    /// Where the chat was when your drag started, for measuring a scroll back.
+    /// Nil when no drag is under way.
     @State private var composerScrollMark: CGFloat?
+    /// The composer already tucked away during this drag: once per drag.
+    @State private var composerChangedThisDrag = false
     @State private var scrollPhase: ScrollPhase = .idle
     /// Whether the chat keeps to its end as it grows (`transcript`): on when
     /// you send, open a chat or start typing; off while you drag, and after a
@@ -91,7 +97,11 @@ struct MimoView: View {
                             .accessibilityHidden(true)
                     }
                     .offset(x: offset)
-                    .simultaneousGesture(sidebarSwipe(width: width))
+                    .gesture(MimoSidebarSwipe(
+                        tracker: sidebarSwipe,
+                        onChange: sidebarSwipeChanged,
+                        onEnd: { settleSidebar(at: $0, width: width) }
+                    ))
 
                 // The sidebar fades gently into the chat instead of ending at a hard edge.
                 LinearGradient(
@@ -105,6 +115,20 @@ struct MimoView: View {
                 .opacity(offset / width)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+            }
+            // Watchdog: a swipe that stops moving without an end (the view went
+            // away mid-swipe, say) mustn't leave the chat partway across.
+            .task(id: sidebarSwipeTick) {
+                guard sidebarDrag != 0 else { return }
+                try? await Task.sleep(for: .seconds(0.35))
+                guard !Task.isCancelled, sidebarDrag != 0 else { return }
+                if sidebarSwipe.isActive {
+                    // A finger resting mid-swipe: give it longer.
+                    try? await Task.sleep(for: .seconds(1.2))
+                    guard !Task.isCancelled, sidebarDrag != 0 else { return }
+                    sidebarSwipe.isActive = false
+                }
+                settleSidebar(at: sidebarDrag, width: width)
             }
         }
         .animation(.smooth(duration: 0.3), value: showsHistory)
@@ -189,31 +213,27 @@ struct MimoView: View {
         }
     }
 
-    /// Swipe right on the chat to open the sidebar, left to close it.
-    ///
-    /// It runs alongside the chat's own gestures, so scrolling and text
-    /// selection keep working. A swipe that starts on a place or a phrase would
-    /// also tap it when the finger lifts there, so taps in the chat check
-    /// `isSwipingSidebar` (`unlessSwiping`).
-    private func sidebarSwipe(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 20)
-            .updating($sidebarDrag) { value, drag, _ in
-                guard Self.isSideways(value) else { return }
-                drag = value.translation.width
-            }
-            .onChanged { value in
-                if Self.isSideways(value) { sidebarSwipedAt = .now }
-            }
-            .onEnded { value in
-                guard Self.isSideways(value) else { return }
-                sidebarSwipedAt = .now
-                let projected = (showsHistory ? width : 0) + value.predictedEndTranslation.width
-                showsHistory = projected > width / 2
-            }
+    /// Swipe right on the chat to open the sidebar, left to close it
+    /// (`MimoSidebarSwipe`). It runs alongside the chat's own gestures, so a
+    /// swipe that starts on a place or a phrase would also tap it when the
+    /// finger lifts there: taps in the chat check `isSwipingSidebar`
+    /// (`unlessSwiping`).
+    private func sidebarSwipeChanged(_ distance: CGFloat) {
+        sidebarDrag = distance
+        sidebarSwipedAt = .now
+        sidebarSwipeTick &+= 1
     }
 
-    private static func isSideways(_ value: DragGesture.Value) -> Bool {
-        abs(value.translation.width) > abs(value.translation.height) * 1.5
+    /// Ends a swipe: open or closed by where it would come to rest
+    /// (`projected`), or back where it was when it was cancelled (nil).
+    private func settleSidebar(at projected: CGFloat?, width: CGFloat) {
+        sidebarSwipedAt = .now
+        withAnimation(.smooth(duration: 0.3)) {
+            if let projected {
+                showsHistory = (showsHistory ? width : 0) + projected > width / 2
+            }
+            sidebarDrag = 0
+        }
     }
 
     /// True while a sideways swipe moves the chat, and for a moment after: the
@@ -316,9 +336,9 @@ struct MimoView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .defaultScrollAnchor(chat.isEmpty ? .top : .bottom, for: .initialOffset)
-            // When the keyboard comes up, keep the end of the chat above the
-            // composer instead of under its glass.
-            .defaultScrollAnchor(chat.isEmpty ? .top : .bottom, for: .sizeChanges)
+            // No `.sizeChanges` anchor: it shifted the chat whenever the composer
+            // came or went mid-scroll. `followsEnd` keeps the end in view instead
+            // (the keyboard included).
             #if DEBUG
             .onChange(of: debugScrollTarget) {
                 guard let debugScrollTarget else { return }
@@ -347,9 +367,14 @@ struct MimoView: View {
             // the phase at `.animating` for good.
             .onScrollGeometryChange(for: MimoScrollExtent.self) { geometry in
                 MimoScrollExtent(geometry)
-            } action: { _, _ in
+            } action: { old, new in
                 guard followsEnd, !isScrollingByHand else { return }
-                proxy.scrollTo(Self.bottomID, anchor: .bottom)
+                if new.bottomInset != old.bottomInset {
+                    // The keyboard or the composer moved the bottom edge: glide with it.
+                    withAnimation(.smooth(duration: 0.3)) { proxy.scrollTo(Self.bottomID, anchor: .bottom) }
+                } else {
+                    proxy.scrollTo(Self.bottomID, anchor: .bottom)
+                }
             }
             .onScrollPhaseChange { old, phase, context in
                 scrollPhase = phase
@@ -358,10 +383,19 @@ struct MimoView: View {
                     // You're scrolling: the chat stops following until you let go at the end.
                     followsEnd = false
                     composerScrollMark = context.geometry.contentOffset.y
+                    composerChangedThisDrag = false
+                    // A sidebar swipe left partway (one that never ended) gives way to the scroll.
+                    if sidebarDrag != 0, !sidebarSwipe.isActive {
+                        withAnimation(.smooth(duration: 0.3)) { sidebarDrag = 0 }
+                    }
                 case .idle:
                     composerScrollMark = nil
                     if old == .interacting || old == .decelerating {
-                        followsEnd = MimoScrollExtent.distanceFromEnd(context.geometry) < 40
+                        let atEnd = MimoScrollExtent.distanceFromEnd(context.geometry) < 40
+                        followsEnd = atEnd
+                        // Coming to rest at the end (a pull past it bounces back
+                        // here too) opens the composer.
+                        if atEnd { setComposerOpen(true) }
                     } else if followsEnd {
                         // An animated scroll aims where the end was when it
                         // started; the reply may have grown since.
@@ -371,7 +405,7 @@ struct MimoView: View {
                     break
                 }
             }
-            // Your own scrolls open and close the composer; the chat following a reply doesn't.
+            // Scrolling back to read tucks the composer away; the chat following a reply doesn't.
             .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, y in
                 composerFollowsScroll(to: y)
             }
@@ -402,8 +436,8 @@ struct MimoView: View {
         return "\(turn.id.uuidString)-\(turn.isStreaming)"
     }
 
-    /// How far you scroll before the composer opens or closes.
-    private static let composerScrollDistance: CGFloat = 24
+    /// How far you scroll back before the composer tucks away.
+    private static let composerScrollDistance: CGFloat = 40
 
     private static let topID = "mimo-top"
     private static let bottomID = "mimo-bottom"
@@ -528,21 +562,27 @@ struct MimoView: View {
         isComposerOpen = true
     }
 
-    /// Scrolling toward the end of the chat opens the composer; scrolling back
-    /// to read tucks it away, unless you're typing. Only your own scrolls count.
+    /// Scrolling back to read (away from the end) by `composerScrollDistance`
+    /// tucks the composer away, at most once per drag and never while you
+    /// type. It only opens again when a scroll comes to rest at the end
+    /// (`transcript`) or from the corner button, so it never changes size
+    /// under your finger mid-chat. Only your own scrolls count.
     private func composerFollowsScroll(to y: CGFloat) {
-        guard isScrollingByHand, let mark = composerScrollMark else { return }
+        guard isScrollingByHand, !composerChangedThisDrag, let mark = composerScrollMark else { return }
         guard Date.now >= composerSettlesAt else {
             composerScrollMark = y
             return
         }
-        if y > mark + Self.composerScrollDistance {
-            composerScrollMark = y
-            if !isComposerOpen { isComposerOpen = true }
-        } else if y < mark - Self.composerScrollDistance {
-            composerScrollMark = y
-            if isComposerOpen { isComposerOpen = false }
+        if y < mark - Self.composerScrollDistance, isComposerOpen {
+            composerChangedThisDrag = true
+            setComposerOpen(false)
         }
+    }
+
+    /// Opens or tucks the composer, unless it changed in the last moment.
+    private func setComposerOpen(_ open: Bool) {
+        guard open != isComposerOpen, Date.now >= composerSettlesAt else { return }
+        isComposerOpen = open
     }
 
     // MARK: Actions

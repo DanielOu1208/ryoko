@@ -259,9 +259,9 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
 - **Starter suggestions** are fixed templates per place category ("What's popular here?", "How do I pay?", "Plan my afternoon"). They need no LLM call.
 - **Sessions:**
   - The device creates a session id, and a new one on **New chat**. The transcript is kept on the device.
-  - **History:** a ChatGPT-style sidebar (the chat slides aside; swipe right or tap the sidebar button) lists saved chats by their first message, with search and New chat. Touch and hold a chat to delete it. A swipe that crosses a place, a phrase or a button doesn't also tap it.
+  - **History:** a ChatGPT-style sidebar (the chat slides aside; swipe right or tap the sidebar button) lists saved chats by their first message, with search and New chat. Touch and hold a chat to delete it. A swipe that crosses a place, a phrase or a button doesn't also tap it, and a swipe always ends open or closed, never stuck partway.
 - **Composer:** when you're not typing it tucks into a round button in the bottom-right corner, so the chat runs down to the tab bar (#51).
-  - Tap the button to open the field with the keyboard up. Scrolling toward the end of the chat opens it too (without the keyboard); scrolling back to read, or closing the keyboard with nothing typed, tucks it away.
+  - Tap the button to open the field with the keyboard up. Scrolling to the end of the chat opens it too (without the keyboard), once the scroll comes to rest there; scrolling back to read (about 40 pt), or closing the keyboard with nothing typed, tucks it away. It changes at most once per drag and never grows under your finger mid-chat.
   - It stays open while there's a draft, and in a new chat, where asking is the first thing you do.
   - While Mimo replies, the corner button is Stop.
 - **Header:** laid out like a contact in Messages: the avatar centred at the top with "Mimo" and the place and local time under it, the sidebar button on the left and New chat on the right. No navigation bar title.
