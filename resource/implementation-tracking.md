@@ -177,8 +177,8 @@ Write down what you find. The results may change the spec.
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| W8.1 | Port bloub's `src/bot/` engine to Swift (pure `sample(t)`, exact measured constants, MIT header + THIRD_PARTY_NOTICES.md) with a numeric exactness check against the TS engine | agent:avatar | doing | | Lane: ios/Ryoko/Avatar/ |
-| W8.2 | `MimoAvatarView(mood:size:)` (Canvas + TimelineView, .primary body, eye cut-outs, Reduce Motion), `MimoMood` (idle/listening/thinking/talking/happy), Mimo's own style preset, `MimoAvatarIcon` template image, DEBUG gallery | agent:avatar | doing | | |
+| W8.1 | Port bloub's `src/bot/` engine to Swift (pure `sample(t)`, exact measured constants, MIT header + THIRD_PARTY_NOTICES.md) with a numeric exactness check against the TS engine | agent:avatar | done |  | 11 engine files ported with MIT headers; THIRD_PARTY_NOTICES.md. Exactness: 1199 frames / 113 cases / ~600k numbers + 2040 eye-fit entries vs the TS engine, max error 5.7e-14 (a doctored reference fails the check) |
+| W8.2 | `MimoAvatarView(mood:size:)` (Canvas + TimelineView, .primary body, eye cut-outs, Reduce Motion), `MimoMood` (idle/listening/thinking/talking/happy), Mimo's own style preset, `MimoAvatarIcon` template image, DEBUG gallery | agent:avatar | done |  | `.mimo` style = pebble body (galet) + attentive upright eyes (x.ai is a circle glancing up-right). MimoMood idle/listening/thinking/talking/happy, MimoAvatarView (Canvas+TimelineView, Reduce Motion holds a still pose), MimoAvatarIcon template image, DEBUG MimoAvatarGallery |
 | W8.3 | Integrate: Mimo tab header (mood follows the chat stream/tool/done), Map sheet "Mimo picks" header, Mimo tab icon in RootTabView, credits line in Me | | todo | | After the W3–W7 fix round is committed |
 
 ## 3. Tier 2
