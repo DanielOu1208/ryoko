@@ -26,7 +26,7 @@ struct MimoPlacesView: View {
                         if index > 0 { Divider().padding(.leading, MimoPlaceRow.textInset) }
                         MimoPlaceRow(
                             shown: place.shown,
-                            category: place.place.category,
+                            place: place.place,
                             number: places.isPlan ? place.shown.order ?? index + 1 : nil,
                             distanceMeters: place.distanceMeters,
                             language: places.language,
@@ -46,7 +46,7 @@ struct MimoPlacesView: View {
                     if index > 0 { Divider().padding(.leading, MimoPlaceRow.textInset) }
                     MimoPlaceRow(
                         shown: shown,
-                        category: .other,
+                        place: Self.placeholderPlace,
                         number: places.isPlan ? shown.order ?? index + 1 : nil,
                         distanceMeters: nil,
                         language: places.language,
@@ -60,6 +60,17 @@ struct MimoPlacesView: View {
             .accessibilityLabel("Finding places on the map")
         }
     }
+
+    /// Shape-only, for the rows while the names are looked up (the
+    /// thumbnail loads nothing while redacted).
+    private static let placeholderPlace = Place(
+        id: nil,
+        name: "A place",
+        localName: nil,
+        category: .other,
+        address: nil,
+        coordinate: Coordinate(lat: 0, lon: 0)
+    )
 
     private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -129,13 +140,14 @@ private struct MimoPlacesMap: View {
     }
 }
 
-/// One place: its category (or, in a plan, its stop number), the name with its
-/// local-script name, Mimo's why (after the time, in a plan), and how far it is.
+/// One place: its thumbnail (Look Around, or a map tile; in a plan, with the
+/// stop number on its corner), the name with its local-script name, Mimo's
+/// why (after the time, in a plan), and how far it is.
 private struct MimoPlaceRow: View {
-    static let textInset: CGFloat = Theme.grid * 2 + 32 + Theme.grid * 1.5
+    static let textInset: CGFloat = Theme.grid * 2 + PlaceThumbnail.defaultSize + Theme.grid * 1.5
 
     let shown: ShownPlace
-    let category: CategorySlug
+    let place: Place
     /// The stop number, in a plan.
     let number: Int?
     let distanceMeters: Double?
@@ -145,7 +157,7 @@ private struct MimoPlaceRow: View {
     var body: some View {
         Button(action: action) {
             HStack(alignment: .center, spacing: Theme.grid * 1.5) {
-                badge
+                thumbnail
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: Theme.grid * 0.75) {
                         Text(shown.name)
@@ -194,23 +206,24 @@ private struct MimoPlaceRow: View {
         return "\(MimoPlanClock.clock(when)) · \(shown.why)"
     }
 
-    @ViewBuilder
-    private var badge: some View {
-        if let number {
-            Text(number, format: .number)
-                .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(Color(uiColor: .systemBackground))
-                .frame(width: 32, height: 32)
-                .background(Circle().fill(.primary))
-                .accessibilityLabel("Stop \(number)")
-        } else {
-            Image(systemName: category.sfSymbol)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(width: 32, height: 32)
-                .background(.quaternary, in: Circle())
-                .accessibilityHidden(true)
-        }
+    private var thumbnail: some View {
+        PlaceThumbnail(place: place)
+            .overlay(alignment: .topLeading) {
+                if let number {
+                    Text(number, format: .number)
+                        .font(.caption.weight(.bold).monospacedDigit())
+                        .foregroundStyle(Color(uiColor: .systemBackground))
+                        .padding(.horizontal, 4)
+                        .frame(minWidth: 22, minHeight: 22)
+                        .background(Capsule().fill(.primary))
+                        // Set apart from the picture by a ring of the card's colour.
+                        .padding(2)
+                        .background(Capsule().fill(Theme.cardFill))
+                        .fixedSize()
+                        .offset(x: -7, y: -7)
+                        .accessibilityLabel("Stop \(number)")
+                }
+            }
     }
 }
 

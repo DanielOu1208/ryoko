@@ -76,6 +76,10 @@ struct MapPlaceCardHeader: View {
 
 /// A place's card in the Map's sheet (design §4.7). Top to bottom:
 ///
+/// 0. A wide Look Around preview of the street, when Apple has imagery there
+///    (`PlaceThumbnailLoader`'s scene, shared with the list's thumbnail). Tap
+///    it for the full-screen Look Around viewer. With no scene there's
+///    nothing extra: the map above already shows the place.
 /// 1. Directions, Taxi, Allergy and Ask Mimo, as round buttons. Allergy shows
 ///    only when the profile has allergies the local language has a card for,
 ///    and you don't speak it.
@@ -113,6 +117,8 @@ struct MapPlaceCard: View {
     @State private var isPreparingTaxi = false
     @State private var allergy = AllergyCardPresenter()
     @State private var showCount = 0
+    @State private var lookAround: MKLookAroundScene?
+    @State private var isLookingAround = false
 
     var body: some View {
         let situation = area.map(cardSituation)
@@ -120,8 +126,14 @@ struct MapPlaceCard: View {
         // so re-renders don't restart a slow request.
         let cardTask = situation.map { CardTask(key: cardKey(for: $0), attempt: attempt) }
         let speaksLocal = situation.map { profileStore.profile.speaks($0.localLanguage) } ?? false
+        // From memory when the list's thumbnail already found it, so it's
+        // there as the card opens.
+        let scene = lookAround ?? PlaceThumbnailLoader.shared.cachedScene(for: place.place).flatMap(\.self)
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.cardSpacing) {
+                if let scene {
+                    lookAroundPreview(scene)
+                }
                 MapPlaceActions(actions: actions(situation: situation, speaksLocal: speaksLocal))
                     .padding(.top, Theme.grid / 2)
                 hereOrPreview(situation: situation)
@@ -142,6 +154,11 @@ struct MapPlaceCard: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .debugLaunchScrollAnchor()
+        .lookAroundViewer(isPresented: $isLookingAround, initialScene: scene)
+        .task(id: place.id) {
+            guard lookAround == nil, let found = await PlaceThumbnailLoader.shared.scene(for: place.place) else { return }
+            withAnimation(.smooth(duration: 0.35)) { lookAround = found }
+        }
         .task(id: place) {
             let found = await model.area(for: place, situation: situationStore.situation, anchor: anchor)
             area = found
@@ -162,6 +179,26 @@ struct MapPlaceCard: View {
         #if DEBUG
         .task(id: area) { await runDebugAction(situation: area.map(cardSituation)) }
         #endif
+    }
+
+    // MARK: Look Around
+
+    /// The street in front of the place, not interactive itself: a tap opens
+    /// the full viewer.
+    private func lookAroundPreview(_ scene: MKLookAroundScene) -> some View {
+        Button {
+            isLookingAround = true
+        } label: {
+            LookAroundPreview(initialScene: scene, allowsNavigation: false, badgePosition: .bottomTrailing)
+                .allowsHitTesting(false)
+                .frame(height: 150)
+                .clipShape(Theme.cardShape)
+                .contentShape(Theme.cardShape)
+        }
+        .buttonStyle(MapRowButtonStyle())
+        .transition(.opacity)
+        .accessibilityLabel("Look Around")
+        .accessibilityHint("Opens the street-level view of this place")
     }
 
     // MARK: Actions
@@ -460,6 +497,9 @@ struct MapPlaceCard: View {
         case "here", "current": onHere(place, area)
         case "mimo": router.askMimo(about: place.place)
         case "directions": await MapDirections.open(place)
+        case "lookaround":
+            for _ in 0..<40 where lookAround == nil { try? await Task.sleep(for: .milliseconds(250)) }
+            isLookingAround = lookAround != nil
         case "close":
             try? await Task.sleep(for: .seconds(1.5))
             model.back()
