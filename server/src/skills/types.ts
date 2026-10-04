@@ -10,6 +10,8 @@ import type {
   PlaceCardRequest,
   PlaceCardResponse,
   StopReason,
+  TranslateRequest,
+  TranslateResponse,
 } from '@ryoko/contracts';
 import type { SseSink } from '../sse.ts';
 
@@ -43,6 +45,12 @@ export interface Skills {
   placeCard(request: PlaceCardRequest, ctx: SkillContext): Promise<PlaceCardResponse>;
   discover(request: DiscoverRequest, ctx: SkillContext): Promise<DiscoverResponse>;
   allergyCard(request: AllergyCardRequest, ctx: SkillContext): Promise<AllergyCardResponse>;
+  /**
+   * Typed or edited text in Translate (tier 2). Unlike the other JSON skills it
+   * stops when `ctx.signal` aborts and no other caller is waiting for the same
+   * text: Translate cancels a stale request every time you keep typing.
+   */
+  translate(request: TranslateRequest, ctx: SkillContext): Promise<TranslateResponse>;
   /**
    * Prepares a Mimo run. Throw an ApiError here, before any byte is streamed,
    * to answer with a JSON error envelope instead of a stream.

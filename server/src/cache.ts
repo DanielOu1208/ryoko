@@ -6,6 +6,8 @@
 //   never cancels it for the others (the result still lands in the cache).
 // - Errors and invalid output are never cached: a failed generation is dropped,
 //   and the next caller starts a fresh one.
+// - getOrCreateCancellable (Translate) is the exception to the second rule: its
+//   generation stops once every caller waiting on it has left.
 
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
@@ -35,6 +37,32 @@ export interface CacheOptions {
 /** How a value was obtained: generated now, from the cache, or by joining a generation already running. */
 export type CacheSource = 'generated' | 'cache' | 'shared';
 
+/** A generation that stops when its last waiter leaves (getOrCreateCancellable). */
+interface CancellableRun<T> {
+  promise: Promise<T>;
+  controller: AbortController;
+  waiters: number;
+}
+
+/** `promise`, or `signal`'s reason as soon as it aborts. */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (err) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(err);
+      },
+    );
+  });
+}
+
 /** A cache key from its parts: sha-256 of their JSON, so keys stay short and opaque. */
 export function cacheKey(parts: readonly unknown[]): string {
   return createHash('sha256').update(JSON.stringify(parts), 'utf8').digest('hex');
@@ -43,6 +71,7 @@ export function cacheKey(parts: readonly unknown[]): string {
 export class ResponseCache {
   private readonly entries = new Map<string, Entry>();
   private readonly inFlight = new Map<string, Promise<unknown>>();
+  private readonly cancellable = new Map<string, CancellableRun<unknown>>();
   private readonly file: string | null;
   private readonly maxEntries: number;
   private readonly ttlMs: number;
@@ -107,6 +136,57 @@ export class ResponseCache {
       return { value: structuredClone(value), source: 'generated' };
     } finally {
       this.inFlight.delete(key);
+    }
+  }
+
+  /**
+   * Like getOrCreate, for work that's worth stopping when nobody wants it any
+   * more (Translate's typed text: a stale request is cancelled as you keep
+   * typing). The generation gets its own signal, which aborts only when every
+   * caller waiting on it has gone, so one client leaving still never cancels a
+   * result someone else is waiting for. A caller whose `signal` aborts gets its
+   * abort reason thrown at once.
+   */
+  async getOrCreateCancellable<T>(
+    key: string,
+    create: (signal: AbortSignal) => Promise<T>,
+    signal: AbortSignal,
+  ): Promise<{ value: T; source: CacheSource }> {
+    const cached = this.get<T>(key);
+    if (cached !== undefined) return { value: cached, source: 'cache' };
+    if (signal.aborted) throw signal.reason;
+
+    let run = this.cancellable.get(key) as CancellableRun<T> | undefined;
+    let source: CacheSource = 'shared';
+    if (!run) {
+      source = 'generated';
+      const controller = new AbortController();
+      const promise = (async () => create(controller.signal))();
+      const fresh: CancellableRun<T> = { promise, controller, waiters: 0 };
+      run = fresh;
+      this.cancellable.set(key, fresh);
+      // Registered before any waiter's handler, so the value is cached before they return.
+      promise.then(
+        (value) => {
+          if (!controller.signal.aborted) this.set(key, value);
+        },
+        () => {},
+      ).finally(() => {
+        if (this.cancellable.get(key) === fresh) this.cancellable.delete(key);
+      });
+    }
+
+    const current = run;
+    current.waiters += 1;
+    try {
+      const value = await untilAborted(current.promise, signal);
+      return { value: structuredClone(value), source };
+    } finally {
+      current.waiters -= 1;
+      if (current.waiters === 0 && signal.aborted) {
+        current.controller.abort(signal.reason);
+        if (this.cancellable.get(key) === current) this.cancellable.delete(key);
+      }
     }
   }
 

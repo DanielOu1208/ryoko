@@ -1,12 +1,15 @@
 // MODEL=faux: canned responses from contracts/examples, no model calls (design §6.4).
 // Every skill answers with the example for the local language (pickFixture): the
-// situation's for place-card, discover and Mimo, the request's for allergy-card.
+// situation's for place-card, discover and Mimo, the request's for allergy-card,
+// and the target language (`to`) for translate.
 // Mimo replays mimo[.<variant>].sse.txt with realistic pacing.
 
 import type { SseEvent, StopReason } from '@ryoko/contracts';
 import type { FauxConfig } from '../config.ts';
 import { loadFixtures, pickFixture, type FixtureSet, type TranscriptItem } from '../fixtures.ts';
+import { clientClosed } from '../errors.ts';
 import { sleep } from '../sse.ts';
+import { sameLanguage } from './translate.ts';
 import type { MimoContext, MimoRun, Skills } from './types.ts';
 
 /** Milliseconds before each scripted event, at pace 1. */
@@ -72,6 +75,15 @@ export function createFauxSkills(config: FauxConfig, fixtures: FixtureSet = load
     async allergyCard(request) {
       await latency();
       return structuredClone(pickFixture(fixtures.allergyCard, request.language).response);
+    },
+    async translate(request, ctx) {
+      await sleep(config.latencyMs, ctx.signal).catch(() => {
+        throw clientClosed();
+      });
+      // Nothing to translate between a language and itself; otherwise the example
+      // for the target language, whatever was typed (it's a fixture).
+      if (sameLanguage(request.from, request.to)) return { translation: request.text.trim() };
+      return structuredClone(pickFixture(fixtures.translate, request.to).response);
     },
     async mimo(request, ctx) {
       return replayTranscript(pickFixture(fixtures.mimo, request.situation.localLanguage).response, ctx, config.pace);

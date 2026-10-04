@@ -6,7 +6,7 @@
 import type { AssistantMessage, Context, Message } from '@earendil-works/pi-ai';
 import type { Static, TSchema } from 'typebox';
 import { Value } from 'typebox/value';
-import { ApiError, clampMessage } from '../errors.ts';
+import { ApiError, clampMessage, clientClosed } from '../errors.ts';
 import { describeErrors } from '../validate.ts';
 import type { Budget } from './budget.ts';
 import { costOf, providerErrorText, type Llm } from './registry.ts';
@@ -39,6 +39,12 @@ export interface TypedRequest<S extends TSchema, R> {
   user: string;
   maxTokens: number;
   timeoutMs: number;
+  /**
+   * Stops the generation early. Only for work no one else shares (Translate's
+   * cancellable cache): a shared generation must never see a client's signal.
+   * When it aborts, the call throws clientClosed().
+   */
+  signal?: AbortSignal;
   /** Shape fixes before the schema check (e.g. a missing nullable field). Must not throw. */
   normalize?: (value: unknown) => unknown;
   /** Semantic checks on schema-valid output. */
@@ -93,14 +99,17 @@ function check<S extends TSchema, R>(request: TypedRequest<S, R>, message: Assis
 }
 
 /**
- * Generates typed output. Never sees a client's abort signal: the generation may be
- * shared through the cache, so only its own timeout stops it.
+ * Generates typed output. Normally it never sees a client's abort signal: the
+ * generation may be shared through the cache, so only its own timeout stops it.
+ * `request.signal` is the exception (see TypedRequest.signal).
  */
 export async function generateTyped<S extends TSchema, R>(request: TypedRequest<S, R>): Promise<R> {
   request.budget.assertAvailable();
   const { model, key, options } = await request.llm.forSkill(request.skill);
   const started = performance.now();
   const timeout = AbortSignal.timeout(request.timeoutMs);
+  const signal = request.signal ? AbortSignal.any([timeout, request.signal]) : timeout;
+  const stopped = () => (request.signal?.aborted ? clientClosed() : null);
   const messages: Message[] = [{ role: 'user', content: request.user, timestamp: Date.now() }];
   const context: Context = { systemPrompt: `${request.system}\n\n${schemaInstructions(request.schema)}`, messages };
   const stats: GenerationStats = { model: key, attempts: 0, latencyMs: 0, costUsd: 0, firstIssues: [], dropped: [] };
@@ -111,14 +120,21 @@ export async function generateTyped<S extends TSchema, R>(request: TypedRequest<
 
   let issues: string[] = [];
   for (let attempt = 1; attempt <= 2; attempt++) {
+    const gone = stopped();
+    if (gone) {
+      report();
+      throw gone;
+    }
     stats.attempts = attempt;
-    const message = await request.llm.models.completeSimple(model, context, { ...options, maxTokens: request.maxTokens, signal: timeout });
+    const message = await request.llm.models.completeSimple(model, context, { ...options, maxTokens: request.maxTokens, signal });
     const cost = costOf(model, message.usage);
     stats.costUsd += cost;
     request.budget.add(cost);
 
-    if (message.stopReason === 'aborted' || (message.stopReason === 'error' && timeout.aborted)) {
+    if (message.stopReason === 'aborted' || (message.stopReason === 'error' && signal.aborted)) {
       report();
+      const gone = stopped();
+      if (gone) throw gone;
       throw new ApiError('timeout', `The ${request.label} took too long to generate. Try again.`);
     }
     if (message.stopReason === 'error') {

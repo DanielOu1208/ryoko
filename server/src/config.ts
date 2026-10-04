@@ -19,7 +19,7 @@ export interface FauxConfig {
 }
 
 /** The model-backed skills, each with its own model (design §6.3). */
-export const SKILL_NAMES = ['placeCard', 'discover', 'allergyCard', 'mimo'] as const;
+export const SKILL_NAMES = ['placeCard', 'discover', 'allergyCard', 'mimo', 'translate'] as const;
 export type SkillName = (typeof SKILL_NAMES)[number];
 
 /** The env var that overrides one skill's model, as `provider:modelId` (or just `provider`). */
@@ -28,6 +28,7 @@ export const SKILL_MODEL_ENV: Record<SkillName, string> = {
   discover: 'MODEL_DISCOVER',
   allergyCard: 'MODEL_ALLERGY_CARD',
   mimo: 'MODEL_MIMO',
+  translate: 'MODEL_TRANSLATE',
 };
 
 /** Providers the server can register. `gmi` is a custom OpenAI-compatible provider; `google` is pi-ai's built-in (tier 2). */
@@ -74,9 +75,22 @@ export interface Config {
   /** Daily model spend in US dollars before every model call answers 503 budget_exceeded. */
   dailyBudgetUsd: number;
   /** Time limits for model work, in milliseconds. */
-  timeouts: { skillMs: number; mimoMs: number };
+  timeouts: { skillMs: number; mimoMs: number; translateMs: number };
+  /** Short-lived Soniox keys for the app (POST /v1/soniox-key, design §6.4). The key itself stays in `env`. */
+  soniox: SonioxKeyConfig;
   /** The raw merged environment, for W7 skills (provider keys etc.). Secret: never log it. */
   env: Readonly<Record<string, string | undefined>>;
+}
+
+export interface SonioxKeyConfig {
+  /** Whether SONIOX_API_KEY is set. The value is never copied out of `env`. */
+  configured: boolean;
+  /** Keys one install (and one IP) may mint per minute: one per listening session. */
+  perMinute: number;
+  /** How long a minted key can be used to open a session. */
+  expiresInSeconds: number;
+  /** The longest session a minted key allows; Soniox drops the connection after it. */
+  maxSessionSeconds: number;
 }
 
 export class ConfigError extends Error {
@@ -186,6 +200,13 @@ export function configFromEnv(env: Record<string, string | undefined>): Config {
     timeouts: {
       skillMs: intFrom(env, 'SKILL_TIMEOUT_MS', 25_000, 100, 120_000),
       mimoMs: intFrom(env, 'MIMO_TIMEOUT_MS', 28_000, 100, 120_000),
+      translateMs: intFrom(env, 'TRANSLATE_TIMEOUT_MS', 12_000, 100, 120_000),
+    },
+    soniox: {
+      configured: Boolean(env.SONIOX_API_KEY?.trim()),
+      perMinute: intFrom(env, 'SONIOX_KEYS_PER_MINUTE', 10, 1, 1000),
+      expiresInSeconds: intFrom(env, 'SONIOX_KEY_TTL_SECONDS', 60, 10, 3600),
+      maxSessionSeconds: intFrom(env, 'SONIOX_MAX_SESSION_SECONDS', 3600, 60, 18_000),
     },
     env: Object.freeze({ ...env }),
   };
@@ -211,5 +232,6 @@ export function describeConfig(config: Config): string {
     models = distinct.size === 1 ? ` (${specs[0]?.[1]})` : ` (${specs.map(([skill, text]) => `${skill}=${text}`).join(', ')})`;
     models += `, budget $${config.dailyBudgetUsd}/day, cache ${config.cacheDir ? 'on disk' : 'in memory'}`;
   }
-  return `MODEL=${config.model}${models}${pace}, rate limit ${config.rateLimitPerMinute}/min, body limit ${config.bodyLimitBytes / 1024} KB, APP_TOKEN set`;
+  const soniox = config.soniox.configured ? `Soniox keys on (${config.soniox.perMinute}/min)` : 'Soniox keys off (no SONIOX_API_KEY)';
+  return `MODEL=${config.model}${models}${pace}, rate limit ${config.rateLimitPerMinute}/min, body limit ${config.bodyLimitBytes / 1024} KB, ${soniox}, APP_TOKEN set`;
 }

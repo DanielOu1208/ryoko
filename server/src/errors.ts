@@ -53,6 +53,15 @@ export function clampMessage(message: string): string {
 }
 
 /**
+ * The client went away before the answer (e.g. Translate cancelling a stale
+ * request). Nobody reads the response; 499 (nginx's "client closed request")
+ * just keeps the access log honest.
+ */
+export function clientClosed(): ApiError {
+  return new ApiError('invalid_request', 'The client closed the request.', { status: 499 as ContentfulStatusCode, retryable: true });
+}
+
+/**
  * Any thrown value as an ApiError. Unknown errors become a retryable 500 `model_error`:
  * §7.8 has no generic internal code, and the cause is logged, never sent.
  */
