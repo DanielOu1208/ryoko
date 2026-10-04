@@ -31,3 +31,4 @@ demo/out/
 demo/video/node_modules/
 demo/video/out/
 demo/**/__pycache__/
+demo/video/public/

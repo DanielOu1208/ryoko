@@ -84,9 +84,9 @@ def take_translate():
         take.mark("launch")
         launch("-RyokoInitialTab", "translate", "-RyokoTranslateSource", "canned",
                "-RyokoTranslateCannedScript", "coffee", "-RyokoTranslateOther", "zh-Hans",
-               "-RyokoTranslateCannedPace", "2.0")
+               "-RyokoTranslateCannedPace", "2.4")
         take.run("w 3.5", "idle")
-        take.run("t 201 737 w 13", "tap mic")
+        take.run("t 201 737 w 15.3", "tap mic")
         d = take.device
         d.run("")
         layout = d.find("Layout")

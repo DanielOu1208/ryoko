@@ -58,8 +58,8 @@ nonisolated enum CannedConversation {
         Line(speaker: .them, said: "好的，一共二十八块。扫码还是现金？", translated: "Sure, that's 28 yuan. Scan to pay, or cash?"),
     ]
 
-    /// The responses for `pair`'s script. The second line's translation
-    /// arrives late, after the third line has started.
+    /// The responses for `pair`'s script. In the standard scripts the second
+    /// line's translation arrives late, after the third line has started.
     static func steps(for pair: TranslatePair, pace: Double = 1, script: Script = .standard) -> [Step] {
         let lines = lines(for: pair, script: script)
         var steps: [Step] = []
@@ -88,7 +88,7 @@ nonisolated enum CannedConversation {
             let end = SonioxToken(text: SonioxToken.endMarker, isFinal: true, language: nil)
             steps.append(Step(delay: 0.6 * pace, response: SonioxResponse(tokens: finals(second) + [end])))
 
-            if index == 1 {
+            if index == 1, script == .standard {
                 lateTranslation = translated
             } else {
                 let mid = max(1, translated.count / 2)
