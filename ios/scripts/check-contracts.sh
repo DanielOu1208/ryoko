@@ -8,7 +8,8 @@
 #   and without the optional aboutMe,
 # - the SSE line reader, the situation clock and the API error mapping behave,
 # - Translate's Soniox key provider falls back to the build's key only when the
-#   server can't hand one out (T2.6).
+#   server can't hand one out (T2.6),
+# - trip events are cleaned to the contract's limits before they're sent.
 #
 #   ios/scripts/check-contracts.sh          offline checks only
 #   ios/scripts/check-contracts.sh --live   also calls the server at

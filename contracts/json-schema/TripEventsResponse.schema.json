@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryoko.invalid/contracts/TripEventsResponse.schema.json",
+  "title": "TripEventsResponse",
+  "type": "object",
+  "required": [
+    "stored"
+  ],
+  "properties": {
+    "stored": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 20,
+      "description": "How many were stored: 0 when trip memory is off, and repeats are skipped"
+    }
+  },
+  "additionalProperties": false
+}

@@ -18,6 +18,7 @@ struct TranslateView: View {
     @Environment(ProfileStore.self) private var profileStore
     @Environment(TranslateModel.self) private var model
     @Environment(\.ryokoAPI) private var api
+    @Environment(\.tripMemory) private var tripMemory
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
 
@@ -294,8 +295,10 @@ struct TranslateView: View {
             switch purpose {
             case .typing(let pair):
                 model.addTyped(pair: pair, text: result.text, translation: result.translation)
+                tripMemory.typed(result.text, translation: result.translation, language: pair.home.tag)
             case .editing(let turn):
                 model.applyEdit(id: turn.id, original: result.text, translation: result.translation)
+                tripMemory.typed(result.text, translation: result.translation, language: turn.originalTag)
             }
             commits += 1
             closeComposer()

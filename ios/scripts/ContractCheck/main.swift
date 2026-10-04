@@ -344,6 +344,44 @@ do {
     print("  FAIL translate contracts: \(error)")
 }
 
+// MARK: - Trip events (design §8.3)
+
+section("Trip events: omitted optionals and cleaning to the contract's limits")
+do {
+    let at = "2026-10-05T19:42:00+09:00"
+    let bare = TripEvent(kind: .phraseSpoken, at: at, text: "麺かためでお願いします。")
+    expect(try json(bare).keys.sorted() == ["at", "kind", "text"], "an event omits every optional it doesn't have")
+    expect(try json(bare)["kind"] as? String == "phrase_spoken", "kind is the contract's snake_case")
+    let bareGuess = TripEventPlace(name: "Menya Shono", localName: nil, category: nil)
+    expect(try json(bareGuess).keys.sorted() == ["name"], "a place omits localName and category when nil")
+
+    let example = try FixtureSource.directory(examples).decode(TripEventsRequest.self, from: .tripEventsRequest)
+    expect(example.events.allSatisfy { $0.cleaned() == $0 }, "cleaning leaves the example's events as they are")
+
+    expect(TripEvent(kind: .typedTranslation, at: at, text: " \n ").cleaned() == nil, "no text left: no event")
+    let messy = TripEvent(
+        kind: .typedTranslation, at: at,
+        text: "  " + String(repeating: "a", count: 400), meaning: "\t",
+        language: "EN", place: TripEventPlace(name: " ", localName: "x", category: .ramen),
+        city: String(repeating: "c", count: 100), countryCode: "jp"
+    ).cleaned()
+    expect(messy?.text.count == TripEvent.maxTextLength, "text is trimmed and cut to 300")
+    expect(messy?.meaning == nil && messy?.language == nil && messy?.place == nil, "a blank meaning, an off-pattern tag and a nameless place are left out")
+    expect(messy?.city?.count == TripEvent.maxCityLength && messy?.countryCode == "JP", "city cut to 80, country code upper-cased")
+    let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}" // 5 scalars, 1 character
+    let families = TripEvent(kind: .phraseShown, at: at, text: String(repeating: family, count: 70), countryCode: "JPN").cleaned()
+    expect(families?.text == String(repeating: family, count: 60) && families?.countryCode == nil, "cut by scalars between characters; a 3-letter country is left out")
+    let named = TripEvent(
+        kind: .placeConfirmed, at: at, text: "x",
+        language: "zh-Hans", place: TripEventPlace(name: String(repeating: "名", count: 130), localName: "", category: nil)
+    ).cleaned()
+    expect(named?.place?.name.count == TripEventPlace.maxNameLength && named?.place?.localName == nil, "place name cut to 120, an empty local name left out")
+    expect(named?.language == "zh-Hans", "a contract language tag is kept")
+} catch {
+    failures += 1
+    print("  FAIL trip events: \(error)")
+}
+
 /// An API with only the tier 1 methods, like the DEBUG Mimo script: the tier 2
 /// defaults answer as if there's no server.
 nonisolated struct ScriptOnlyAPI: RyokoAPI {
@@ -476,6 +514,17 @@ do {
         expect(error == .notConfigured("translate"), "a stand-in API without translate answers notConfigured")
     }
 
+    let tripEvents = try source.decode(TripEventsRequest.self, from: .tripEventsRequest)
+    let fixtureStored = try await fixtureAPI.tripEvents(tripEvents).stored
+    expect(fixtureStored == 0, "fixtures accept trip events and store none")
+    do {
+        _ = try await stand_in.tripEvents(tripEvents)
+        failures += 1
+        print("  FAIL a stand-in API stored trip events")
+    } catch let error as RyokoAPIError {
+        expect(error == .notConfigured("trip-events"), "a stand-in API without trip events answers notConfigured")
+    }
+
     let busy = FixtureRyokoAPI.sessionBusy(source: .directory(examples))
     do {
         for try await _ in busy.mimoMessages(sessionId: "s", request: mimoRequest) {}
@@ -575,6 +624,14 @@ if let base = env["RYOKO_LIVE_BASE_URL"], let token = env["RYOKO_APP_TOKEN"], !t
     } catch {
         failures += 1
         print("  FAIL live: \(error)")
+    }
+    do {
+        let batch = try source.decode(TripEventsRequest.self, from: .tripEventsRequest)
+        let stored = try await api.tripEvents(batch).stored
+        expect((0...batch.events.count).contains(stored), "trip-events accepts the example batch (stored \(stored) of \(batch.events.count))")
+    } catch {
+        failures += 1
+        print("  FAIL live trip-events: \(error)")
     }
     do {
         _ = try await live("wrong-token").placeCard(source.decode(PlaceCardRequest.self, from: .placeCardRequest))

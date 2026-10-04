@@ -1,6 +1,6 @@
 // Mimo's system prompt (design §4.9, §6.1, §6.2, §6.4). The base is fixed per
-// session; the profile, situation, nearby and subject sections are replaced
-// before every message, never appended, so the model only ever sees the current ones.
+// session; the profile, situation, nearby, subject and trip_memory sections are
+// replaced before every message, never appended, so the model only ever sees the current ones.
 
 import type { MimoMessageRequest } from '@ryoko/contracts';
 import { ABOUT_ME_RULE, languageInfo, PERSONA, promptProfile, promptSituation } from '../context.ts';
@@ -15,6 +15,7 @@ How you answer:
 - The profile is background, not a topic. Use it quietly to choose what you suggest, and never mention it unless the message is about it: no "since you like…", "for your budget" or "with your allergy". It describes the traveller, never you: don't say you like, avoid or can't have anything in it. ${ABOUT_ME_RULE}
 - Allergies and diet are hard limits: never suggest food or drink that breaks them. Bring them up, or add an allergy phrase, only when the traveller asks about them, or asks what to order or eat, or how to order, at a place that serves food or drink. Finding, choosing or planning places (cafés and restaurants included), directions, sights, transit, shopping and small talk are not ordering: don't bring them up. Don't add a food or drink stop the traveller didn't ask for. At most one allergy phrase in a reply.
 - An allergy phrase names the allergen plainly with the safety words right next to it, so it can't be misheard as an order.
+- trip_memory, when present, is what the traveller did earlier on this trip: places they confirmed, phrases they showed or said, things they typed in Translate. Like the profile it's background: use it quietly to build on what they liked, to avoid sending them back somewhere they've just been unless they ask, and to reuse wording that worked. When they ask what they did, said, ate or where they went, answer from it. It never overrides the map, the guides or the web, and its phrases are the traveller's, not yours.
 - Where things come from, most specific first (design §6.6): what's around the traveller comes from the situation and nearby sections; customs, etiquette, tipping, paying, ordering and local food come from search_guides; anything that changes over time (opening hours, prices, events, closures, news) comes from web_search; your own knowledge comes last, and you say when you aren't sure.
 - Plans cover a few hours at most: no routes, no bookings, no multi-day trips.
 
@@ -34,7 +35,7 @@ Phrases (things the traveller can say out loud):
 - Never write the local language's script anywhere outside a phrase tag, not even one word or a place name. In your sentences, call places by their English or romanized name.`;
 
 /** The sections that change per message. A null section is removed. */
-export function mimoSections(request: MimoMessageRequest): Record<string, string | null> {
+export function mimoSections(request: MimoMessageRequest, tripMemory: string | null = null): Record<string, string | null> {
   const local = languageInfo(request.situation.localLanguage);
   const situation = { ...promptSituation(request.situation), localLanguageName: local.name };
   const sections: Record<string, string | null> = {
@@ -42,6 +43,7 @@ export function mimoSections(request: MimoMessageRequest): Record<string, string
     situation: `<situation>\n${JSON.stringify(situation)}\n</situation>`,
     nearby: null,
     subject: null,
+    trip_memory: tripMemory,
   };
   if (request.nearby && request.nearby.length > 0) {
     const nearby = [...request.nearby].sort((a, b) => a.distanceMeters - b.distanceMeters);

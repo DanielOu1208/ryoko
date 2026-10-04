@@ -27,6 +27,11 @@ nonisolated protocol RyokoAPI: Sendable {
     /// `GET /v1/mimo-models`: the models and thinking levels Mimo's picker offers.
     func mimoModels() async throws -> MimoModelsResponse
 
+    /// `POST /v1/trip-events`: a batch of what you did on the trip, for Mimo's
+    /// trip memory (design §8.3). Fire and forget: `TripMemoryLog` sends it
+    /// and nothing waits on the answer.
+    func tripEvents(_ request: TripEventsRequest) async throws -> TripEventsResponse
+
     /// `POST /v1/sessions/:id/messages`: one Mimo run as a stream of events.
     ///
     /// - The stream throws `RyokoAPIError` if the request fails before streaming
@@ -40,8 +45,8 @@ nonisolated protocol RyokoAPI: Sendable {
 
 /// Endpoints that a stand-in API (a DEBUG script, a preview) may not
 /// implement: they answer as if there's no server, so Translate falls back the
-/// way it does offline and Mimo hides its model picker. `LiveRyokoAPI` and
-/// `FixtureRyokoAPI` implement them all.
+/// way it does offline, Mimo hides its model picker and trip memory drops its
+/// batch. `LiveRyokoAPI` and `FixtureRyokoAPI` implement them all.
 nonisolated extension RyokoAPI {
     func translate(_ request: TranslateRequest) async throws -> TranslateResponse {
         throw RyokoAPIError.notConfigured("translate")
@@ -53,6 +58,10 @@ nonisolated extension RyokoAPI {
 
     func mimoModels() async throws -> MimoModelsResponse {
         throw RyokoAPIError.notConfigured("mimo-models")
+    }
+
+    func tripEvents(_ request: TripEventsRequest) async throws -> TripEventsResponse {
+        throw RyokoAPIError.notConfigured("trip-events")
     }
 }
 

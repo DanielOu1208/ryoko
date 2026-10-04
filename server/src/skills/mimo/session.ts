@@ -1,14 +1,16 @@
 // The mimo skill (design §4.9, §6.4): one pi-agent-core Agent per chat session,
-// kept in memory, with the guardrails pi doesn't have built in:
+// kept in memory (and in Tiger when it's set up, design §8.3, so a chat survives
+// a restart), with the guardrails pi doesn't have built in:
 // - at most 4 model turns and 3 tool calls per message (finishTurn, beforeToolCall)
 // - a time limit (25–30 s), and abort when the client disconnects
 // - thinking events dropped, low retry delays (the request options)
-// - the profile and situation sections replaced before each message
+// - the profile and situation sections replaced before each message, with the
+//   traveller's trip memory when there is one (time-limited, skipped on failure)
 // Each message runs on the model the app picked (or the configured default); a
 // chat that changes model keeps its history. The route holds the per-session
 // lock, so a session never runs twice at once.
 
-import { Agent, type AgentEvent, type AgentTool } from '@earendil-works/pi-agent-core';
+import { Agent, type AgentEvent, type AgentMessage, type AgentTool } from '@earendil-works/pi-agent-core';
 import type { AssistantMessage, SystemMessage } from '@earendil-works/pi-ai';
 import type { MimoMessageRequest, SseEvent, StopReason } from '@ryoko/contracts';
 import { ApiError, clampMessage } from '../../errors.ts';
@@ -22,6 +24,7 @@ import { PhraseStream, type PhraseStreamStats } from './phrase-stream.ts';
 import { MIMO_SYSTEM, mimoSections } from './prompt.ts';
 import { isMimoTool, searchGuidesTool, showPlacesTool, TOOL_LABELS, webSearchTool } from './tools.ts';
 import type { GuideSearch } from '../../guides/snowflake.ts';
+import { tripMemorySection, type Recall, type SavedSession } from '../../memory/index.ts';
 
 export const MIMO_LIMITS = {
   maxTurns: 4,
@@ -30,6 +33,10 @@ export const MIMO_LIMITS = {
   /** Sessions idle longer than this are forgotten. */
   idleMs: 6 * 3600_000,
   maxSessions: 500,
+  /** How long a message waits for trip memory (an embedding and two queries) before going without. */
+  memoryMs: 1500,
+  /** How long the first message to a chat the server doesn't hold waits for it to load from Tiger. */
+  loadMs: 1500,
 } as const;
 
 export interface MimoRunStats {
@@ -45,6 +52,8 @@ export interface MimoRunStats {
   phrases: PhraseStreamStats;
   /** Events that failed the contract check and weren't sent. */
   rejectedEvents: number;
+  /** Trip memory in the prompt: recent and similar events, or null when there was none or it was skipped. */
+  memory: { recent: number; similar: number; ms: number } | null;
 }
 
 /** What a run does that the app never sees (thinking, tool arguments), for the dashboard. */
@@ -61,6 +70,13 @@ export interface MimoDeps {
   /** The travel guides in Snowflake, or null when SNOWFLAKE_* isn't set (search_guides is then not offered). */
   guides?: GuideSearch | null;
   timeoutMs: number;
+  /** The traveller's trip memory (Tiger, design §8.3), or null when it isn't set up. */
+  tripMemory?: { recall(installId: string, message: string | null, signal?: AbortSignal): Promise<Recall> } | null;
+  /** Where chats are kept across restarts (Tiger), or null to keep them in memory only. */
+  sessionStore?: {
+    load(sessionId: string, installId: string | null): Promise<SavedSession | null>;
+    save(sessionId: string, installId: string | null, session: SavedSession): Promise<void>;
+  } | null;
   /** The model for one message: the app's pick (design §4.9). Defaults to the mimo skill's configured model. */
   pickModel?: (request: MimoMessageRequest) => Promise<SkillModel>;
   onRunStats?: (stats: MimoRunStats) => void;
@@ -84,6 +100,15 @@ type RunState = {
   toolLimit: boolean;
   turnLimit: boolean;
 };
+
+/** Rejects after `ms`; the work itself carries on and its result is ignored. */
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`timed out after ${ms} ms`)), ms);
+  });
+  return Promise.race([work, limit]).finally(() => clearTimeout(timer));
+}
 
 function lastAssistant(messages: readonly unknown[]): AssistantMessage | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -132,11 +157,48 @@ export class MimoSessions {
   async prepare(request: MimoMessageRequest, ctx: MimoContext): Promise<MimoRun> {
     this.deps.budget.assertAvailable();
     const skillModel = await (this.deps.pickModel?.(request) ?? this.deps.llm.forSkill('mimo'));
-    const session = this.session(ctx.sessionId, skillModel);
+    const saved = this.sessions.has(ctx.sessionId) ? null : await this.load(ctx);
+    const session = this.session(ctx.sessionId, skillModel, saved);
     return (sink) => this.run(session, skillModel, request, ctx, sink);
   }
 
-  private session(sessionId: string, skillModel: SkillModel): Session {
+  /** A chat this server doesn't hold (after a restart, or evicted), from Tiger. Slow or failed means a fresh chat. */
+  private async load(ctx: MimoContext): Promise<unknown[] | null> {
+    const store = this.deps.sessionStore;
+    if (!store) return null;
+    try {
+      const saved = await withTimeout(store.load(ctx.sessionId, ctx.installId), MIMO_LIMITS.loadMs);
+      return saved?.messages.length ? saved.messages : null;
+    } catch (err) {
+      console.error(`Mimo ${ctx.sessionId}: starting fresh, couldn't load the chat from Tiger: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  /** Saves the chat after a good run, without the leading system message (rebuilt from the current prompt on load). */
+  private save(session: Session, ctx: MimoContext): void {
+    const store = this.deps.sessionStore;
+    if (!store) return;
+    const saved: SavedSession = { modelKey: session.modelKey, messages: session.agent.state.messages.slice(1) };
+    store.save(ctx.sessionId, ctx.installId, saved).catch((err: Error) => console.error(`Mimo ${ctx.sessionId}: couldn't save the chat to Tiger: ${err.message}`));
+  }
+
+  /** Trip memory for this message, within MIMO_LIMITS.memoryMs. Without an install id there's nothing to look up. */
+  private async recall(request: MimoMessageRequest, ctx: MimoContext): Promise<{ section: string | null; stats: MimoRunStats['memory'] }> {
+    const trips = this.deps.tripMemory;
+    if (!trips || !ctx.installId) return { section: null, stats: null };
+    const started = performance.now();
+    try {
+      const recall = await withTimeout(trips.recall(ctx.installId, request.message, ctx.signal), MIMO_LIMITS.memoryMs);
+      const ms = Math.round(performance.now() - started);
+      return { section: tripMemorySection(recall, request.situation), stats: { recent: recall.recent.length, similar: recall.similar.length, ms } };
+    } catch (err) {
+      console.error(`Mimo ${ctx.runId}: answering without trip memory: ${(err as Error).message}`);
+      return { section: null, stats: null };
+    }
+  }
+
+  private session(sessionId: string, skillModel: SkillModel, saved: unknown[] | null = null): Session {
     const now = Date.now();
     let session = this.sessions.get(sessionId);
     if (session && session.modelKey !== skillModel.key) {
@@ -147,7 +209,7 @@ export class MimoSessions {
       session.modelKey = skillModel.key;
     }
     if (!session) {
-      session = this.createSession(skillModel, now);
+      session = this.createSession(skillModel, now, saved);
       this.sessions.set(sessionId, session);
       this.evict(now);
     }
@@ -167,7 +229,7 @@ export class MimoSessions {
     }
   }
 
-  private createSession(skillModel: SkillModel, now: number): Session {
+  private createSession(skillModel: SkillModel, now: number, saved: unknown[] | null): Session {
     const tools: AgentTool<any>[] = [showPlacesTool()];
     // The guides search in the country of the session's latest message.
     if (this.deps.guides) tools.push(searchGuidesTool(this.deps.guides, () => session.countryCode));
@@ -176,7 +238,8 @@ export class MimoSessions {
     const session: Session = {
       // Reads the session's current model options, so a switch applies to the next turn.
       agent: new Agent({
-        initialState: { systemPrompt: MIMO_SYSTEM, model: skillModel.model, thinkingLevel: 'off', tools },
+        // A saved chat has no system message: pi puts the current prompt and tools in front.
+        initialState: { systemPrompt: MIMO_SYSTEM, model: skillModel.model, thinkingLevel: 'off', tools, ...(saved ? { messages: saved as AgentMessage[] } : {}) },
         streamFn: (model, context, options) =>
           llm.models.streamSimple(model, context, { ...options, ...session.skillModel.options, maxTokens: outputBudget(MIMO_LIMITS.maxTokens, session.skillModel.options) }),
         toolExecution: 'sequential',
@@ -189,11 +252,11 @@ export class MimoSessions {
   }
 
   /** Replaces the profile/situation/nearby/subject sections of the leading system message. */
-  private setSections(agent: Agent, request: MimoMessageRequest): void {
+  private setSections(agent: Agent, request: MimoMessageRequest, tripMemory: string | null): void {
     const messages = agent.state.messages;
     const lead = messages[0] as SystemMessage | undefined;
     if (!lead || lead.role !== 'system') throw new Error('Mimo session has no leading system message.');
-    const sections = Object.fromEntries(Object.entries(mimoSections(request)).filter((entry): entry is [string, string] => entry[1] !== null));
+    const sections = Object.fromEntries(Object.entries(mimoSections(request, tripMemory)).filter((entry): entry is [string, string] => entry[1] !== null));
     agent.state.messages = [{ ...lead, sections }, ...messages.slice(1)];
   }
 
@@ -207,6 +270,7 @@ export class MimoSessions {
     let costUsd = 0;
     let rejectedEvents = 0;
     let timedOut = false;
+    let memory: MimoRunStats['memory'] = null;
 
     const send = (event: SseEvent) => {
       try {
@@ -293,7 +357,9 @@ export class MimoSessions {
 
     let outcome: StopReason | 'error' | 'timeout' = 'stop';
     try {
-      this.setSections(agent, request);
+      const recalled = await this.recall(request, ctx);
+      memory = recalled.stats;
+      this.setSections(agent, request, recalled.section);
       if (sink.signal.aborted) {
         outcome = 'aborted';
         return 'aborted';
@@ -314,6 +380,8 @@ export class MimoSessions {
       if (outcome === 'timeout' || outcome === 'error' || outcome === 'aborted') {
         // Keep the transcript clean for the next message: forget this exchange.
         agent.state.messages = agent.state.messages.slice(0, mark);
+      } else {
+        this.save(session, ctx);
       }
       if (outcome === 'timeout') throw new ApiError('timeout', 'Mimo took too long to answer. Try again.');
       if (outcome === 'error') {
@@ -345,6 +413,7 @@ export class MimoSessions {
         costUsd,
         phrases: phrases.stats,
         rejectedEvents,
+        memory,
       });
     }
   }

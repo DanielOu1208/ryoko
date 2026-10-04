@@ -1,0 +1,31 @@
+{
+  "events": [
+    {
+      "kind": "place_confirmed",
+      "at": "2026-10-05T19:42:00+09:00",
+      "text": "Menya Shono",
+      "place": { "name": "Menya Shono", "localName": "麺屋翔", "category": "ramen" },
+      "city": "Tokyo",
+      "countryCode": "JP"
+    },
+    {
+      "kind": "phrase_shown",
+      "at": "2026-10-05T19:48:00+09:00",
+      "text": "麺かためでお願いします。",
+      "meaning": "Firm noodles, please.",
+      "language": "ja",
+      "place": { "name": "Menya Shono", "localName": "麺屋翔", "category": "ramen" },
+      "city": "Tokyo",
+      "countryCode": "JP"
+    },
+    {
+      "kind": "typed_translation",
+      "at": "2026-10-05T20:05:00+09:00",
+      "text": "Is there a quiet bar nearby?",
+      "meaning": "近くに静かなバーはありますか？",
+      "language": "en",
+      "city": "Tokyo",
+      "countryCode": "JP"
+    }
+  ]
+}

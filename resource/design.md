@@ -425,6 +425,7 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
   | ~~`POST /v1/localize-place`~~ | cut (#47): MapKit on device | — |
   | `POST /v1/soniox-key` | mints a short-lived Soniox key | 2 |
   | `GET /v1/mimo-models` | the models Mimo's picker offers (#73) | 2 |
+  | `POST /v1/trip-events` | trip memory: what the traveller did (§8.3, #76) | after core |
 
 - **Mimo's tools:**
   - `show_places` returns `{places: [{name, localName?, why, order?, when?}]}`, at most 5 places (or stops). `order` is 1–5. `when` is a local 24-hour `HH:mm`.
@@ -436,7 +437,7 @@ The "because…" line must name **one or two** of these inputs, and each phrase 
   - one run per session at a time: a second message gets 409 `session_busy`
   - drop thinking events
   - low retry delays, so a rate limit surfaces as an error, not a hang
-- **Sessions:** created lazily on the first message to an id and kept in memory. Before each message, the server replaces the profile and situation sections of the system prompt instead of appending them.
+- **Sessions:** created lazily on the first message to an id and kept in memory. With Tiger set up, each good run is also saved to Postgres, so a chat survives a restart (§8.3). Before each message, the server replaces the profile, situation and trip memory sections of the system prompt instead of appending them.
 - **Caching:**
   - an in-memory LRU (about 500 entries), persisted to a gitignored JSON file so a restart keeps it warm
   - in-flight de-duplication: later callers wait on the same generation, and one client disconnecting never cancels a shared generation
@@ -496,7 +497,7 @@ Not every source on every message: that's slow, costs money, and off-topic excer
 | --- | --- | --- | --- |
 | In the prompt | Situation and map data: place, local time, `nearby` (MapKit on the device) | Every message | Free |
 | | Profile | Every message | Free |
-| | Trip memory (Tiger, §8.3): recent events and the most similar past ones, as `<trip_memory>` | Fetched before every message, with a time limit; skipped on failure | One SQL query |
+| | Trip memory (Tiger, §8.3): recent events and the most similar past ones, as `<trip_memory>` | Fetched before every message, with a 1.5 s limit; skipped on failure | One embedding and two SQL queries, about 0.4 s |
 | Tools | `search_guides` (Snowflake, §8.4) | Customs, etiquette, tipping, paying, what and how to order, local food, how things work | About 0.4 s |
 | | `web_search` (Exa) | Facts that change: opening hours, events, closures, prices, news; or when asked to look something up | 1–2 s and money |
 | Checked after | `show_places` → MapKit on the device | Every place Mimo names; a name the map can't find is dropped | On device |
@@ -675,12 +676,21 @@ Gemini becomes Mimo's model before submission (§6.3). The story for judges: the
 
 Durable storage and trip memory, on Tiger Cloud Postgres (the free plan is enough; MLH offers credits).
 
-- **Sessions:** a Postgres-backed session store for the agent server. Store pi's message objects verbatim, in jsonb. Never switch an existing session's model.
+- **Sessions:** a Postgres-backed session store for the agent server. Store pi's message objects verbatim, in jsonb. A chat that switches model keeps its history (#73).
 - **Trip memory:**
   - A `trip_events` hypertable: time, install id, kind (`place_confirmed`, `phrase_shown`, `phrase_spoken`, `typed_translation`), place, text, and a pgvector embedding. Match the embedding dimension to the model.
   - Mimo gets recent events plus the top-k similar ones as a `<trip_memory>` prompt section.
   - This is where "learns from choices" lives.
 - **Story for judges:** a time-series trip timeline that makes suggestions better as you travel.
+- **As built (#76):**
+  - `POST /v1/trip-events` takes `{events: [{kind, at, text, meaning?, language?, place?, city?, countryCode?}]}` (1–20) under `X-Install-Id` and answers `{stored}`. Without Tiger, without an install id, or with `MODEL=faux`, it stores nothing. The same event (kind, text, place) within 10 minutes is a repeat and isn't stored.
+  - The app (`TripMemoryLog`) records: "I'm here" on a place card (`place_confirmed`), Show mode opening a phrase or allergy card (`phrase_shown`), Speak (`phrase_spoken`) and typed or edited turns in Translate (`typed_translation`). It batches them (3 s of quiet, or 10), never waits on them, and skips a repeat within 2 minutes. A previewed place isn't attached: you aren't there.
+  - Tables, created on start: `trip_events`, a hypertable on `time` (7-day chunks) with `vector(768)` embeddings and an index on (install id, time); and `mimo_sessions` (id, install id, model key, message count, messages jsonb). Exact vector search per install: one traveller's events are few, so no ANN index.
+  - Embeddings: `gemini-embedding-001` at 768 dimensions over REST, `RETRIEVAL_DOCUMENT` for events and `RETRIEVAL_QUERY` for the message. An event is embedded as one line ("Showed a phrase at Menya Shono (ramen), Tokyo: 麺かためでお願いします。 = Firm noodles, please."). Without the key, events are stored without vectors and only "recent" works.
+  - `<trip_memory>`: the 6 latest events of the last 30 days, plus up to 4 older ones within cosine distance 0.4 of the message (related events measured 0.30–0.39, unrelated 0.45+). Times are relative to the situation's local time ("12 min ago", "yesterday 19:42"). The prompt treats it like the profile: background that shapes suggestions, answered from when the traveller asks what they did, never above the map, guides or web.
+  - Chats: saved after every good run without the leading system message (the current prompt and tools are put back on load), loaded on the first message to an id the server doesn't hold (1.5 s limit, else a fresh chat), only for the same install id, and not after 7 days idle. A slower save never overwrites a newer one.
+  - TLS: Tiger Cloud's certificates chain to Timescale's own root (`ca.timescale.com`, valid to Oct 2027), pinned in `server/certs/timescale-ca.pem`. node-postgres refuses the connection otherwise.
+  - Place cards don't use trip memory yet: they're cached per place and hour, not per traveller.
 
 ### 8.4 Snowflake: after core
 
@@ -964,3 +974,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 73 | Mimo's model picker, like Codex's effort button: a level button in the composer opens a popover with the level, the model (menu by provider), a reset arrow and a slider. `GET /v1/mimo-models` and `model`/`effort` on Mimo messages; a fixed server catalog (GMI: DeepSeek V4.1 Flash, Qwen3.8 Flash, GPT-6.1 Sol, GPT-6 Luna; Gemini 3.8 Flash and 3.5 Flash-Lite once a Gemini key is set); a chat keeps its history across a model change. §4.9, §6.3, §6.4, §7.7 | user |
 | 74 | Translate locks Soniox to the speaker's language: each session listens for one language (strict hint), and a hand-over finalizes it and opens a new session locked to the other language. A strong bias, not a filter (best effort per Soniox), but better than detecting between the pair, which mixed languages. Key limit 10 → 30 a minute (a key per session). §4.8 | user ("sometimes u still mix languages") |
 | 75 | Where Mimo's answers come from: situation, map data, profile and (later) trip memory are always in the prompt; the travel guides (`search_guides`, Snowflake Cortex Search) and the web (`web_search`) are tools Mimo picks; places it names are checked against the map. The most specific source wins. Place cards fetch the guides before their one call, and tips can cite them (`Tip.source`). §6.6, §8.4 | user (a hierarchy for how Mimo uses its sources) |
+| 76 | Trip memory on Tiger Data: the app reports places confirmed, phrases shown or spoken and typed translations (`POST /v1/trip-events`); the server stores them in a Timescale hypertable with Gemini embeddings and gives Mimo the latest and the most similar as `<trip_memory>` before each message; Mimo chats are saved to Postgres and survive a restart. §6.4, §6.6, §8.3 | user |

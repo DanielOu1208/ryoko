@@ -29,6 +29,8 @@ nonisolated enum FixtureFile: String, CaseIterable, Sendable {
     case sonioxKeyResponse = "soniox-key.response.json"
     case mimoMessageRequest = "mimo-message.request.json"
     case mimoModelsResponse = "mimo-models.response.json"
+    case tripEventsRequest = "trip-events.request.json"
+    case tripEventsResponse = "trip-events.response.json"
     case mimoStream = "mimo.sse.txt"
     case mimoStreamZhHans = "mimo.zh-hans.sse.txt"
     case errorInvalidRequest = "error.invalid-request.response.json"

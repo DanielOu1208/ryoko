@@ -23,6 +23,7 @@ struct ShowModeView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.speechService) private var speech
+    @Environment(\.tripMemory) private var tripMemory
 
     @State private var isFlipped = false
     @State private var hasAppeared = false
@@ -51,7 +52,7 @@ struct ShowModeView: View {
                         Button("Done") { dismiss() }
                     }
                     ToolbarItem(placement: .bottomBar) {
-                        SpeakButton(phrase: content.spokenPhrase)
+                        SpeakButton(phrase: content.spokenPhrase, remembers: content.rememberedPhrase != nil)
                     }
                 }
                 .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
@@ -73,6 +74,7 @@ struct ShowModeView: View {
         }
         .onAppear {
             hasAppeared = true
+            tripMemory.shown(content)
             #if DEBUG
             if ShowDebugOptions.startsFlipped { isFlipped = true }
             #endif

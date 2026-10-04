@@ -18,6 +18,8 @@ import {
   SonioxKeyResponse,
   TranslateRequest,
   TranslateResponse,
+  TripEventsRequest,
+  TripEventsResponse,
 } from '@ryoko/contracts';
 import { whereTitle } from './admin/activity.ts';
 import { adminRoutes } from './admin/routes.ts';
@@ -145,6 +147,14 @@ export function createApp(config: Config, options: AppOptions = {}): RyokoApp {
     const title = `“${request.text}” ${request.from} → ${request.to}`;
     const response = await track('translate', title, () => runtime.skills.translate(request, skillContext(c)));
     return c.json(checkResponse(TranslateResponse, response, 'translate'));
+  });
+
+  // What the traveller did, for Mimo's trip memory (Tiger, design §8.3). Keyed
+  // by X-Install-Id; without one, or without Tiger, nothing is stored.
+  app.post('/v1/trip-events', async (c) => {
+    const request = await readJson(c, TripEventsRequest, 'trip events');
+    const response = (await runtime.skills.tripEvents?.(request, skillContext(c))) ?? { stored: 0 };
+    return c.json(checkResponse(TripEventsResponse, response, 'trip-events'));
   });
 
   // The models and thinking levels Mimo's picker offers (design §4.9).

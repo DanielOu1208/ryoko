@@ -10,4 +10,9 @@ extension EnvironmentValues {
     /// Speaks phrases (tier 2). `RyokoApp` sets `LiveSpeechService`. Previews
     /// get the fixture, which only logs.
     @Entry var speechService: any SpeechService = FixtureSpeechService()
+
+    /// Trip memory (design §8.3): places confirmed, phrases shown or spoken,
+    /// typed translations. `RyokoApp` sets the app's one log. Previews get one
+    /// that keeps nothing.
+    @Entry var tripMemory: TripMemoryLog = .disabled
 }

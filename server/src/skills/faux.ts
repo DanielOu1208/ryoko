@@ -89,6 +89,11 @@ export function createFauxSkills(config: FauxConfig, fixtures: FixtureSet = load
       // The model and level are the app's pick; fixtures replay the same script whatever they are.
       return replayTranscript(pickFixture(fixtures.mimo, request.situation.localLanguage).response, ctx, config.pace);
     },
+    // Fixture mode keeps no memory.
+    async tripEvents() {
+      return { stored: 0 };
+    },
+
     async mimoModels() {
       await latency();
       return structuredClone(fixtures.mimoModels);
