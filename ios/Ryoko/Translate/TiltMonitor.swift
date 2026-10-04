@@ -3,7 +3,7 @@ import Foundation
 import Observation
 
 /// Gravity from CoreMotion, through `TiltRule`, to Translate's layout (design
-/// §4.8). Device motion needs no permission. It only works on a device: in the
+/// §4.8). Show mode uses it too: face-to-face turns the card toward the other person. Device motion needs no permission. It only works on a device: in the
 /// simulator `isAvailable` is false and the layout stays upright (use the
 /// toolbar toggle).
 @MainActor
