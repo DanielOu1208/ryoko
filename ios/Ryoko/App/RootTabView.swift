@@ -28,13 +28,6 @@ enum AppTab: String, CaseIterable, Hashable {
         case .me: "person.crop.circle"
         }
     }
-
-    /// Whether scrolling down minimizes the tab bar on this tab: Nearby and
-    /// Mimo only (design §3). Map's floating sheet sizes itself from the space
-    /// above the tab bar, so a minimizing bar would make it jump.
-    var minimizesTabBarOnScroll: Bool {
-        self == .nearby || self == .mimo
-    }
 }
 
 /// The native `TabView` (iOS 18+ `Tab` API). On iOS 26 and later it renders as
@@ -43,9 +36,8 @@ enum AppTab: String, CaseIterable, Hashable {
 /// live in `AppRouter`, so any feature can switch tabs or open Show mode.
 ///
 /// Tier 2 (design §3, T2.5):
-/// - The tab bar minimizes when you scroll down (`tabBarMinimizeBehavior`) on
-///   Nearby and Mimo only (`AppTab.minimizesTabBarOnScroll`). It's a TabView
-///   modifier, so it follows the selected tab.
+/// - The tab bar never minimizes: it stays full size on every tab, so the tabs
+///   are always one tap away (design §3, decision #50).
 /// - While Translate listens, the bottom accessory shows "Listening · English
 ///   ⇄ Japanese" with a stop button on the other tabs (`ListeningAccessory`).
 struct RootTabView: View {
@@ -78,7 +70,7 @@ struct RootTabView: View {
                 MeView()
             }
         }
-        .tabBarMinimizeBehavior(router.selectedTab.minimizesTabBarOnScroll ? .onScrollDown : .never)
+        .tabBarMinimizeBehavior(.never)
         .tabViewBottomAccessory(isEnabled: ListeningAccessory.isShown(for: translate, on: router.selectedTab)) {
             ListeningAccessory(model: translate) { router.selectedTab = .translate }
         }

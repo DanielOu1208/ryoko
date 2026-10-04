@@ -35,7 +35,7 @@ Languages: **Mandarin (Simplified, `zh-Hans`) and Japanese (`ja`)** are first-cl
 | Place awareness (nearest three + confirm) and look-ahead (search or pin, plus date and time) | Live Activity: lock screen + Dynamic Island (§4.11) | Snowflake: travel guides that Mimo cites (§8.4) |
 | Map (opens first): bottom sheet of Mimo picks and nearby places · Nearby: phrases with "because…", tips, quick cards, mini map | Onboarding survey (§4.1) and editing in Me | Translate read-aloud |
 | Show mode (no Speak yet) | Translate Type mode and tap-to-edit turns, `POST /v1/translate` | Menu scan with allergen flags |
-| Allergy card (reviewed templates) and taxi card | Bottom "Listening" accessory and tab-bar minimize | Offline pack for pinned places |
+| Allergy card (reviewed templates) and taxi card | Bottom "Listening" accessory (tab-bar minimize dropped, #50) | Offline pack for pinned places |
 | Map: search, place sheet, Preview, layers incl. Hidden gems and From Mimo | Server-minted Soniox keys | Listen mode (announcements, tour guides) |
 | Translate: voice, face-to-face tilt, turn history | Switch the model from GMI to Gemini (§6.3), before submission | |
 | Mimo tab: chat, phrase blocks, places, plans for a few hours, web search with sources | | |
@@ -75,7 +75,7 @@ Languages: **Mandarin (Simplified, `zh-Hans`) and Japanese (`ja`)** are first-cl
   The `translate` symbol is reserved for Apple's own Translate app, so it isn't used.
 - Native navigation bars with large titles (`navigationSubtitle` for secondary lines), native sheets with detents, and a native `fullScreenCover` for Show mode.
 - iPhone only, portrait only. All rotation (Flip, face-to-face) is done in SwiftUI.
-- Tier 2: `tabBarMinimizeBehavior(.onScrollDown)` on Nearby and Mimo. While Translate is listening, a `tabViewBottomAccessory` shows "Listening · English ⇄ Chinese" with a stop button.
+- The tab bar never minimizes (`tabBarMinimizeBehavior(.never)`): it stays full size on every tab, so the tabs are always one tap away (#50). Tier 2: while Translate is listening, a `tabViewBottomAccessory` shows "Listening · English ⇄ Chinese" with a stop button.
 
 ## 4. Features
 
@@ -244,7 +244,7 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
 - A chat with Mimo (§6.1). The profile, the active situation, up to 20 nearby MapKit POIs and an optional subject place are attached to every message automatically.
 - **Replies:**
   - Replies stream in as 2–4 short plain sentences, with inline Markdown only.
-  - While a reply streams, one status pill with a small thinking Mimo sits centred just above the composer: "Thinking…" before anything arrives, the tool's line while one runs ("Searching the web…", "Finding places…"), "Working…" while it writes.
+  - While a reply streams, one status pill with a small thinking Mimo sits centred just above the composer (or beside the corner button): "Thinking…" before anything arrives, the tool's line while one runs ("Searching the web…", "Finding places…"), "Working…" while it writes.
   - Streaming is calm: text eases in at a steady pace instead of in network bursts, new pieces fade in, a places card waits until the sentence before it is finished (with a same-shape placeholder while its places are looked up), and the chat follows the reply only while you're at the bottom.
 - A reply is an ordered list of segments: text, **phrase blocks**, place chips, and sources.
 - **Phrase blocks** (§6.2): every phrase Mimo suggests saying appears inside the reply, right after the sentence it belongs to, as a quiet line set off by a bar on its leading edge: script, gloss and an expand icon. Tapping it opens Show mode (#49).
@@ -259,7 +259,11 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
 - **Starter suggestions** are fixed templates per place category ("What's popular here?", "How do I pay?", "Plan my afternoon"). They need no LLM call.
 - **Sessions:**
   - The device creates a session id, and a new one on **New chat**. The transcript is kept on the device.
-  - **History:** a ChatGPT-style sidebar (the chat slides aside; swipe right or tap the sidebar button) lists saved chats by their first message, with search and New chat. Touch and hold a chat to delete it.
+  - **History:** a ChatGPT-style sidebar (the chat slides aside; swipe right or tap the sidebar button) lists saved chats by their first message, with search and New chat. Touch and hold a chat to delete it. A swipe that crosses a place, a phrase or a button doesn't also tap it.
+- **Composer:** when you're not typing it tucks into a round button in the bottom-right corner, so the chat runs down to the tab bar (#51).
+  - Tap the button to open the field with the keyboard up. Scrolling toward the end of the chat opens it too (without the keyboard); scrolling back to read, or closing the keyboard with nothing typed, tucks it away.
+  - It stays open while there's a draft, and in a new chat, where asking is the first thing you do.
+  - While Mimo replies, the corner button is Stop.
 - **Header:** laid out like a contact in Messages: the avatar centred at the top with "Mimo" and the place and local time under it, the sidebar button on the left and New chat on the right. No navigation bar title.
   - **Ask Mimo about this place** (from a place sheet) opens the tab with that place attached as the subject, without changing the active situation.
 - **Avatar:** Mimo has an animated avatar: a single monochrome blob with two eyes that morphs between states.
@@ -853,3 +857,5 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 47 | `/v1/localize-place` is cut: the home base's local-script name and address come from MapKit on the device | default |
 | 48 | UI pass: the time-of-day gradient also covers Translate, Mimo and Me; the Mimo header is centred like Messages, with a ChatGPT-style history sidebar; the Map's search field floats with the sheet's side margins and Layers sits under the location button | user |
 | 49 | Mimo's phrases are part of the reply, not cards: a line after the sentence they belong to that opens Show mode; the prompt asks Mimo not to collect them at the end | user |
+| 50 | The tab bar never minimizes on scroll, on any tab (replaces T2.5's minimize on Nearby and Mimo) | user |
+| 51 | Mimo's composer tucks into a corner button when you're not typing; tap it to type, scroll toward the end of the chat to open it, scroll back to tuck it away. Open in a new chat or with a draft; Stop while replying | user |

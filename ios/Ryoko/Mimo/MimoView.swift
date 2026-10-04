@@ -14,6 +14,7 @@ struct MimoView: View {
     @Environment(\.ryokoAPI) private var api
     @Environment(\.placeResolver) private var resolver
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var chat: MimoChat
     @State private var draft = ""
@@ -27,9 +28,24 @@ struct MimoView: View {
     @State private var showsHistory = false
     /// How far a swipe has moved the chat while opening or closing the sidebar.
     @GestureState private var sidebarDrag: CGFloat = 0
+    /// When a sideways swipe last moved the chat (`isSwipingSidebar`).
+    @State private var sidebarSwipedAt = Date.distantPast
     /// The saved chats, read when the sidebar opens.
     @State private var history: [MimoChatSummary] = []
     @FocusState private var isComposing: Bool
+    /// Whether the composer is open as the text field rather than tucked into
+    /// the corner button (`showsComposerField`). Scrolling toward the end of the
+    /// chat opens it; scrolling back, or closing the keyboard, tucks it away.
+    @State private var isComposerOpen = false
+    /// The corner button was tapped: focus the field once it's on screen.
+    @State private var focusesComposerOnOpen = false
+    /// Where the chat was scrolled when the composer last opened or closed, for
+    /// measuring the next scroll from. Nil when no scroll is under way.
+    @State private var composerScrollMark: CGFloat?
+    @State private var scrollPhase: ScrollPhase = .idle
+    /// Until when scroll changes only move the mark: the composer opening or
+    /// closing shifts the chat by itself, which mustn't count as a scroll.
+    @State private var composerSettlesAt = Date.distantPast
     #if DEBUG
     /// A segment to scroll to (`-RyokoMimoScrollTo places`).
     @State private var debugScrollTarget: String?
@@ -143,7 +159,26 @@ struct MimoView: View {
                     subjectBar
                 }
             }
-            .safeAreaBar(edge: .bottom) { composer }
+            .safeAreaBar(edge: .bottom) {
+                if showsComposerField {
+                    composer
+                        .transition(composerTransition(scale: 0.9))
+                }
+            }
+            // Tucked away, the composer is a button in the corner, so the chat
+            // runs down to the tab bar (design §4.9).
+            .overlay(alignment: .bottom) {
+                if !showsComposerField {
+                    collapsedComposer
+                        .transition(composerTransition(scale: 0.6))
+                }
+            }
+            .animation(reduceMotion ? .easeInOut(duration: 0.2) : .smooth(duration: 0.3), value: showsComposerField)
+            .onChange(of: showsComposerField) { composerSettlesAt = Date.now + 0.4 }
+            .onChange(of: isComposing) { _, composing in
+                // Closing the keyboard with nothing typed tucks the composer away.
+                if !composing, draft.isEmpty { isComposerOpen = false }
+            }
             .scrollEdgeEffectStyle(.soft, for: .top)
             .navigationTitle("Mimo")
             .toolbar(.hidden, for: .navigationBar)
@@ -151,17 +186,46 @@ struct MimoView: View {
     }
 
     /// Swipe right on the chat to open the sidebar, left to close it.
+    ///
+    /// It runs alongside the chat's own gestures, so scrolling and text
+    /// selection keep working. A swipe that starts on a place or a phrase would
+    /// also tap it when the finger lifts there, so taps in the chat check
+    /// `isSwipingSidebar` (`unlessSwiping`).
     private func sidebarSwipe(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 20)
             .updating($sidebarDrag) { value, drag, _ in
-                guard abs(value.translation.width) > abs(value.translation.height) * 1.5 else { return }
+                guard Self.isSideways(value) else { return }
                 drag = value.translation.width
             }
+            .onChanged { value in
+                if Self.isSideways(value) { sidebarSwipedAt = .now }
+            }
             .onEnded { value in
-                guard abs(value.translation.width) > abs(value.translation.height) * 1.5 else { return }
+                guard Self.isSideways(value) else { return }
+                sidebarSwipedAt = .now
                 let projected = (showsHistory ? width : 0) + value.predictedEndTranslation.width
                 showsHistory = projected > width / 2
             }
+    }
+
+    private static func isSideways(_ value: DragGesture.Value) -> Bool {
+        abs(value.translation.width) > abs(value.translation.height) * 1.5
+    }
+
+    /// True while a sideways swipe moves the chat, and for a moment after: the
+    /// finger lifting over a place or phrase at the end of a swipe isn't a tap.
+    private var isSwipingSidebar: Bool {
+        sidebarDrag != 0 || Date.now.timeIntervalSince(sidebarSwipedAt) < 0.4
+    }
+
+    /// `action`, unless it fires as part of a sidebar swipe.
+    private func unlessSwiping(_ action: @escaping () -> Void) -> () -> Void {
+        { if !isSwipingSidebar { action() } }
+    }
+
+    /// `action` with its argument, unless it fires as part of a sidebar swipe.
+    private func unlessSwiping<Value>(_ action: @escaping (Value) -> Void) -> (Value) -> Void {
+        { value in if !isSwipingSidebar { action(value) } }
     }
 
     // MARK: Header
@@ -171,7 +235,7 @@ struct MimoView: View {
     /// on the right.
     private func header(at date: Date) -> some View {
         HStack(alignment: .top) {
-            MimoHeaderButton(title: "History", systemImage: "sidebar.leading") { showsHistory = true }
+            MimoHeaderButton(title: "History", systemImage: "sidebar.leading", action: unlessSwiping { showsHistory = true })
             Spacer(minLength: Theme.grid)
             // The pill tucks up under the avatar, whose canvas has room around the body.
             VStack(spacing: -Theme.grid) {
@@ -196,7 +260,7 @@ struct MimoView: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
             Spacer(minLength: Theme.grid)
-            MimoHeaderButton(title: "New chat", systemImage: "square.and.pencil", action: startNewChat)
+            MimoHeaderButton(title: "New chat", systemImage: "square.and.pencil", action: unlessSwiping(startNewChat))
                 .disabled(chat.isEmpty && router.mimoSubject == nil)
         }
         .pageMargins()
@@ -226,10 +290,10 @@ struct MimoView: View {
                         MimoTurnView(
                             turn: turn,
                             canRetry: chat.canSend && situationStore.situation != nil,
-                            onShowPhrase: openShow,
-                            onSelectPlace: openOnMap,
-                            onShowOnMap: showOnMap,
-                            onRetry: { retry(turn.id) }
+                            onShowPhrase: unlessSwiping(openShow),
+                            onSelectPlace: unlessSwiping(openOnMap),
+                            onShowOnMap: unlessSwiping(showOnMap),
+                            onRetry: unlessSwiping { retry(turn.id) }
                         )
                         .id(turn.id)
                     }
@@ -240,7 +304,8 @@ struct MimoView: View {
                 }
                 .pageMargins()
                 .padding(.top, Theme.grid)
-                .padding(.bottom, Theme.grid * 2)
+                // With the composer tucked away, the end of the chat stops above the corner button.
+                .padding(.bottom, Theme.grid * 2 + (showsComposerField ? 0 : MimoComposeButton.size + Theme.grid))
             }
             .scrollDismissesKeyboard(.interactively)
             .defaultScrollAnchor(chat.isEmpty ? .top : .bottom, for: .initialOffset)
@@ -274,8 +339,23 @@ struct MimoView: View {
                 guard new.contentHeight > old.contentHeight, old.isAtBottom else { return }
                 proxy.scrollTo(Self.bottomID, anchor: .bottom)
             }
+            // Your own scrolls open and close the composer; the chat following a reply doesn't.
+            .onScrollPhaseChange { _, phase, context in
+                scrollPhase = phase
+                switch phase {
+                case .interacting: composerScrollMark = context.geometry.contentOffset.y
+                case .idle: composerScrollMark = nil
+                default: break
+                }
+            }
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, y in
+                composerFollowsScroll(to: y)
+            }
         }
     }
+
+    /// How far you scroll before the composer opens or closes.
+    private static let composerScrollDistance: CGFloat = 24
 
     private static let topID = "mimo-top"
     private static let bottomID = "mimo-bottom"
@@ -288,9 +368,7 @@ struct MimoView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             ForEach(MimoStarters.list(for: starterCategory, situation: situationStore.situation), id: \.self) { starter in
-                Button {
-                    send(starter)
-                } label: {
+                Button(action: unlessSwiping { send(starter) }) {
                     Text(starter)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil, alignment: .leading)
@@ -310,7 +388,7 @@ struct MimoView: View {
             Text("Pick a place on the map so I know where you are, then ask me anything about it.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Button("Open Map", systemImage: "map") { router.selectedTab = .map }
+            Button("Open Map", systemImage: "map", action: unlessSwiping { router.selectedTab = .map })
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.capsule)
         }
@@ -353,6 +431,71 @@ struct MimoView: View {
             onSend: { send(draft) },
             onStop: { chat.stop() }
         )
+        .task {
+            // The corner button opened it: the field takes focus once it exists.
+            guard focusesComposerOnOpen else { return }
+            focusesComposerOnOpen = false
+            isComposing = true
+        }
+    }
+
+    /// The composer shows as the text field while you type or have a draft, in
+    /// a new chat (the first thing you do is ask), and once opened. Otherwise
+    /// it's the corner button, so the chat gets the room.
+    private var showsComposerField: Bool {
+        isComposerOpen || isComposing || !draft.isEmpty || chat.isEmpty
+    }
+
+    /// The composer tucked away: the corner button (Stop while Mimo replies),
+    /// with the status pill centred beside it.
+    private var collapsedComposer: some View {
+        MimoComposeButton(isReplying: chat.isReplying, onOpen: unlessSwiping(openComposer), onStop: unlessSwiping { chat.stop() })
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .overlay {
+                // Centred, and clear of the button on both sides.
+                if let status = chat.turns.last?.statusLine {
+                    MimoStatusPill(text: status)
+                        .padding(.horizontal, MimoComposeButton.size + Theme.grid)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
+            .pageMargins()
+            .padding(.bottom, Theme.grid)
+            .animation(.smooth(duration: 0.3), value: chat.turns.last?.statusLine == nil)
+    }
+
+    /// The field grows out of the corner button, and shrinks back into it.
+    private func composerTransition(scale: CGFloat) -> AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: scale, anchor: .bottomTrailing))
+    }
+
+    /// The corner button: open the field with the keyboard up. A field that's
+    /// already showing takes focus now; a new one once it's on screen.
+    private func openComposer() {
+        if showsComposerField {
+            isComposing = true
+        } else {
+            focusesComposerOnOpen = true
+        }
+        isComposerOpen = true
+    }
+
+    /// Scrolling toward the end of the chat opens the composer; scrolling back
+    /// to read tucks it away, unless you're typing. Only your own scrolls count.
+    private func composerFollowsScroll(to y: CGFloat) {
+        guard scrollPhase == .interacting || scrollPhase == .decelerating,
+              let mark = composerScrollMark else { return }
+        guard Date.now >= composerSettlesAt else {
+            composerScrollMark = y
+            return
+        }
+        if y > mark + Self.composerScrollDistance {
+            composerScrollMark = y
+            if !isComposerOpen { isComposerOpen = true }
+        } else if y < mark - Self.composerScrollDistance {
+            composerScrollMark = y
+            if isComposerOpen { isComposerOpen = false }
+        }
     }
 
     // MARK: Actions
@@ -474,7 +617,7 @@ extension MimoView {
             hasNearby: { nearby != nil },
             send: { send($0) },
             setDraft: { draft = $0 },
-            focusComposer: { isComposing = true },
+            focusComposer: openComposer,
             openHistory: { showsHistory = true },
             scrollTo: { debugScrollTarget = $0 },
             starters: { MimoStarters.list(for: starterCategory, situation: situationStore.situation) },
@@ -632,6 +775,39 @@ private struct MimoComposer: View {
         }
         .padding(Theme.grid / 2)
         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: buttonSize / 2 + Theme.grid / 2))
+    }
+}
+
+/// The composer tucked into the bottom-right corner: tap to open it with the
+/// keyboard up. While Mimo replies it's Stop, as the open composer's button is.
+private struct MimoComposeButton: View {
+    static let size: CGFloat = 50
+
+    let isReplying: Bool
+    var onOpen: () -> Void
+    var onStop: () -> Void
+
+    var body: some View {
+        if isReplying {
+            Button(action: onStop) {
+                Image(systemName: "stop.fill")
+                    .font(.body.weight(.bold))
+                    .frame(width: Self.size, height: Self.size)
+            }
+            .buttonStyle(.monochromeProminent)
+            .buttonBorderShape(.circle)
+            .accessibilityLabel("Stop")
+        } else {
+            Button("Ask Mimo", systemImage: "text.bubble", action: onOpen)
+                .labelStyle(.iconOnly)
+                .font(.title3.weight(.medium))
+                .frame(width: Self.size, height: Self.size)
+                .contentShape(.circle)
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .accessibilityHint("Opens the message field")
+        }
     }
 }
 
