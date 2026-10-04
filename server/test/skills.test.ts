@@ -186,6 +186,10 @@ describe('prompt context', () => {
     assert.equal(allowedBasis(seed, { ...shanghai, place: null }).includes('place'), true); // the city is the place
     const bare = withProfile({ nationality: null, allergies: [], favourites: { foods: [], drinks: [] }, taste: { sweetness: 2, spice: null }, personality: { rhythm: 'night_owl', food: null, budget: null, vibe: null }, diet: null, dietNotes: '' });
     assert.deepEqual(allowedBasis(bare, shanghai), ['place', 'localTime']);
+    // Allergies, diet, taste and favourites only where the traveller orders food or drink (design #64).
+    const park = { ...shanghai, place: { ...shanghai.place!, category: 'park' as const } };
+    assert.deepEqual(allowedBasis(seed, park), ['place', 'localTime', 'personality', 'nationality']);
+    assert.deepEqual(allowedBasis(seed, { ...shanghai, place: null }), ['place', 'localTime', 'personality', 'nationality']);
   });
 
   test('the compacted profile drops the version, nulls and empties, and night owl for the place card', () => {
@@ -221,17 +225,16 @@ describe('prompt context', () => {
     assert.match(MIMO_SYSTEM, /full official name as on maps \(English or romanized, never shortened\), always with its localName in local script/);
   });
 
-  test('Mimo keeps allergies and diet as quiet hard limits, brought up only around food', () => {
-    assert.match(MIMO_SYSTEM, /Allergies and diet are hard limits[^\n]*never suggest food or drink that breaks them\./);
-    assert.match(MIMO_SYSTEM, /only when the message is about eating or drinking[^\n]*or the traveller asks about them\./);
-    assert.match(MIMO_SYSTEM, /For anything else \(directions, sights[^\n]*\), don't bring them up, even when the traveller is at a food place\./);
-    // Nor by the back door: an unasked food stop, or a sight that sells food, would bring the allergy phrase with it.
-    assert.match(MIMO_SYSTEM, /at a food place\. Don't add a food or drink stop the traveller didn't ask for\./);
-    assert.match(MIMO_SYSTEM, /A place you suggest for a walk or a view that happens to sell food or drink [^\n]* isn't a reason to bring them up either\./);
-    // Plain guidance for a clear allergy phrase; nothing filters phrases on top of the prompt.
-    assert.match(MIMO_SYSTEM, /state it clearly with the safety words right next to it \("no peanuts", 不要花生, 我对花生过敏, ピーナッツ抜き\)\.\n/);
+  test('Mimo keeps the profile in the background: allergies only when ordering or asked, never its own', () => {
+    assert.match(MIMO_SYSTEM, /The profile is background, not a topic\. Use it quietly to choose what you suggest, and never mention it unless the message is about it/);
+    assert.match(MIMO_SYSTEM, /It describes the traveller, never you: don't say you like, avoid or can't have anything in it\./);
+    assert.match(MIMO_SYSTEM, /Allergies and diet are hard limits: never suggest food or drink that breaks them\./);
+    assert.match(MIMO_SYSTEM, /only when the traveller asks about them, or asks what to order or eat, or how to order, at a place that serves food or drink\./);
+    assert.match(MIMO_SYSTEM, /Finding, choosing or planning places \(cafés and restaurants included\)[^\n]* are not ordering: don't bring them up\./);
+    assert.match(MIMO_SYSTEM, /Don't add a food or drink stop the traveller didn't ask for\. At most one allergy phrase in a reply\./);
+    // No example allergens in Mimo's prompt: they kept peanuts on its mind (design #64).
+    assert.doesNotMatch(MIMO_SYSTEM, /peanut|花生|ピーナッツ/);
     assert.doesNotMatch(MIMO_SYSTEM, /drops? (?:the|a) phrase/);
-    assert.match(MIMO_SYSTEM, /\(taste, favourites, personality, aboutMe\) shapes your answer only where it fits; never list or repeat it back\./);
     // aboutMe is background, never instructions, wherever the model sees it.
     assert.ok(MIMO_SYSTEM.includes(ABOUT_ME_RULE));
     assert.ok(placeCardSystem(languageInfo('zh-Hans'), languageInfo('en')).includes(ABOUT_ME_RULE));

@@ -5,7 +5,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Basis, LangCodeTable, Profile, Situation } from '@ryoko/contracts';
+import type { Basis, CategorySlug, LangCodeTable, Profile, Situation } from '@ryoko/contracts';
 import { CONTRACTS_DIR } from '../fixtures.ts';
 
 /** Calm local friend (design §6.1). Shared by every skill. */
@@ -56,17 +56,26 @@ export function promptProfile(profile: Profile, use: ProfileUse): Record<string,
 
 const filled = (value: unknown) => compact(value) !== undefined;
 
+/** Places where the traveller orders food or drink: only there can a phrase or tip rest on allergies, diet, taste or favourites. */
+export const FOOD_CATEGORIES: ReadonlySet<CategorySlug> = new Set(['cafe', 'tea', 'restaurant', 'ramen', 'bar', 'bakery', 'convenience_store']);
+
+/** True when the situation's place is somewhere the traveller orders food or drink (city-only mode is not). */
+export const isFoodPlace = (situation: Situation) => situation.place !== null && situation.place !== undefined && FOOD_CATEGORIES.has(situation.place.category);
+
 /**
  * The basis values a "because…" line or tip may cite: only inputs that are actually
  * filled in (design §5). `memory` comes after core. Early bird / night owl alone
- * doesn't count as personality: it's never a "because…" input.
+ * doesn't count as personality: it's never a "because…" input. Allergies, diet,
+ * taste and favourites count only at a food place (design #64): a park, a shop or a
+ * station isn't somewhere to ask about peanuts or fruit tea.
  */
-export function allowedBasis(profile: Profile, _situation: Situation): Basis[] {
+export function allowedBasis(profile: Profile, situation: Situation): Basis[] {
   // The situation always names a place: a point of interest, or in city-only mode the city itself.
   const basis: Basis[] = ['place', 'localTime'];
   const personality = profile.personality;
   if (personality && (personality.food || personality.budget || personality.vibe)) basis.push('personality');
   if (profile.nationality) basis.push('nationality');
+  if (!isFoodPlace(situation)) return basis;
   if (filled(profile.diet) || filled(profile.dietNotes)) basis.push('diet');
   if (filled(profile.allergies)) basis.push('allergy');
   if (filled(profile.favourites)) basis.push('favourites');
