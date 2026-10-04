@@ -21,10 +21,18 @@ nonisolated enum CannedConversation {
         var translated: String
     }
 
+    /// Which conversation to play. `coffee` is a café order in Chinese
+    /// (`-RyokoTranslateCannedScript coffee`, for demo recordings).
+    enum Script: String, Sendable {
+        case standard
+        case coffee
+    }
+
     /// The script for a pair: a tea shop in Chinese, a ramen shop in Japanese,
     /// or a short generic exchange for any other language.
-    static func lines(for pair: TranslatePair) -> [Line] {
-        switch pair.other.sonioxCode {
+    static func lines(for pair: TranslatePair, script: Script = .standard) -> [Line] {
+        if script == .coffee { return coffeeLines }
+        return switch pair.other.sonioxCode {
         case "ja":
             [
                 Line(speaker: .me, said: "Hi, how does the ticket machine work?", translated: "すみません、券売機はどう使いますか？"),
@@ -42,10 +50,18 @@ nonisolated enum CannedConversation {
         }
     }
 
-    /// The responses for `pair`'s script. The second line's translation
-    /// arrives late, after the third line has started.
-    static func steps(for pair: TranslatePair, pace: Double = 1) -> [Step] {
-        let lines = lines(for: pair)
+    /// A coffee order at a café in Chinese.
+    private static let coffeeLines: [Line] = [
+        Line(speaker: .me, said: "Hi, what do you recommend for coffee?", translated: "你好，你们有什么推荐的咖啡吗？"),
+        Line(speaker: .them, said: "我们的招牌是桂花拿铁，有一点甜，很香。", translated: "Our signature is the osmanthus latte. A little sweet, very fragrant."),
+        Line(speaker: .me, said: "Sounds great. One medium, less sweet, please.", translated: "听起来不错。一杯中杯，少糖，谢谢。"),
+        Line(speaker: .them, said: "好的，一共二十八块。扫码还是现金？", translated: "Sure, that's 28 yuan. Scan to pay, or cash?"),
+    ]
+
+    /// The responses for `pair`'s script. In the standard scripts the second
+    /// line's translation arrives late, after the third line has started.
+    static func steps(for pair: TranslatePair, pace: Double = 1, script: Script = .standard) -> [Step] {
+        let lines = lines(for: pair, script: script)
         var steps: [Step] = []
         var lateTranslation: [SonioxToken] = []
         for (index, line) in lines.enumerated() {
@@ -72,7 +88,7 @@ nonisolated enum CannedConversation {
             let end = SonioxToken(text: SonioxToken.endMarker, isFinal: true, language: nil)
             steps.append(Step(delay: 0.6 * pace, response: SonioxResponse(tokens: finals(second) + [end])))
 
-            if index == 1 {
+            if index == 1, script == .standard {
                 lateTranslation = translated
             } else {
                 let mid = max(1, translated.count / 2)

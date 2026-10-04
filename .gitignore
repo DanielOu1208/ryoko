@@ -25,3 +25,10 @@ spikes/**/out/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Demo video: raw captures, frames and renders
+demo/out/
+demo/video/node_modules/
+demo/video/out/
+demo/**/__pycache__/
+demo/video/public/

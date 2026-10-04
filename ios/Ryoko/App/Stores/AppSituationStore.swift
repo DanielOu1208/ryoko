@@ -228,7 +228,7 @@ final class AppSituationStore: SituationStore {
         liveLanguage = language
         liveSituation = Situation(
             mode: .live,
-            date: .now,
+            date: DebugClock.now,
             timeZone: zone,
             place: confirmedPlace,
             city: area.city,
@@ -247,7 +247,7 @@ final class AppSituationStore: SituationStore {
     /// anything. `RyokoApp` calls it whenever the app becomes active.
     func refreshClock(now: Date = .now) {
         guard let live = liveSituation else { return }
-        let current = live.stamped(at: now)
+        let current = live.stamped(at: DebugClock.shifted(now))
         if current.hourBucket != live.hourBucket {
             liveSituation = current
             RyokoLog.situation.info("Live clock moved to \(current.hourBucket, privacy: .public)")
@@ -263,10 +263,10 @@ final class AppSituationStore: SituationStore {
             clockTask = nil
             return
         }
-        let boundary = Situation.nextHour(after: .now, in: live.zone ?? .current)
+        let boundary = Situation.nextHour(after: DebugClock.now, in: live.zone ?? .current)
         clockTask = Task { [weak self] in
             // One second past the boundary, so the new hour is certain.
-            let wait = max(1, boundary.timeIntervalSinceNow + 1)
+            let wait = max(1, boundary.timeIntervalSince(DebugClock.now) + 1)
             do {
                 try await Task.sleep(for: .seconds(wait), tolerance: .seconds(1))
             } catch {

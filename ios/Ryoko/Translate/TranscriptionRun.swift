@@ -61,7 +61,10 @@ nonisolated enum TranscriptionSourceKind: String, Sendable {
             #endif
         case .canned:
             #if DEBUG
-            return CannedRun(pair: pair, pace: TranslateDebug.cannedPace, failure: TranslateDebug.injectedProblem, handsOver: turnMode == .manual)
+            return CannedRun(
+                pair: pair, pace: TranslateDebug.cannedPace, script: TranslateDebug.cannedScript,
+                failure: TranslateDebug.injectedProblem, handsOver: turnMode == .manual
+            )
             #else
             return SonioxRun(pair: pair, language: language, audio: MicrophoneCapture(), usesAudioSession: true, keys: keys)
             #endif
@@ -299,9 +302,9 @@ nonisolated final class CannedRun: TranscriptionRun, @unchecked Sendable {
     private let continuation: AsyncThrowingStream<TranscriptionEvent, any Error>.Continuation
     private let driver = Mutex<Task<Void, Never>?>(nil)
 
-    init(pair: TranslatePair, pace: Double, failure: TranslateProblem?, handsOver: Bool) {
+    init(pair: TranslatePair, pace: Double, script: CannedConversation.Script, failure: TranslateProblem?, handsOver: Bool) {
         (events, continuation) = AsyncThrowingStream.makeStream(of: TranscriptionEvent.self)
-        let steps = CannedConversation.steps(for: pair, pace: pace)
+        let steps = CannedConversation.steps(for: pair, pace: pace, script: script)
         let task = Task { [continuation] in
             try? await Task.sleep(for: .seconds(0.3 * pace))
             if let failure {
