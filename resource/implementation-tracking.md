@@ -226,14 +226,14 @@ Write down what you find. The results may change the spec.
 | T2.4 | Translate Type mode + tap-to-edit turns + `/v1/translate` | wf:T2 | done |  | Type mode with a live preview (500 ms pauses, stale requests cancelled), Done adds the turn; tap your turn (panes or History) to edit and re-translate; /v1/translate on GMI ~1.6–2.2 s cold, cached |
 | T2.5 | Bottom Listening accessory + tab-bar minimize | wf:T2 | done |  | App-wide TranslateModel; 'Listening · English ⇄ Japanese' accessory with stop on other tabs; tab bar minimizes on scroll on Nearby and Mimo only (design §3) |
 | T2.6 | Server-minted Soniox keys (`/v1/soniox-key`) | wf:T2 | done |  | /v1/soniox-key mints single-use 60 s keys (3600 s session cap, 10/min); each session uses one; falls back to the bundled key only when the server can't mint (kept for the hackathon, #46) |
-| T2.7 | Switch to Gemini: billed project + spend cap, `gemini-3.8-flash` (reasoning low), Flash-Lite for translate, rerun evals | | todo | | Required before submission (Gemini track) |
+| T2.7 | Switch to Gemini: billed project + spend cap, `gemini-3.8-flash` (reasoning low), Flash-Lite for translate, rerun evals | | todo | | Required before submission (Gemini track). Billed project: drftkng1208 "Default Gemini Project" (Tier 1); its key is `GEMINI_API_KEY_BILLED` in `server/.env` but answers 402 "prepayment credits are depleted" until prepay is set up (or the $60 credit offer is redeemed). `GEMINI_API_KEY` is the free-tier key meanwhile |
 
 ## 4. After core
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
 | A1 | Tiger Data: Postgres session store, `trip_events` hypertable, Gemini embeddings, `<trip_memory>` | | todo | | **Accounts ready (2026-10-04):** Tiger Cloud free service `ryoko` (us-east-1, PostgreSQL 18.6, TimescaleDB 2.30 installed, `vector` 0.8.6 and `vectorscale` 0.9 available), `TIGER_DATABASE_URL` in `server/.env`. TLS: pin Timescale's CA (`ca.timescale.com`); node-postgres rejects it otherwise. Gemini key (free tier, project "Ryoko") in `GEMINI_API_KEY`: `gemini-embedding-001` at 768 dims works |
-| A2 | Snowflake: `guides` table (Wikivoyage with attribution), Cortex Search, `search_guides` | | blocked | | **Accounts ready (2026-10-04):** trial account (Enterprise, AWS us-west-2) with `RYOKO_WH` (XS, 60 s suspend), `RYOKO.GUIDES`, role `RYOKO_APP` (create table + Cortex Search service, `CORTEX_USER`), service user `RYOKO_SERVER` with a PAT (30 days) in `server/.env`; SQL API checked. **Blocked:** "AI function EMBED_TEXT_768 is not available for trial accounts", and Cortex Search fails the same way until a credit card is on the account (not charged until an upgrade) |
+| A2 | Snowflake: `guides` table (Wikivoyage with attribution), Cortex Search, `search_guides` | | todo | | **Accounts ready (2026-10-04):** trial account (Enterprise, AWS us-west-2) with `RYOKO_WH` (XS, 60 s suspend), `RYOKO.GUIDES`, role `RYOKO_APP` (create table + Cortex Search service, `CORTEX_USER`), service user `RYOKO_SERVER` with a PAT (30 days) in `server/.env`; SQL API checked. Card added: Cortex Search checked end to end (probe service created, REST `:query` answered in ~360 ms with the right top hit, then dropped). Trial accounts have AI features off until a card is on file |
 
 ## 5. Submission
 
