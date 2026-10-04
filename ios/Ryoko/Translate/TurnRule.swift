@@ -25,6 +25,8 @@ nonisolated struct Turn: Identifiable, Hashable, Sendable {
         case languageSwitch
         /// The session stopped.
         case sessionEnd
+        /// Typed in Type mode and added with Done (tier 2).
+        case typed
     }
 
     let id: Int
@@ -45,6 +47,104 @@ nonisolated struct Turn: Identifiable, Hashable, Sendable {
     var original: String { rawOriginal.trimmingCharacters(in: .whitespacesAndNewlines) }
     var translation: String { rawTranslation.trimmingCharacters(in: .whitespacesAndNewlines) }
     var isClosed: Bool { closedBy != nil }
+
+    /// Whether you can edit it (design §4.8): your own words, once the turn is
+    /// over. Their words, and the translation field, aren't editable.
+    var isEditable: Bool { speaker == .me && isClosed && !original.isEmpty }
+
+    /// A turn typed in Type mode (tier 2): your words in your language, and
+    /// their translation from `POST /v1/translate`. It's closed as it's added.
+    static func typed(id: Int, pair: TranslatePair, text: String, translation: String) -> Turn {
+        Turn(
+            id: id,
+            speaker: .me,
+            language: pair.home.sonioxCode,
+            originalTag: pair.home.tag,
+            translationTag: pair.other.tag,
+            rawOriginal: text,
+            rawTranslation: translation,
+            source: .typed,
+            closedBy: .typed
+        )
+    }
+
+    /// This turn with your words replaced, and the new translation (an edit).
+    /// It keeps its id, speaker, languages and source, and is marked edited.
+    func edited(original: String, translation: String) -> Turn {
+        var turn = self
+        turn.rawOriginal = original
+        turn.rawTranslation = translation
+        turn.edited = true
+        return turn
+    }
+}
+
+/// Type mode's text field rules (tier 2). Pure, for the harness.
+nonisolated enum TypedText {
+    /// The server takes at most this many characters (`TRANSLATE_MAX_CHARS`).
+    static let maxCharacters = 500
+
+    /// The field's text after a change. The field grows to several lines, but
+    /// the return key means Done: a newline ends the text instead of being
+    /// kept. Text past the limit is cut off.
+    static func accept(_ raw: String) -> (text: String, submitted: Bool) {
+        let submitted = raw.contains(where: \.isNewline)
+        let text = submitted ? String(raw.filter { !$0.isNewline }) : raw
+        return (String(text.prefix(maxCharacters)), submitted)
+    }
+
+    /// What gets translated, or nil when there's nothing to say.
+    static func request(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+/// Translate's turns across sessions (design §4.8): what History lists and the
+/// panes show, plus typed turns and edits (tier 2). Pure, so the Mac harness
+/// checks it with the turn rule.
+nonisolated struct TurnLog: Sendable {
+    /// Closed turns: earlier sessions' and typed ones, oldest first.
+    private(set) var turns: [Turn] = []
+    /// A turn the panes keep showing instead of the latest (the one you just
+    /// edited from History). Cleared by the next new turn.
+    private(set) var focusedId: Int?
+
+    /// The id for the next turn, typed or spoken.
+    var nextId: Int { (turns.map(\.id).max() ?? 0) + 1 }
+
+    /// The focused turn, if any.
+    var focused: Turn? { focusedId.flatMap { id in turns.first { $0.id == id } } }
+
+    /// Adds a session's turns when it ends.
+    mutating func archive(_ sessionTurns: [Turn]) {
+        guard !sessionTurns.isEmpty else { return }
+        turns += sessionTurns
+        focusedId = nil
+    }
+
+    /// Adds a typed turn and returns it.
+    @discardableResult
+    mutating func addTyped(pair: TranslatePair, text: String, translation: String) -> Turn {
+        let turn = Turn.typed(id: nextId, pair: pair, text: text, translation: translation)
+        turns.append(turn)
+        focusedId = nil
+        return turn
+    }
+
+    /// Replaces your words in turn `id`. Returns false (and changes nothing)
+    /// when there's no such turn or it isn't yours to edit.
+    @discardableResult
+    mutating func edit(id: Int, original: String, translation: String) -> Bool {
+        guard let index = turns.firstIndex(where: { $0.id == id }), turns[index].isEditable else { return false }
+        turns[index] = turns[index].edited(original: original, translation: translation)
+        // The latest turn is on screen anyway; an older one stays there until the next turn.
+        focusedId = index == turns.indices.last ? nil : id
+        return true
+    }
+
+    /// Your most recent turn you can edit.
+    var latestEditable: Turn? { turns.last(where: \.isEditable) }
 }
 
 /// The thresholds of the turn rule.

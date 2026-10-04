@@ -38,6 +38,7 @@ server/scripts/smoke.sh              # curls every endpoint of a running server;
 | `src/skills/mimo/` | `session.ts` (Agent per session, guardrails), `phrase-stream.ts` (phrase tags → events), `tools.ts`, `exa.ts`, `prompt.ts` |
 | `src/llm/` | `registry.ts` (pi-ai Models, the GMI provider, per-skill models), `typed.ts` (typed output), `budget.ts` (daily kill switch) |
 | `src/cache.ts` | Persisted LRU with in-flight de-duplication |
+| `src/soniox.ts` | Mints temporary Soniox keys for `POST /v1/soniox-key` |
 | `evals/run.ts` | Evals against the real model |
 
 ## Request pipeline (`/v1/*`)
@@ -72,6 +73,10 @@ Client IP: the server only accepts loopback connections, so behind Funnel it use
 **Typed output** (`src/llm/typed.ts`): the JSON Schema goes in the system prompt; the reply is parsed (code fences and stray text tolerated), cleaned of unknown keys, checked with TypeBox `Value.Check`, then by the skill's own checks. Items that fail a check are dropped; if too few are left, the model is asked once more with the problems listed; a second miss is 502 `invalid_model_output`. The assembled response is checked against the contract schema before it's cached or sent. No provider JSON modes.
 
 **place-card**: compacted profile (no version, nulls or empties; no night owl; taste 2 counts as unset) plus an explicit `allowedBasis`. Checks: basis only from `allowedBasis`; "because…" at most about 10 words (12 allowed) and no field names; local text in the local script and no Latin letters in Chinese; the allergen/diet filter (safety mentions such as 我对花生过敏 pass); pinyin from pinyin-pro replaces the model's for Chinese. `placeNameLocal` is the device's local name, else the model's when it's in the local script; the model never writes addresses.
+
+**translate** (tier 2, `POST /v1/translate`): typed or edited text in Translate, `{text, from, to, situation?}` → `{translation}`. No tools or persona. The prompt gets the two languages, the place's category (so "less sweet" comes out as 少糖 at a tea shop) and the text, nothing else, because the cache key is (text with whitespace collapsed, from, to, category). Checks: the translation is in the target script and isn't the original handed back; wrapping quotes come off. Unlike the other JSON skills it **stops when its client leaves** (Translate cancels a stale request as you keep typing): `ResponseCache.getOrCreateCancellable` aborts the generation once every caller waiting on it is gone, so a shared generation still survives one client leaving. A cancelled request logs as 499. `MODEL=faux` answers with `translate[.tokyo].response.json` by `to`. Real GMI: cold p50 about 1.6 s, cache hit a few ms.
+
+**soniox-key** (tier 2, `POST /v1/soniox-key`, body `{}`): mints a temporary Soniox key with the server's `SONIOX_API_KEY` (`usage_type: transcribe_websocket`, `expires_in_seconds: 60`, `single_use: true`, `max_session_duration_seconds: 3600`) and returns `{apiKey, expiresAt}` with `Cache-Control: no-store`. It works whatever `MODEL` is, since it isn't a model call. Its own rate limit (`SONIOX_KEYS_PER_MINUTE`, 10 per install and per IP) sits on top of the general one. No `SONIOX_API_KEY` → 503 `model_error` (not retryable), which the app treats as "no key server" and falls back to its bundled key. Soniox errors → 502 `model_error`, with token-like runs masked. Neither key is ever logged.
 
 **discover**: 5–8 places, `why` ≤ 60 characters (the prompt asks for 50), category from the table, `bestTime` ≤ 24; duplicates, wrong-script local names and allergen picks are dropped. **allergy-card**: free-text allergens only, the §4.5 wording per severity, severity taken from the request, `reviewed: false`, pinyin for Chinese.
 

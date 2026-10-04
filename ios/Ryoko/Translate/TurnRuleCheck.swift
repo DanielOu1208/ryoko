@@ -49,7 +49,64 @@ nonisolated enum TurnRuleCheck {
             check("tilt: sideways and face down are ignored", tiltIgnores),
             check("pair from the situation", pairResolution),
             check("Soniox messages decode, errors map", sonioxMessages),
+            check("typed turns and edits (tier 2)", typedTurnsAndEdits),
+            check("Type mode text: return is Done, 500 characters at most", typedTextRules),
         ]
+    }
+
+    // MARK: Type mode and editing (tier 2)
+
+    private static func typedTurnsAndEdits(_ e: inout Expect) {
+        var b = TurnBuilder(pair: enZh)
+        b.apply(en("Hi, could I get a milk tea?") + [end])
+        b.apply(tr("你好，我可以要一杯奶茶吗？", from: "en", to: "zh"))
+        b.apply(zh("好的，中杯还是大杯？") + [end])
+        b.apply(tr("Sure, medium or large?", from: "zh", to: "en"))
+        b.endSession()
+        var log = TurnLog()
+        log.archive(b.turns)
+        e.equal(log.nextId, 3, "ids continue after the session's turns")
+        e.equal(log.latestEditable?.id, 1, "your latest turn is the editable one; theirs isn't")
+        e.equal(log.turns[1].isEditable, false, "their turn can't be edited")
+
+        let typed = log.addTyped(pair: enZh, text: "Medium, no ice.", translation: "中杯，去冰。")
+        e.equal(typed.id, 3, "typed turn id")
+        e.equal(typed.speaker, .me, "typed turns are yours")
+        e.equal(typed.source, .typed, "source")
+        e.equal(typed.closedBy, .typed, "closed as it's added")
+        e.equal(typed.originalTag, "en", "your language")
+        e.equal(typed.translationTag, "zh-Hans", "their language")
+        e.equal(log.latestEditable?.id, 3, "the typed turn is now your latest")
+
+        // Editing an older turn keeps it on screen; editing the latest doesn't need to.
+        e.equal(log.edit(id: 1, original: "Hi, could I get a jasmine tea?", translation: "你好，我可以要一杯茉莉花茶吗？"), true, "edit applies")
+        e.equal(log.turns[0].original, "Hi, could I get a jasmine tea?", "words replaced")
+        e.equal(log.turns[0].translation, "你好，我可以要一杯茉莉花茶吗？", "translation replaced")
+        e.equal(log.turns[0].edited, true, "marked edited")
+        e.equal(log.turns[0].source, .voice, "still a spoken turn")
+        e.equal(log.focused?.id, 1, "an edited older turn stays on screen")
+        e.equal(log.edit(id: 2, original: "x", translation: "y"), false, "their turn can't be edited")
+        e.equal(log.turns[1].original, "好的，中杯还是大杯？", "their words untouched")
+        e.equal(log.edit(id: 99, original: "x", translation: "y"), false, "no such turn")
+        log.addTyped(pair: enZh, text: "Thanks.", translation: "谢谢。")
+        e.equal(log.focusedId, nil, "a new turn takes the panes back")
+        e.equal(log.edit(id: 4, original: "Thank you.", translation: "谢谢你。"), true, "edit the latest")
+        e.equal(log.focusedId, nil, "the latest is on screen anyway")
+
+        // The next session's ids follow on.
+        let next = TurnBuilder(pair: enZh, firstId: log.nextId)
+        e.equal(next.upcomingId, 5, "next session starts after typed turns")
+    }
+
+    private static func typedTextRules(_ e: inout Expect) {
+        e.equal(TypedText.accept("Less sweet").text, "Less sweet", "plain text")
+        e.equal(TypedText.accept("Less sweet").submitted, false, "no return, no Done")
+        let returned = TypedText.accept("Less sweet\n")
+        e.equal(returned.text, "Less sweet", "the newline is dropped")
+        e.equal(returned.submitted, true, "return means Done")
+        e.equal(TypedText.accept(String(repeating: "a", count: 600)).text.count, 500, "cut at 500")
+        e.equal(TypedText.request("   "), nil, "blank is nothing to translate")
+        e.equal(TypedText.request("  Less sweet  "), "Less sweet", "trimmed")
     }
 
     // MARK: Turn rule cases

@@ -1,11 +1,12 @@
-// The model-backed skills (W7): place-card, discover, allergy-card and mimo on the
+// The model-backed skills (W7): place-card, discover, allergy-card, translate and mimo on the
 // configured models (GMI by default), with the response cache, in-flight
 // de-duplication and the daily cost kill switch.
 
 import { join } from 'node:path';
-import type { AllergyCardRequest, DiscoverRequest, PlaceCardRequest } from '@ryoko/contracts';
+import type { AllergyCardRequest, DiscoverRequest, PlaceCardRequest, TranslateRequest } from '@ryoko/contracts';
 import type { Config } from '../config.ts';
 import { cacheKey, ResponseCache, type CacheSource } from '../cache.ts';
+import { clientClosed } from '../errors.ts';
 import { Budget } from '../llm/budget.ts';
 import { createLlm, type Llm } from '../llm/registry.ts';
 import { generateTyped, type GenerationStats } from '../llm/typed.ts';
@@ -15,11 +16,21 @@ import { DISCOVER_PROMPT_VERSION, DiscoverModelOutput, discoverSystem, discoverU
 import { createExaSearch, type WebSearch } from './mimo/exa.ts';
 import { MimoSessions, type MimoRunStats } from './mimo/session.ts';
 import { finalizePlaceCard, normalizePlaceCard, PLACE_CARD_PROMPT_VERSION, PlaceCardModelOutput, placeCardSystem, placeCardUser } from './place-card.ts';
-import type { Skills } from './types.ts';
+import {
+  finalizeTranslate,
+  normalizeTranslateText,
+  sameLanguage,
+  translateCategory,
+  TRANSLATE_PROMPT_VERSION,
+  TranslateModelOutput,
+  translateSystem,
+  translateUser,
+} from './translate.ts';
+import type { SkillContext, Skills } from './types.ts';
 
 /** What one JSON skill call did, for logs and evals. */
 export interface SkillCallStats {
-  skill: 'placeCard' | 'discover' | 'allergyCard';
+  skill: 'placeCard' | 'discover' | 'allergyCard' | 'translate';
   source: CacheSource;
   generation?: GenerationStats;
 }
@@ -64,16 +75,20 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
   };
   const mimoSessions = new MimoSessions({ llm, budget, search, timeoutMs: config.timeouts.mimoMs, onRunStats: onMimoStats });
 
-  /** A cached JSON skill: cache hit, or join the running generation, or generate. */
-  async function cached<T>(skill: SkillCallStats['skill'], key: string, generate: (stats: (s: GenerationStats) => void) => Promise<T>): Promise<T> {
-    let generation: GenerationStats | undefined;
-    const { value, source } = await cache.getOrCreate(key, () => generate((s) => (generation = s)));
+  function report(skill: SkillCallStats['skill'], source: CacheSource, generation: GenerationStats | undefined): void {
     const stats: SkillCallStats = { skill, source, ...(generation ? { generation } : {}) };
     if (generation) {
       const dropped = generation.dropped.length > 0 ? `, dropped ${generation.dropped.length}` : '';
       log(`${skill}: ${generation.model}, ${generation.attempts} attempt(s)${dropped}, ${generation.latencyMs} ms, $${generation.costUsd.toFixed(5)}`);
     }
     options.onSkillStats?.(stats);
+  }
+
+  /** A cached JSON skill: cache hit, or join the running generation, or generate. */
+  async function cached<T>(skill: SkillCallStats['skill'], key: string, generate: (stats: (s: GenerationStats) => void) => Promise<T>): Promise<T> {
+    let generation: GenerationStats | undefined;
+    const { value, source } = await cache.getOrCreate(key, () => generate((s) => (generation = s)));
+    report(skill, source, generation);
     return value;
   }
 
@@ -153,6 +168,43 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
           stats,
         }),
       );
+    },
+
+    async translate(request: TranslateRequest, ctx: SkillContext) {
+      if (sameLanguage(request.from, request.to)) return { translation: normalizeTranslateText(request.text) };
+      const { key: modelKey } = await llm.forSkill('translate');
+      const from = languageInfo(request.from);
+      const to = languageInfo(request.to);
+      const key = cacheKey(['translate', TRANSLATE_PROMPT_VERSION, modelKey, normalizeTranslateText(request.text), request.from, request.to, translateCategory(request)]);
+      let generation: GenerationStats | undefined;
+      try {
+        // Cancellable: a stale request (you kept typing) stops its generation,
+        // unless another caller is waiting for the same text.
+        const { value, source } = await cache.getOrCreateCancellable(
+          key,
+          (signal) =>
+            generateTyped({
+              llm,
+              budget,
+              skill: 'translate',
+              label: 'translation',
+              schema: TranslateModelOutput,
+              system: translateSystem(from, to),
+              user: translateUser(request, from, to),
+              maxTokens: 800,
+              timeoutMs: config.timeouts.translateMs,
+              signal,
+              finalize: (output) => finalizeTranslate(request, from, to, output),
+              stats: (s) => (generation = s),
+            }),
+          ctx.signal,
+        );
+        report('translate', source, generation);
+        return value;
+      } catch (err) {
+        if (ctx.signal.aborted) throw clientClosed();
+        throw err;
+      }
     },
 
     mimo: (request, ctx) => mimoSessions.prepare(request, ctx),

@@ -45,6 +45,8 @@ import seed from '@ryoko/contracts/examples/profile.seed.json' with { type: 'jso
 
 The situation places (`Wutong Coffee` 梧桐咖啡 in Jing'an, `Menya Kaze` 麺屋 風 in Nishi-Shinjuku) are **fictional**, and their ids start with `fixture-`. The places in `discover.response.json` and in the `show_places` event of `mimo.sse.txt` are real, well-known spots typed by hand, so the device can resolve them with MapKit in fixture mode. Nothing here comes from a MapKit response.
 
+The tier 2 Translate endpoints have examples too: `translate[.tokyo].{request,response}.json` (typed text, one per target language, which the faux server picks by `to`) and `soniox-key.response.json`, whose key is an obvious placeholder. A real minted key is a secret and never goes in a file.
+
 **`profile.seed.json`'s home base is a placeholder.** The hotel name, address and coordinate are made up and labelled as a placeholder. Replace them with the real hotel, with its coordinate from MapKit (design §4.7), before any demo.
 
 ## Allergy templates

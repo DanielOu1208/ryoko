@@ -8,10 +8,18 @@ import SwiftUI
 ///
 /// The rotation animates with the caller's animation (`.smooth`, or a
 /// crossfade under Reduce Motion).
+///
+/// When the turn is yours, tapping your words edits them (T2.4): the pane
+/// with your words shows a pencil, and `editMine` runs.
 struct TranslatePanes: View {
     let turn: Turn?
     let pair: TranslatePair?
     let layout: TranslateLayout
+    /// Edits your words, when the turn is yours. nil turns tapping off.
+    var editMine: (() -> Void)?
+
+    /// The turn is yours and can be edited.
+    private var canEdit: Bool { turn?.speaker == .me && editMine != nil }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,14 +52,15 @@ struct TranslatePanes: View {
     /// Upright, top: what was said, in the speaker's language.
     private var uprightSaid: some View {
         TranslatePane(
-            caption: turn.map { Text(speakerCaption($0)) },
+            caption: turn.map { editableCaption(speakerCaption($0)) },
             text: turn?.original ?? "",
             languageTag: turn?.originalTag ?? "en",
             font: .title2,
             placeholder: .init(
                 text: pair.map { "Tap the mic, then speak \($0.home.name) or \($0.other.name)." } ?? "Tap the mic to start.",
                 languageTag: "en"
-            )
+            ),
+            onTap: canEdit ? editMine : nil
         )
     }
 
@@ -84,18 +93,27 @@ struct TranslatePanes: View {
         let you = pair?.home ?? turn.flatMap { PairLanguage(tag: $0.speaker == .me ? $0.originalTag : $0.translationTag) }
         let text = turn.map { $0.speaker == .me ? $0.original : $0.translation } ?? ""
         return TranslatePane(
-            caption: you.map { Text($0.name) },
+            caption: you.map { editableCaption($0.name) },
             text: text,
             languageTag: you?.tag ?? "en",
             font: .title.weight(.semibold),
-            placeholder: .init(text: turn == nil ? "Tap the mic, then take turns speaking." : "…", languageTag: "en")
+            placeholder: .init(text: turn == nil ? "Tap the mic, then take turns speaking." : "…", languageTag: "en"),
+            onTap: canEdit ? editMine : nil
         )
     }
 
     // MARK: Copy
 
     private func speakerCaption(_ turn: Turn) -> String {
-        "\(turn.speaker == .me ? "You" : "Them") · \(languageName(turn.originalTag))"
+        var caption = "\(turn.speaker == .me ? "You" : "Them") · \(languageName(turn.originalTag))"
+        if turn.source == .typed { caption += " · Typed" }
+        if turn.edited { caption += " · Edited" }
+        return caption
+    }
+
+    /// The caption, with a pencil when tapping edits your words.
+    private func editableCaption(_ caption: String) -> Text {
+        canEdit ? Text("\(caption)  \(Image(systemName: "pencil"))") : Text(caption)
     }
 
     private func languageName(_ tag: String) -> String {
@@ -122,6 +140,8 @@ struct TranslatePane: View {
     let languageTag: String
     let font: Font
     let placeholder: Placeholder
+    /// Tapping the pane edits these words (yours). nil: not tappable.
+    var onTap: (() -> Void)?
 
     @State private var position = ScrollPosition(edge: .top)
 
@@ -168,6 +188,13 @@ struct TranslatePane: View {
         .padding(.horizontal, Theme.margin)
         .padding(.vertical, Theme.grid * 2)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .contentShape(Rectangle())
+        .onTapGesture { onTap?() }
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(onTap == nil ? [] : .isButton)
+        .accessibilityHint(onTap == nil ? "" : "Edits what you said.")
+        .accessibilityActions {
+            if let onTap { Button("Edit", action: onTap) }
+        }
     }
 }

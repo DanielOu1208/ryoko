@@ -266,6 +266,103 @@ expect(LiveRyokoAPI.error(status: 502, body: Data("<html>".utf8)) == .http(statu
 expect(LiveRyokoAPI.mapped(URLError(.cancelled)) is CancellationError, "cancelled request maps to CancellationError")
 expect((LiveRyokoAPI.mapped(URLError(.timedOut)) as? RyokoAPIError) == .transport(.timedOut), "timeout maps to .transport")
 
+// MARK: - Tier 2 Translate contracts
+
+section("Translate and Soniox key contracts")
+do {
+    let typed = TranslateRequest(text: "Less sweet", from: "en", to: "zh-Hans", situation: nil)
+    let object = try json(typed)
+    expect(object.keys.sorted() == ["from", "text", "to"], "a translate request without a situation omits the key")
+    let key = SonioxKeyResponse(apiKey: "secret-value-123", expiresAt: "2026-10-05T07:01:00Z")
+    let shown = [String(describing: key), String(reflecting: key), "\(key)"]
+    var dumped = ""
+    dump(key, to: &dumped)
+    expect(!(shown + [dumped]).contains { $0.contains("secret-value-123") }, "a Soniox key never shows in a description or dump")
+    expect(try json(key)["apiKey"] as? String == "secret-value-123", "but it encodes the key")
+    expect(try json(SonioxKeyRequest()).isEmpty, "the soniox-key request body is {}")
+} catch {
+    failures += 1
+    print("  FAIL translate contracts: \(error)")
+}
+
+/// An API with only the tier 1 methods, like the DEBUG Mimo script: the tier 2
+/// defaults answer as if there's no server.
+nonisolated struct ScriptOnlyAPI: RyokoAPI {
+    func placeCard(_ request: PlaceCardRequest) async throws -> PlaceCardResponse { throw RyokoAPIError.http(status: 500) }
+    func discover(_ request: DiscoverRequest) async throws -> DiscoverResponse { throw RyokoAPIError.http(status: 500) }
+    func allergyCard(_ request: AllergyCardRequest) async throws -> AllergyCardResponse { throw RyokoAPIError.http(status: 500) }
+    func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error> {
+        AsyncThrowingStream { $0.finish() }
+    }
+}
+
+// MARK: - Soniox key provider (T2.6)
+
+/// Answers sonioxKey() with a fixed result.
+nonisolated struct KeyStubAPI: RyokoAPI {
+    var result: Result<SonioxKeyResponse, RyokoAPIError>
+    func placeCard(_ request: PlaceCardRequest) async throws -> PlaceCardResponse { throw RyokoAPIError.http(status: 500) }
+    func discover(_ request: DiscoverRequest) async throws -> DiscoverResponse { throw RyokoAPIError.http(status: 500) }
+    func allergyCard(_ request: AllergyCardRequest) async throws -> AllergyCardResponse { throw RyokoAPIError.http(status: 500) }
+    func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error> {
+        AsyncThrowingStream { $0.finish() }
+    }
+    func sonioxKey() async throws -> SonioxKeyResponse { try result.get() }
+}
+
+section("Soniox key provider: server first, the build's key only when the server can't hand one out")
+do {
+    func envelope(_ status: Int, _ code: ErrorCode, retryable: Bool = false) -> RyokoAPIError {
+        .server(status: status, ErrorBody(code: code, message: "Server says no.", retryable: retryable))
+    }
+    func provider(_ result: Result<SonioxKeyResponse, RyokoAPIError>, bundled: String? = "bundled-key") -> SonioxKeyProvider {
+        SonioxKeyProvider(api: KeyStubAPI(result: result), bundledKey: { bundled })
+    }
+    let minted = SonioxKeyResponse(apiKey: "temporary-key", expiresAt: "2026-10-05T07:01:00Z")
+    let fromServer = try await provider(.success(minted)).key()
+    expect(fromServer.value == "temporary-key" && fromServer.source == .server, "a minted key is used")
+
+    let fallbacks: [(RyokoAPIError, String)] = [
+        (.notConfigured("base"), "no server (fixtures, or no URL in the build)"),
+        (.transport(.cannotConnectToHost), "server unreachable"),
+        (.transport(.timedOut), "server too slow"),
+        (.http(status: 502), "a gateway error without our envelope (Funnel up, server down)"),
+        (envelope(404, .invalidRequest), "an older server without the route"),
+        (envelope(503, .modelError), "a server without SONIOX_API_KEY"),
+    ]
+    for (error, label) in fallbacks {
+        let key = try await provider(.failure(error)).key()
+        expect(key.value == "bundled-key" && key.source == .bundled, "falls back: \(label)")
+    }
+    let viaFixtures = try await SonioxKeyProvider(api: FixtureRyokoAPI(latency: .zero), bundledKey: { "bundled-key" }).key()
+    expect(viaFixtures.source == .bundled, "fixture mode uses the build's key")
+
+    let refusals: [(RyokoAPIError, String)] = [
+        (envelope(401, .unauthorized), "a refused app token"),
+        (envelope(429, .rateLimited, retryable: true), "the key rate limit"),
+        (envelope(502, .modelError, retryable: true), "Soniox refusing to mint"),
+    ]
+    for (error, label) in refusals {
+        do {
+            _ = try await provider(.failure(error)).key()
+            failures += 1
+            print("  FAIL no fallback for \(label)")
+        } catch let problem as TranslateProblem {
+            expect(problem == .keyServer("Server says no."), "stops with the server's message: \(label)")
+        }
+    }
+    do {
+        _ = try await provider(.failure(.transport(.notConnectedToInternet)), bundled: nil).key()
+        failures += 1
+        print("  FAIL no key at all should stop the session")
+    } catch let problem as TranslateProblem {
+        expect(problem == .missingKey, "no server key and no build key: missingKey")
+    }
+} catch {
+    failures += 1
+    print("  FAIL Soniox key provider: \(error)")
+}
+
 // MARK: - Fixture API
 
 section("FixtureRyokoAPI")
@@ -292,6 +389,33 @@ do {
         if case let .toolEnd(end) = event, case let .showPlaces(details) = end.details { details.places } else { nil }
     }
     expect(places.first?.count == 3, "show_places carries 3 places")
+
+    let source = FixtureSource.directory(examples)
+    let typedTokyo = try source.decode(TranslateRequest.self, from: .translateTokyoRequest)
+    let ramen = try await fixtureAPI.translate(typedTokyo).translation
+    expect(ramen == "麺かため、油少なめでお願いします。", "Japanese typed text gets the ramen order")
+    var typedShanghai = try source.decode(TranslateRequest.self, from: .translateRequest)
+    typedShanghai.situation = nil
+    let cafe = try await fixtureAPI.translate(typedShanghai).translation
+    expect(cafe.contains("少糖"), "Chinese typed text gets the café order, situation or not")
+    let same = TranslateRequest(text: " Hello ", from: "en", to: "en", situation: nil)
+    let echoed = try await fixtureAPI.translate(same).translation
+    expect(echoed == "Hello", "the same language comes back as typed")
+    do {
+        _ = try await fixtureAPI.sonioxKey()
+        failures += 1
+        print("  FAIL the fixture API minted a Soniox key")
+    } catch let error as RyokoAPIError {
+        expect(error == .notConfigured("fixtures have no Soniox key server"), "fixtures have no key server, so Translate falls back")
+    }
+    let stand_in = ScriptOnlyAPI()
+    do {
+        _ = try await stand_in.translate(typedTokyo)
+        failures += 1
+        print("  FAIL a stand-in API translated")
+    } catch let error as RyokoAPIError {
+        expect(error == .notConfigured("translate"), "a stand-in API without translate answers notConfigured")
+    }
 
     let busy = FixtureRyokoAPI.sessionBusy(source: .directory(examples))
     do {
@@ -326,6 +450,16 @@ if let base = env["RYOKO_LIVE_BASE_URL"], let token = env["RYOKO_APP_TOKEN"], !t
         expect(!picks.places.isEmpty, "discover returns places (\(picks.places.count))")
         let allergy = try await api.allergyCard(source.decode(AllergyCardRequest.self, from: .allergyCardRequest))
         expect(!allergy.items.isEmpty && !allergy.reviewed, "allergy-card returns unreviewed items")
+        let typedStarted = ContinuousClock.now
+        let typed = try await api.translate(source.decode(TranslateRequest.self, from: .translateTokyoRequest))
+        expect(!typed.translation.isEmpty, "translate returns text (\(typed.translation), \(ContinuousClock.now - typedStarted))")
+        do {
+            let key = try await api.sonioxKey()
+            // Never print the key: its length only.
+            expect(!key.apiKey.isEmpty && (try? Date(key.expiresAt, strategy: .iso8601)) != nil, "soniox-key returns a key (\(key.apiKey.count) characters) and an ISO 8601 expiry")
+        } catch let RyokoAPIError.server(status, body) where status == 503 && body.code == .modelError {
+            print("  note: this server has no SONIOX_API_KEY (503); the app falls back to its own key")
+        }
 
         let request = try source.decode(MimoMessageRequest.self, from: .mimoMessageRequest)
         let sessionId = UUID().uuidString.lowercased()

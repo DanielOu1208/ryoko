@@ -7,13 +7,14 @@ import SwiftUI
 ///     @Environment(ProfileStore.self) private var profileStore
 ///     @Environment(APIStore.self) private var apiStore     // fixture vs live, base URL
 ///     @Environment(AppRouter.self) private var router       // tabs, cross-tab hand-offs, Show mode
+///     @Environment(TranslateModel.self) private var translate // listening, turns (one per app, T2.5)
 ///     @Environment(\.ryokoAPI) private var api              // the API to call
 ///     @Environment(\.placeResolver) private var resolver    // the one shared MapKit resolver
 ///     @Environment(\.speechService) private var speech
 ///
 /// Previews: `.environment(AppSituationStore.preview())`,
 /// `.environment(ProfileStore.preview())`, `.environment(APIStore())`,
-/// `.environment(AppRouter())`. `\.ryokoAPI`, `\.placeResolver` and
+/// `.environment(AppRouter())`, `.environment(TranslateModel())`. `\.ryokoAPI`, `\.placeResolver` and
 /// `\.speechService` default to fixtures.
 ///
 /// **The situation's clock (W3, W4, W6).** `situationStore.situation` changes
@@ -29,6 +30,9 @@ struct RyokoApp: App {
     @State private var profileStore = ProfileStore()
     @State private var apiStore = APIStore()
     @State private var router = AppRouter(selectedTab: RootTabView.launchTab)
+    /// Translate's listening and turns. App-wide, so listening carries on when
+    /// you switch tabs and the tab bar's Listening accessory can stop it (T2.5).
+    @State private var translateModel = TranslateModel.forLaunch()
     /// One resolver for the app (MapKit's throttle is per app). W4 replaces the
     /// fixture with its MapKit resolver here, and nowhere else.
     @State private var placeResolver: any PlaceResolver = LivePlaceResolver()
@@ -52,6 +56,7 @@ struct RyokoApp: App {
                 .environment(profileStore)
                 .environment(apiStore)
                 .environment(router)
+                .environment(translateModel)
                 .environment(\.ryokoAPI, apiStore.api)
                 .environment(\.placeResolver, placeResolver)
                 .environment(\.speechService, speechService)
@@ -73,6 +78,8 @@ struct RyokoApp: App {
         .onChange(of: scenePhase) { _, phase in
             // Timers don't run while the app is suspended: catch up on the local hour.
             if phase == .active { situationStore.refreshClock() }
+            // Listening stops when Ryoko leaves the screen (design §4.8), whichever tab is open.
+            if phase == .background { translateModel.stopAndForgetPause(.background) }
         }
     }
 }

@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The bottom of Translate: the status line, the big mic button and the pair menu.
+/// The bottom of Translate: the status line, the big mic button with the
+/// smaller keyboard button beside it (Type mode, T2.4), and the pair menu.
 struct TranslateControls: View {
     let model: TranslateModel
     let pair: TranslatePair?
@@ -12,17 +13,29 @@ struct TranslateControls: View {
     @Binding var manualHome: String?
     @Binding var manualOther: String?
     let toggle: () -> Void
+    /// Opens Type mode.
+    let type: () -> Void
+
+    @ScaledMetric(relativeTo: .title3) private var sideButton: CGFloat = 52
 
     var body: some View {
         VStack(spacing: Theme.grid * 1.5) {
             status
-            MicButton(
-                isListening: model.phase == .listening,
-                isBusy: model.phase == .starting || model.phase == .finishing,
-                level: model.level,
-                action: toggle
-            )
-            .disabled(pair == nil && !model.isActive)
+            HStack(spacing: Theme.grid * 3) {
+                // Keeps the mic button centred.
+                Color.clear
+                    .frame(width: sideSize, height: sideSize)
+                    .accessibilityHidden(true)
+                MicButton(
+                    isListening: model.phase == .listening,
+                    isBusy: model.phase == .starting || model.phase == .finishing,
+                    level: model.level,
+                    action: toggle
+                )
+                .disabled(pair == nil && !model.isActive)
+                KeyboardButton(size: sideSize, action: type)
+                    .disabled(pair == nil)
+            }
             pairMenu
             if let note, !model.isActive {
                 Text(note)
@@ -38,6 +51,8 @@ struct TranslateControls: View {
         .padding(.bottom, Theme.grid * 2)
         .frame(maxWidth: .infinity)
     }
+
+    private var sideSize: CGFloat { min(sideButton, 72) }
 
     private var status: some View {
         Group {
@@ -104,6 +119,27 @@ struct TranslateControls: View {
     /// "" means the profile's home language.
     private var homeSelection: Binding<String> {
         Binding(get: { manualHome ?? "" }, set: { manualHome = $0.isEmpty ? nil : $0 })
+    }
+}
+
+/// The smaller round keyboard button beside the mic: opens Type mode.
+/// Liquid Glass, like the mic (a floating control, design §9.4).
+struct KeyboardButton: View {
+    let size: CGFloat
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "keyboard")
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .frame(width: size, height: size)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: Circle())
+        .accessibilityLabel("Type")
+        .accessibilityHint("Type what you want to say instead.")
     }
 }
 

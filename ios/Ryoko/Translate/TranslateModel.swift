@@ -4,14 +4,19 @@ import Observation
 import os
 import UIKit
 
-/// Translate's listening sessions and turns (design §4.8, W5.2).
+/// Translate's listening sessions and turns (design §4.8, W5.2, T2.4, T2.5).
 ///
 /// - One session at a time. Its pair is fixed when it starts.
-/// - Turns live in memory only. Each session's turns are kept for History when
-///   the next one starts.
+/// - Turns live in memory only. A session's turns move to `log` when it ends;
+///   typed turns (Type mode) and edits go there too.
 /// - Listening stops after 2 minutes without speech, when the app goes to the
 ///   background, and when another app interrupts the audio.
+/// - While you type or edit, listening pauses (`pause()`): the session ends
+///   cleanly, and `resume()` starts a new one with the same pair.
 /// - The screen stays on while listening.
+/// - The app owns one model (`RyokoApp` puts it in the environment), so
+///   listening carries on across tabs and the tab bar's Listening accessory
+///   can show it and stop it.
 @MainActor
 @Observable
 final class TranslateModel {
@@ -29,6 +34,8 @@ final class TranslateModel {
         case silence
         case background
         case interrupted
+        /// Paused while you type or edit; `resume()` picks up again.
+        case paused
     }
 
     private(set) var phase: Phase = .idle
@@ -41,16 +48,24 @@ final class TranslateModel {
     /// The running (or last) session's pair.
     private(set) var sessionPair: TranslatePair?
 
-    /// Turns from earlier sessions.
-    private(set) var archived: [Turn] = []
-    /// The current (or last) session's turns.
+    /// Turns from ended sessions, typed turns and edits.
+    private(set) var log = TurnLog()
+    /// The running session's turns. nil between sessions.
     private(set) var builder: TurnBuilder?
+    /// Listening stopped for the editor and comes back with `resume()`.
+    private(set) var isPaused = false
 
-    /// What the panes show: the latest turn, with its live words.
-    var display: Turn? { builder?.display ?? archived.last }
+    /// What the panes show: the session's latest turn with its live words; or
+    /// the turn you just edited; or the latest turn.
+    var display: Turn? {
+        if let live = builder?.display { return live }
+        return log.focused ?? log.turns.last
+    }
     /// Every turn, oldest first.
-    var history: [Turn] { archived + (builder?.history ?? []) }
+    var history: [Turn] { log.turns + (builder?.history ?? []) }
     var isActive: Bool { phase != .idle }
+    /// Your most recent turn you can edit.
+    var latestEditable: Turn? { builder == nil ? log.latestEditable : nil }
 
     let sourceKind: TranscriptionSourceKind
     let silenceLimit: Duration
@@ -62,6 +77,8 @@ final class TranslateModel {
     @ObservationIgnored private var session = 0
     @ObservationIgnored private var ownsIdleTimer = false
     @ObservationIgnored private var interruptionObserver: (any NSObjectProtocol)?
+    /// The API the last session got its key from, for `resume()`.
+    @ObservationIgnored private var lastAPI: (any RyokoAPI)?
 
     init(source: TranscriptionSourceKind = .microphone, silenceLimit: Duration = .seconds(120)) {
         sourceKind = source
@@ -78,8 +95,11 @@ final class TranslateModel {
     // MARK: Start and stop
 
     /// Starts listening with `pair`, asking for the microphone first if needed.
-    func start(pair: TranslatePair) async {
+    /// - Parameter api: where the session gets its Soniox key (T2.6).
+    func start(pair: TranslatePair, api: any RyokoAPI) async {
         guard phase == .idle else { return }
+        isPaused = false
+        lastAPI = api
         guard pair.isUsable else {
             problem = .noPair
             return
@@ -97,12 +117,11 @@ final class TranslateModel {
             }
         }
 
-        if let builder { archived += builder.turns }
-        builder = TurnBuilder(pair: pair, firstId: (archived.last?.id ?? 0) + 1)
+        builder = TurnBuilder(pair: pair, firstId: log.nextId)
         sessionPair = pair
         session += 1
         let current = session
-        let run = sourceKind.makeRun(pair: pair)
+        let run = sourceKind.makeRun(pair: pair, api: api)
         self.run = run
         lastHeard = .now
         setIdleTimerDisabled(true)
@@ -132,7 +151,7 @@ final class TranslateModel {
             return
         }
         switch (reason, phase) {
-        case (.user, .listening), (.silence, .listening):
+        case (.user, .listening), (.silence, .listening), (.paused, .listening):
             phase = .finishing
             level = 0
             run.finish()
@@ -140,6 +159,74 @@ final class TranslateModel {
             run.cancel()
             ended(session: session, problem: nil)
         }
+    }
+
+    /// Stops listening for good: from the Listening accessory, or the app
+    /// leaving the screen. A pause for the editor is forgotten too.
+    func stopAndForgetPause(_ reason: StopReason) {
+        isPaused = false
+        stop(reason)
+    }
+
+    // MARK: Pause for typing and editing (T2.4)
+
+    /// Pauses listening while you type or edit (design §4.8: "Soniox pauses
+    /// while the editor is open"). The session finishes cleanly, so its last
+    /// words and translations land, and returns once it has. Does nothing
+    /// when not listening.
+    func pause() async {
+        guard phase != .idle else { return }
+        isPaused = true
+        stop(.paused)
+        // Soniox usually finalizes in well under a second; don't wait forever.
+        let deadline = ContinuousClock.now + .seconds(5)
+        while phase != .idle, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        if phase != .idle {
+            RyokoLog.translate.notice("Pause: the session didn't finish in time, closing it")
+            run?.cancel()
+            ended(session: session, problem: nil)
+        }
+    }
+
+    /// Listens again after `pause()`, with the same pair. Does nothing if
+    /// listening wasn't paused, or was stopped since.
+    func resume() async {
+        guard isPaused, phase == .idle, let pair = sessionPair, let api = lastAPI else {
+            isPaused = false
+            return
+        }
+        await start(pair: pair, api: api)
+    }
+
+    // MARK: Typed turns and edits (T2.4)
+
+    /// Adds a turn typed in Type mode. Listening is paused (or off) by now.
+    func addTyped(pair: TranslatePair, text: String, translation: String) {
+        if builder != nil { endSessionNow() }
+        let turn = log.addTyped(pair: pair, text: text, translation: translation)
+        RyokoLog.translate.notice("Typed turn \(turn.id) added (\(pair.label, privacy: .public))")
+    }
+
+    /// Replaces your words in turn `id` and their translation.
+    @discardableResult
+    func applyEdit(id: Int, original: String, translation: String) -> Bool {
+        if builder != nil { endSessionNow() }
+        let applied = log.edit(id: id, original: original, translation: translation)
+        RyokoLog.translate.notice("Edit of turn \(id) \(applied ? "applied" : "refused", privacy: .public)")
+        return applied
+    }
+
+    /// The turn with this id, if it's in the log (every turn is, between sessions).
+    func turn(id: Int) -> Turn? {
+        log.turns.first { $0.id == id }
+    }
+
+    /// Ends a session at once, keeping what it heard.
+    private func endSessionNow() {
+        run?.cancel()
+        ended(session: session, problem: nil)
     }
 
     // MARK: Events
@@ -162,7 +249,11 @@ final class TranslateModel {
 
     private func ended(session: Int, problem: TranslateProblem?) {
         guard session == self.session, phase != .idle else { return }
-        builder?.endSession()
+        if var builder {
+            builder.endSession()
+            log.archive(builder.turns)
+        }
+        builder = nil
         phase = .idle
         level = 0
         run = nil
@@ -172,6 +263,7 @@ final class TranslateModel {
         if let problem {
             self.problem = problem
             lastStop = nil
+            isPaused = false
         }
         RyokoLog.translate.notice("Stopped listening (\(problem?.title ?? "no error", privacy: .public))")
     }
@@ -217,11 +309,12 @@ final class TranslateModel {
             case .silence: return "Stopped after \(silenceLimitText) of quiet"
             case .background: return "Stopped when Ryoko left the screen"
             case .interrupted: return "Stopped for another app's audio"
+            case .paused: return isPaused ? "Paused while you type" : "Tap to start"
             case .user, nil: return "Tap to start"
             }
         case .starting: return "Connecting…"
         case .listening: return "Listening"
-        case .finishing: return "Finishing…"
+        case .finishing: return isPaused ? "Pausing…" : "Finishing…"
         }
     }
 

@@ -14,6 +14,9 @@ import {
   MimoMessageRequest,
   PlaceCardRequest,
   PlaceCardResponse,
+  SonioxKeyResponse,
+  TranslateRequest,
+  TranslateResponse,
 } from '@ryoko/contracts';
 import type { Config } from './config.ts';
 import { ApiError, errorResponse, toApiError } from './errors.ts';
@@ -22,12 +25,18 @@ import { clientInfo, type AppEnv } from './middleware/client.ts';
 import { RateLimiter, rateLimit } from './middleware/rate-limit.ts';
 import { SESSION_ID, SessionLocks } from './sessions.ts';
 import { createSkills, type MimoContext, type MimoRun, type SkillContext, type Skills } from './skills/index.ts';
+import { createSonioxMinter, type SonioxMinter } from './soniox.ts';
 import { sseResponse } from './sse.ts';
 import { checkResponse, readJson } from './validate.ts';
 
 export interface AppOptions {
   /** Defaults to createSkills(config). Tests can inject their own. */
   skills?: Skills;
+  /**
+   * Mints temporary Soniox keys. Defaults to Soniox itself when SONIOX_API_KEY
+   * is set (whatever MODEL is), else null: the route answers 503. Tests inject a stub.
+   */
+  soniox?: SonioxMinter | null;
   log?: (line: string) => void;
 }
 
@@ -44,6 +53,11 @@ export function createApp(config: Config, options: AppOptions = {}): RyokoApp {
   const skills = options.skills ?? createSkills(config);
   const sessions = new SessionLocks();
   const limiter = new RateLimiter(config.rateLimitPerMinute);
+  // One key per listening session: far fewer than other requests.
+  const sonioxLimiter = new RateLimiter(config.soniox.perMinute);
+  const sonioxKey = config.env.SONIOX_API_KEY?.trim();
+  const soniox =
+    options.soniox !== undefined ? options.soniox : sonioxKey ? createSonioxMinter({ apiKey: sonioxKey, settings: config.soniox }) : null;
   const app = new Hono<AppEnv>();
 
   if (config.logRequests) {
@@ -111,6 +125,23 @@ export function createApp(config: Config, options: AppOptions = {}): RyokoApp {
     const request = await readJson(c, AllergyCardRequest, 'allergy-card');
     const response = await skills.allergyCard(request, skillContext(c));
     return c.json(checkResponse(AllergyCardResponse, response, 'allergy-card'));
+  });
+
+  app.post('/v1/translate', async (c) => {
+    const request = await readJson(c, TranslateRequest, 'translate');
+    const response = await skills.translate(request, skillContext(c));
+    return c.json(checkResponse(TranslateResponse, response, 'translate'));
+  });
+
+  // A short-lived, single-use Soniox key for one listening session (tier 2).
+  // The body is ignored (the app sends {}). The key is never logged.
+  app.post('/v1/soniox-key', rateLimit(sonioxLimiter), async (c) => {
+    if (!soniox) {
+      throw new ApiError('model_error', "Soniox isn't set up on this server: set SONIOX_API_KEY in server/.env.", { status: 503, retryable: false });
+    }
+    const key = await soniox(c.req.raw.signal);
+    c.header('Cache-Control', 'no-store');
+    return c.json(checkResponse(SonioxKeyResponse, key, 'soniox-key'));
   });
 
   app.post('/v1/sessions/:id/messages', async (c) => {

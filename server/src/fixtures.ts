@@ -15,6 +15,8 @@ import {
   PlaceCardRequest,
   PlaceCardResponse,
   SseEvent,
+  TranslateRequest,
+  TranslateResponse,
 } from '@ryoko/contracts';
 
 export const CONTRACTS_DIR = dirname(fileURLToPath(import.meta.resolve('@ryoko/contracts/package.json')));
@@ -38,6 +40,8 @@ export interface FixtureSet {
   placeCard: Fixture<PlaceCardResponse>[];
   discover: Fixture<DiscoverResponse>[];
   allergyCard: Fixture<AllergyCardResponse>[];
+  /** By the target language (`to`): typed text goes to the place's language. */
+  translate: Fixture<TranslateResponse>[];
   mimo: Fixture<TranscriptItem[]>[];
 }
 
@@ -151,6 +155,8 @@ export function loadFixtures(dir = EXAMPLES_DIR): FixtureSet {
     discover: loadPairs(dir, 'discover', DiscoverRequest, DiscoverResponse, (r) => r.situation.localLanguage),
     allergyCard: loadPairs(dir, 'allergy-card', AllergyCardRequest, AllergyCardResponse, (r) => r.language),
     mimo: loadTranscripts(dir),
+    // Tier 2, loaded last so a broken tier 1 example is the error you see first.
+    translate: loadPairs(dir, 'translate', TranslateRequest, TranslateResponse, (r) => r.to),
   };
 }
 

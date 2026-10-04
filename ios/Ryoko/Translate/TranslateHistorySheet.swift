@@ -2,8 +2,13 @@ import SwiftUI
 
 /// Every turn of this run of the app, oldest first (design §4.8). History
 /// isn't saved; it's gone when Ryoko quits.
+///
+/// Tap one of your turns to edit your words (T2.4): the sheet closes and the
+/// editor opens with them.
 struct TranslateHistorySheet: View {
     let turns: [Turn]
+    /// Edits one of your turns. nil turns tapping off.
+    var edit: ((Turn) -> Void)?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -18,7 +23,17 @@ struct TranslateHistorySheet: View {
                 } else {
                     ScrollViewReader { proxy in
                         List(turns) { turn in
-                            TurnRow(turn: turn)
+                            if let edit, turn.speaker == .me {
+                                Button {
+                                    edit(turn)
+                                } label: {
+                                    TurnRow(turn: turn, editable: true)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityHint("Edits what you said.")
+                            } else {
+                                TurnRow(turn: turn, editable: false)
+                            }
                         }
                         // Open on the latest turn, once the list has laid out.
                         .task {
@@ -46,6 +61,8 @@ struct TranslateHistorySheet: View {
 /// One turn: who spoke and in what language, what they said, and the translation.
 private struct TurnRow: View {
     let turn: Turn
+    /// Shows a pencil: tapping the row edits it.
+    let editable: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.grid * 0.75) {
@@ -53,7 +70,13 @@ private struct TurnRow: View {
                 Image(systemName: turn.speaker == .me ? "person.fill" : "person")
                     .imageScale(.small)
                     .accessibilityHidden(true)
-                Text("\(turn.speaker == .me ? "You" : "Them") · \(PairLanguage(tag: turn.originalTag)?.name ?? turn.originalTag)")
+                Text(header)
+                Spacer(minLength: 0)
+                if editable {
+                    Image(systemName: "pencil")
+                        .imageScale(.small)
+                        .accessibilityHidden(true)
+                }
             }
             .font(.footnote.weight(.medium))
             .foregroundStyle(.secondary)
@@ -71,7 +94,16 @@ private struct TurnRow: View {
             }
         }
         .padding(.vertical, Theme.grid * 0.5)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+    }
+
+    /// "You · English · Typed · Edited".
+    private var header: String {
+        var parts = ["\(turn.speaker == .me ? "You" : "Them")", PairLanguage(tag: turn.originalTag)?.name ?? turn.originalTag]
+        if turn.source == .typed { parts.append("Typed") }
+        if turn.edited { parts.append("Edited") }
+        return parts.joined(separator: " · ")
     }
 }
 

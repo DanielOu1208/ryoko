@@ -163,8 +163,12 @@ nonisolated struct SonioxConfig: Hashable, Sendable {
 
 /// Everything that can stop Translate, with copy that's safe to show (design §9.6).
 nonisolated enum TranslateProblem: Error, Hashable, Sendable {
-    /// No Soniox key in this build (Secrets.xcconfig).
+    /// No Soniox key: the server couldn't hand one out, and this build has none
+    /// of its own (Secrets.xcconfig).
     case missingKey
+    /// The Ryoko server answered the key request with an error (T2.6). Carries
+    /// the server's message, which is written to be shown.
+    case keyServer(String?)
     /// 401: Soniox doesn't accept the key.
     case keyRejected
     /// 403: the key isn't allowed to do this, or a temporary key expired.
@@ -227,6 +231,7 @@ nonisolated enum TranslateProblem: Error, Hashable, Sendable {
     var title: String {
         switch self {
         case .missingKey: "Translate isn't set up"
+        case .keyServer: "Couldn't get a Soniox key"
         case .keyRejected: "Soniox key was rejected"
         case .keyNotAllowed: "Soniox key isn't allowed here"
         case .balanceExhausted: "Soniox balance is used up"
@@ -248,9 +253,11 @@ nonisolated enum TranslateProblem: Error, Hashable, Sendable {
     var detail: String {
         switch self {
         case .missingKey:
-            "This build has no Soniox key. Add one to Secrets.xcconfig and rebuild."
+            "The Ryoko server didn't hand out a Soniox key, and this build has none of its own. Check the server, or add a key to Secrets.xcconfig and rebuild."
+        case .keyServer(let message):
+            message.map { "The Ryoko server said: \($0)" } ?? "The Ryoko server didn't hand out a key. Try again."
         case .keyRejected:
-            "Soniox didn't accept this build's key. Put a valid key in Secrets.xcconfig and rebuild."
+            "Soniox didn't accept the key. Try again; if it keeps happening, check the Soniox key on the server and in Secrets.xcconfig."
         case .keyNotAllowed:
             "This key can't start live translation. Check it in the Soniox console."
         case .balanceExhausted:
@@ -284,7 +291,7 @@ nonisolated enum TranslateProblem: Error, Hashable, Sendable {
 
     var systemImage: String {
         switch self {
-        case .missingKey, .keyRejected, .keyNotAllowed: "key.slash"
+        case .missingKey, .keyServer, .keyRejected, .keyNotAllowed: "key.slash"
         case .balanceExhausted: "creditcard"
         case .rateLimited, .timedOut, .sessionTooLong: "hourglass"
         case .badRequest, .serviceUnavailable, .sonioxError, .closedUnexpectedly: "exclamationmark.triangle"

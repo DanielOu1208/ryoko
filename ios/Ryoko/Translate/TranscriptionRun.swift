@@ -34,22 +34,24 @@ nonisolated enum TranscriptionSourceKind: String, Sendable {
 
     var needsMicrophone: Bool { self == .microphone }
 
+    /// - Parameter api: where a session gets its Soniox key (T2.6).
     @MainActor
-    func makeRun(pair: TranslatePair) -> any TranscriptionRun {
+    func makeRun(pair: TranslatePair, api: any RyokoAPI) -> any TranscriptionRun {
+        let keys = SonioxKeyProvider(api: api)
         switch self {
         case .microphone:
-            return SonioxRun(pair: pair, audio: MicrophoneCapture(), usesAudioSession: true)
+            return SonioxRun(pair: pair, audio: MicrophoneCapture(), usesAudioSession: true, keys: keys)
         case .silence:
             #if DEBUG
-            return SonioxRun(pair: pair, audio: SilenceSource(), usesAudioSession: false)
+            return SonioxRun(pair: pair, audio: SilenceSource(), usesAudioSession: false, keys: keys)
             #else
-            return SonioxRun(pair: pair, audio: MicrophoneCapture(), usesAudioSession: true)
+            return SonioxRun(pair: pair, audio: MicrophoneCapture(), usesAudioSession: true, keys: keys)
             #endif
         case .canned:
             #if DEBUG
             return CannedRun(pair: pair, pace: TranslateDebug.cannedPace, failure: TranslateDebug.injectedProblem)
             #else
-            return SonioxRun(pair: pair, audio: MicrophoneCapture(), usesAudioSession: true)
+            return SonioxRun(pair: pair, audio: MicrophoneCapture(), usesAudioSession: true, keys: keys)
             #endif
         }
     }
@@ -57,8 +59,9 @@ nonisolated enum TranscriptionSourceKind: String, Sendable {
 
 /// Audio to Soniox and back (design §4.8, W5.1).
 ///
-/// 1. Reads the key, starts the audio (it queues while the socket connects,
-///    so the first words aren't lost), opens the socket, sends the config.
+/// 1. Starts the audio (it queues while the key and the socket come, so the
+///    first words aren't lost), gets a key (a temporary one from the server,
+///    or the build's own: `SonioxKeyProvider`), opens the socket, sends the config.
 /// 2. Sends each ~120 ms chunk as it comes.
 /// 3. `finish()` stops the audio; the pump then sends the empty frame, and
 ///    Soniox finalizes and says `finished`. If it doesn't within a few
@@ -70,6 +73,7 @@ nonisolated final class SonioxRun: TranscriptionRun, @unchecked Sendable {
     private let pair: TranslatePair
     private let audio: any AudioSource
     private let usesAudioSession: Bool
+    private let keys: SonioxKeyProvider
     private let state = Mutex(State())
 
     private nonisolated struct State {
@@ -79,10 +83,11 @@ nonisolated final class SonioxRun: TranscriptionRun, @unchecked Sendable {
         var cancelled = false
     }
 
-    init(pair: TranslatePair, audio: any AudioSource, usesAudioSession: Bool) {
+    init(pair: TranslatePair, audio: any AudioSource, usesAudioSession: Bool, keys: SonioxKeyProvider) {
         self.pair = pair
         self.audio = audio
         self.usesAudioSession = usesAudioSession
+        self.keys = keys
         (events, continuation) = AsyncThrowingStream.makeStream(of: TranscriptionEvent.self)
         let driver = Task { [self] in await run() }
         state.withLock { $0.driver = driver }
@@ -120,15 +125,16 @@ nonisolated final class SonioxRun: TranscriptionRun, @unchecked Sendable {
             if usesAudioSession { TranslateAudioSession.deactivate() }
         }
         do {
-            guard let key = SonioxCredentials.apiKey() else { throw TranslateProblem.missingKey }
             // Off the main thread: activating the session can block for a moment.
             if usesAudioSession { try TranslateAudioSession.activate() }
             let chunks = try audio.start()
-            let session = try SonioxSession(apiKey: key, config: pair.sonioxConfig)
+            let key = try await keys.key()
+            if state.withLock({ $0.cancelled }) { return }
+            let session = try SonioxSession(apiKey: key.value, config: pair.sonioxConfig)
             state.withLock { $0.session = session }
             try await session.open()
             let responses = session.responses()
-            RyokoLog.translate.notice("Soniox session open: \(self.pair.label, privacy: .public)")
+            RyokoLog.translate.notice("Soniox session open: \(self.pair.label, privacy: .public), \(key.source.rawValue, privacy: .public) key")
             continuation.yield(.connected)
 
             let pump = Task { [continuation] in

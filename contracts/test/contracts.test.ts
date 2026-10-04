@@ -38,6 +38,11 @@ const EXAMPLES: Record<string, TSchema> = {
   'allergy-card.response.json': C.AllergyCardResponse,
   'allergy-card.zh-hans.request.json': C.AllergyCardRequest,
   'allergy-card.zh-hans.response.json': C.AllergyCardResponse,
+  'translate.request.json': C.TranslateRequest,
+  'translate.response.json': C.TranslateResponse,
+  'translate.tokyo.request.json': C.TranslateRequest,
+  'translate.tokyo.response.json': C.TranslateResponse,
+  'soniox-key.response.json': C.SonioxKeyResponse,
   'mimo-message.request.json': C.MimoMessageRequest,
   'error.invalid-request.response.json': C.ErrorEnvelope,
   'error.session-busy.response.json': C.ErrorEnvelope,
@@ -99,6 +104,28 @@ test('each variant pair is for one local language, and no two variants share it'
   const allergy = variantsOf('allergy-card', '.request.json').map((f) => (readJson(`examples/${f}`) as C.AllergyCardRequest).language);
   assert.deepEqual(discover.sort(), ['ja', 'zh-Hans']);
   assert.deepEqual(allergy.sort(), ['ja', 'zh-Hans']);
+});
+
+test('translate examples: one per target language, in its script, with the situation for its place', () => {
+  const targets = variantsOf('translate', '.request.json').map((f) => (readJson(`examples/${f}`) as C.TranslateRequest).to);
+  assert.deepEqual(targets.sort(), ['ja', 'zh-Hans'], 'the faux server picks a translate example by `to`');
+  for (const file of variantsOf('translate', '.request.json')) {
+    const request = readJson(`examples/${file}`) as C.TranslateRequest;
+    const response = readJson(`examples/${requestFor(file).replace('.request.json', '.response.json')}`) as C.TranslateResponse;
+    assert.equal(request.situation?.localLanguage, request.to, `${file}: typed text goes to the place's language`);
+    assert.match(response.translation, /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u, `${file}: translation in local script`);
+    if (request.to.startsWith('zh')) assert.doesNotMatch(response.translation, /[A-Za-z]/, `${file}: Latin letters in Chinese`);
+  }
+  // Text longer than Type mode allows is refused.
+  const long = { ...(readJson('examples/translate.request.json') as C.TranslateRequest), text: 'a'.repeat(C.TRANSLATE_MAX_CHARS + 1) };
+  assert.equal(Value.Check(C.TranslateRequest, long), false);
+  const { situation: _situation, ...noSituation } = readJson('examples/translate.request.json') as C.TranslateRequest;
+  assertValid(C.TranslateRequest, noSituation, 'a translate request without a situation (a pair picked by hand)');
+});
+
+test('the soniox-key example is a placeholder, never a real key', () => {
+  const key = readJson('examples/soniox-key.response.json') as C.SonioxKeyResponse;
+  assert.match(key.apiKey, /^fixture-/, 'the example key must stay an obvious placeholder');
 });
 
 test('allergy-card examples are unreviewed and their Chinese has no Latin letters', () => {
