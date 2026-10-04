@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// The layer toggles in a native menu (design §4.7): Food & drink and
-/// Washrooms filter the map's points of interest; Hidden gems pins Mimo's
-/// picks; From Mimo shows what the Mimo tab sent, with a clear action.
+/// The layer toggles in a native menu (design §4.7), behind a glass button
+/// under the location button: Food & drink and Washrooms filter the map's
+/// points of interest; Hidden gems pins Mimo's picks; From Mimo shows what the
+/// Mimo tab sent, with a clear action.
 struct MapLayersMenu: View {
     @Binding var layers: MapLayers
     /// How many places the Mimo tab sent.
@@ -30,11 +31,18 @@ struct MapLayersMenu: View {
                 }
             }
         } label: {
-            Label("Layers", systemImage: isFiltered ? "square.3.layers.3d.top.filled" : "square.3.layers.3d")
+            Image(systemName: isFiltered ? "square.3.layers.3d.top.filled" : "square.3.layers.3d")
+                .font(.body.weight(.medium))
+                .frame(width: Self.size, height: Self.size)
+                .contentShape(.circle)
         }
         .menuActionDismissBehavior(.disabled)
+        .glassEffect(.regular.interactive(), in: .circle)
         .accessibilityLabel("Layers")
     }
+
+    /// The same size as MapKit's location button above it.
+    private static let size: CGFloat = 44
 
     private var fromMimoTitle: String {
         fromMimoCount == 0 ? "From Mimo" : "From Mimo (\(fromMimoCount))"

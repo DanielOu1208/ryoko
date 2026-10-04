@@ -29,6 +29,12 @@ final class MapSearch {
     /// Whether the search field is active.
     var isPresented = false
 
+    /// Leaves search: clears the field and hides the suggestions.
+    func end() {
+        isPresented = false
+        text = ""
+    }
+
     private(set) var suggestions: [MKLocalSearchCompletion] = []
 
     @ObservationIgnored private let completer = MKLocalSearchCompleter()
