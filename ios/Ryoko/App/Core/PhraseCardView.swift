@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// One phrase, in the styles from design §9.1 and §9.4. A stub for W3 (Nearby,
+/// One phrase, in the styles from design §9.1 and §9.4. A stub for W3 (place cards,
 /// place sheets) and W6 (Mimo's phrase blocks) to build on.
 ///
-/// - `.card`: Nearby and place sheets. Local script at `.title` semibold, then
+/// - `.card`: the Map's place cards. Local script at `.title` semibold, then
 ///   romanization, gloss, the "because…" line and a Show button.
 /// - `.block`: Mimo's compact phrase block. Script at `.title3` semibold, no
 ///   "because…", a chevron, and the whole block opens Show mode.

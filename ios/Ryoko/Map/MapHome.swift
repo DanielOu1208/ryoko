@@ -83,7 +83,8 @@ struct MapPlace: Identifiable, Hashable {
         case droppedPin
         /// The From Mimo layer.
         case fromMimo(ShownPlace)
-        /// Another tab asked the Map to show it (`router.openMap(selecting:)`).
+        /// Another tab asked the Map to show it (`router.openMap(selecting:)`),
+        /// or it's the current place (the header's tap, the Live Activity).
         case focus
     }
 
