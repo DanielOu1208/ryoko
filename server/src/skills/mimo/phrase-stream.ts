@@ -43,6 +43,8 @@ export interface PhraseStreamStats {
   malformed: number;
   /** Phrases dropped by the allergen filter or the cap. */
   dropped: number;
+  /** Why each dropped phrase went, with its text, for the server log: `egg: 卵か乳製品… / Does this…`. */
+  droppedPhrases: string[];
   /** Text pieces outside tags that contain local script (the prompt forbids it). */
   strayLocalScript: number;
 }
@@ -77,7 +79,7 @@ export class PhraseStream {
   /** Whitespace at the end of the last text, held until more text follows. */
   private pendingSpace = '';
   private boundary = false;
-  readonly stats: PhraseStreamStats = { phrases: 0, malformed: 0, dropped: 0, strayLocalScript: 0 };
+  readonly stats: PhraseStreamStats = { phrases: 0, malformed: 0, dropped: 0, droppedPhrases: [], strayLocalScript: 0 };
   private readonly options: Required<Omit<PhraseStreamOptions, 'hazards'>> & { hazards: readonly Hazard[] };
 
   constructor(options: PhraseStreamOptions) {
@@ -192,8 +194,10 @@ export class PhraseStream {
       this.text(`${local} (${gloss})`);
       return;
     }
-    if (unsafeMention([local, gloss], this.options.hazards) || this.count >= this.options.maxPhrases) {
+    const hazard = unsafeMention([local, gloss], this.options.hazards);
+    if (hazard || this.count >= this.options.maxPhrases) {
       this.stats.dropped++;
+      this.stats.droppedPhrases.push(`${hazard ?? 'over the cap'}: ${local} / ${gloss}`);
       return;
     }
     this.count++;

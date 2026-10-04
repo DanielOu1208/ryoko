@@ -86,7 +86,8 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
   const timeoutMs = config.timeouts.skillMs;
 
   const onMimoStats = (stats: MimoRunStats) => {
-    log(`Mimo ${stats.runId}: ${stats.stopReason}, ${stats.turns} turn(s), tools [${stats.toolCalls.join(', ')}], ${stats.phrases.phrases} phrase(s), ${stats.latencyMs} ms, $${stats.costUsd.toFixed(5)}`);
+    log(`Mimo ${stats.runId}: ${stats.stopReason}, ${stats.turns} turn(s), tools [${stats.toolCalls.join(', ')}], ${stats.phrases.phrases} phrase(s)${stats.phrases.dropped ? `, ${stats.phrases.dropped} dropped` : ''}${stats.phrases.malformed ? `, ${stats.phrases.malformed} malformed` : ''}, ${stats.latencyMs} ms, $${stats.costUsd.toFixed(5)}`);
+    for (const dropped of stats.phrases.droppedPhrases) log(`  dropped phrase (${dropped})`);
     options.onMimoStats?.(stats);
   };
   const mimoSessions = new MimoSessions({ llm, budget, search, timeoutMs: config.timeouts.mimoMs, onRunStats: onMimoStats });
