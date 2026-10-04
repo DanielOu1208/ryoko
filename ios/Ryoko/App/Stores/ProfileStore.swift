@@ -6,10 +6,14 @@ import os
 /// with every request.
 ///
 /// - Starts from the bundled seed profile (`contracts/examples/profile.seed.json`,
-///   bundled through `Core/Fixtures/`) until onboarding exists (tier 2).
+///   bundled through `Core/Fixtures/`). The first-launch survey (design §4.1,
+///   `ios/Ryoko/Onboarding/`) replaces it, and Me edits it section by section.
 /// - Edits are saved as JSON in Application Support and survive relaunches.
 /// - `version` is always the SHA-256 of the canonical JSON (`CanonicalJSON`),
-///   recomputed on every change, so it's a stable cache key for the server.
+///   recomputed on every change, so it's a stable cache key for the server:
+///   any edit gives a new version, and the server's caches regenerate.
+/// - `isOnboarded` records that the survey ran (finished or set aside), so it
+///   shows on first launch only.
 @MainActor
 @Observable
 final class ProfileStore {
@@ -22,27 +26,42 @@ final class ProfileStore {
     /// True while the profile is the seed (nothing edited, or reset).
     var isSeed: Bool { profile == seed }
 
+    /// True once the first-launch survey has been finished (or, in DEBUG, set
+    /// aside with "Use demo profile"). A profile saved by an earlier build also
+    /// counts, so an existing install isn't asked again.
+    private(set) var isOnboarded: Bool
+
     /// The last save or load problem, for the developer section. nil when fine.
     private(set) var lastError: String?
 
     @ObservationIgnored private let fileURL: URL?
+    @ObservationIgnored private let defaults: UserDefaults?
+
+    /// The UserDefaults key for `isOnboarded`.
+    nonisolated static let onboardedKey = "RyokoOnboarded"
 
     /// - Parameters:
     ///   - fileURL: where edits are saved; nil keeps them in memory (previews).
     ///   - seed: the starting profile; defaults to the bundled seed.
-    init(fileURL: URL? = ProfileStore.defaultFileURL, seed: Profile? = nil) {
+    ///   - defaults: where `isOnboarded` is kept; nil keeps it in memory and
+    ///     starts it as true (previews never show the survey).
+    init(fileURL: URL? = ProfileStore.defaultFileURL, seed: Profile? = nil, defaults: UserDefaults? = .standard) {
         let seed = Self.versioned(seed ?? Self.bundledSeed())
         self.seed = seed
         self.fileURL = fileURL
+        self.defaults = defaults
         profile = seed
+        var hasSavedProfile = false
         if let fileURL, let saved = Self.load(from: fileURL) {
             profile = Self.versioned(saved)
+            hasSavedProfile = true
         }
+        isOnboarded = defaults.map { $0.bool(forKey: Self.onboardedKey) || hasSavedProfile } ?? true
     }
 
     /// An in-memory store with the bundled seed, for previews.
     static func preview() -> ProfileStore {
-        ProfileStore(fileURL: nil)
+        ProfileStore(fileURL: nil, defaults: nil)
     }
 
     // MARK: Editing
@@ -57,9 +76,37 @@ final class ProfileStore {
         save()
     }
 
+    /// Sets one field (Me's editors), recomputing the version and saving.
+    ///
+    ///     profileStore.set(\.homeBase, to: nil)
+    func set<Value>(_ keyPath: WritableKeyPath<Profile, Value>, to value: Value) {
+        update { $0[keyPath: keyPath] = value }
+    }
+
     /// Replaces the profile (onboarding, tests), recomputing its version.
     func replace(with newProfile: Profile) {
         update { $0 = newProfile }
+    }
+
+    // MARK: Onboarding
+
+    /// The survey finished: saves its profile and stops showing it on launch.
+    func completeOnboarding(with newProfile: Profile) {
+        replace(with: newProfile)
+        markOnboarded()
+    }
+
+    /// Stops the survey showing on launch without changing the profile (DEBUG
+    /// "Use demo profile", which keeps the seed).
+    func markOnboarded() {
+        isOnboarded = true
+        defaults?.set(true, forKey: Self.onboardedKey)
+    }
+
+    /// Shows the survey again on the next launch (developer use).
+    func resetOnboarding() {
+        isOnboarded = false
+        defaults?.removeObject(forKey: Self.onboardedKey)
     }
 
     /// Me → developer → "Reset to seed profile". Deletes the saved file.
