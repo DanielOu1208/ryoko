@@ -43,6 +43,10 @@ struct MimoView: View {
     /// measuring the next scroll from. Nil when no scroll is under way.
     @State private var composerScrollMark: CGFloat?
     @State private var scrollPhase: ScrollPhase = .idle
+    /// Whether the chat keeps to its end as it grows (`transcript`): on when
+    /// you send, open a chat or start typing; off while you drag, and after a
+    /// drag only if you let go away from the end.
+    @State private var followsEnd = true
     /// Until when scroll changes only move the mark: the composer opening or
     /// closing shifts the chat by itself, which mustn't count as a scroll.
     @State private var composerSettlesAt = Date.distantPast
@@ -273,39 +277,42 @@ struct MimoView: View {
     private var transcript: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: Theme.grid * 3) {
-                    Color.clear
-                        .frame(height: 0)
-                        .id(Self.topID)
-                        .accessibilityHidden(true)
-                    if chat.isEmpty {
-                        MimoIntro()
-                        if situationStore.situation == nil {
-                            noPlace
-                        } else {
-                            starters
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: Theme.grid * 3) {
+                        Color.clear
+                            .frame(height: 0)
+                            .id(Self.topID)
+                            .accessibilityHidden(true)
+                        if chat.isEmpty {
+                            MimoIntro()
+                            if situationStore.situation == nil {
+                                noPlace
+                            } else {
+                                starters
+                            }
+                        }
+                        ForEach(chat.turns) { turn in
+                            MimoTurnView(
+                                turn: turn,
+                                canRetry: chat.canSend && situationStore.situation != nil,
+                                onShowPhrase: unlessSwiping(openShow),
+                                onSelectPlace: unlessSwiping(openOnMap),
+                                onShowOnMap: unlessSwiping(showOnMap),
+                                onRetry: unlessSwiping { retry(turn.id) }
+                            )
+                            .id(turn.id)
                         }
                     }
-                    ForEach(chat.turns) { turn in
-                        MimoTurnView(
-                            turn: turn,
-                            canRetry: chat.canSend && situationStore.situation != nil,
-                            onShowPhrase: unlessSwiping(openShow),
-                            onSelectPlace: unlessSwiping(openOnMap),
-                            onShowOnMap: unlessSwiping(showOnMap),
-                            onRetry: unlessSwiping { retry(turn.id) }
-                        )
-                        .id(turn.id)
-                    }
+                    .pageMargins()
+                    .padding(.top, Theme.grid)
+                    // The end marker is the bottom margin itself, so scrolling to it
+                    // shows the whole reply (sources last) clear of the composer, or,
+                    // with the composer tucked away, of the corner button.
                     Color.clear
-                        .frame(height: 1)
+                        .frame(height: Theme.grid * 2 + (showsComposerField ? 0 : MimoComposeButton.size + Theme.grid))
                         .id(Self.bottomID)
                         .accessibilityHidden(true)
                 }
-                .pageMargins()
-                .padding(.top, Theme.grid)
-                // With the composer tucked away, the end of the chat stops above the corner button.
-                .padding(.bottom, Theme.grid * 2 + (showsComposerField ? 0 : MimoComposeButton.size + Theme.grid))
             }
             .scrollDismissesKeyboard(.interactively)
             .defaultScrollAnchor(chat.isEmpty ? .top : .bottom, for: .initialOffset)
@@ -315,43 +322,84 @@ struct MimoView: View {
             #if DEBUG
             .onChange(of: debugScrollTarget) {
                 guard let debugScrollTarget else { return }
+                followsEnd = false
                 proxy.scrollTo(debugScrollTarget, anchor: .top)
             }
             #endif
-            // Follow the reply as it streams in, and as its places are found.
             .onChange(of: isComposing) { _, composing in
                 guard composing, !chat.isEmpty else { return }
+                followsEnd = true
                 withAnimation(.smooth) { proxy.scrollTo(Self.bottomID, anchor: .bottom) }
             }
             .onChange(of: chat.sessionId) {
+                followsEnd = !chat.isEmpty
                 proxy.scrollTo(chat.isEmpty ? Self.topID : Self.bottomID, anchor: chat.isEmpty ? .top : .bottom)
             }
-            // A new message scrolls to it.
+            // A new message scrolls to it, and the chat follows the reply.
             .onChange(of: chat.turns.last?.id) {
+                followsEnd = true
                 withAnimation(.smooth) { proxy.scrollTo(Self.bottomID, anchor: .bottom) }
             }
-            // Stick to the bottom: as the reply grows (text easing in, a places
-            // card, the sources), follow it if you were at the end. Scroll up to
-            // read and it leaves you there.
-            .onScrollGeometryChange(for: MimoScrollPosition.self) { geometry in
-                MimoScrollPosition(geometry)
-            } action: { old, new in
-                guard new.contentHeight > old.contentHeight, old.isAtBottom else { return }
+            // Follow the end: as the reply grows (text easing in, a places card,
+            // the sources) or the bottom edge moves (keyboard, composer), keep
+            // the end in view, unless you're scrolling. The app's own animated
+            // scrolls don't pause it: one cut short by the keyboard can leave
+            // the phase at `.animating` for good.
+            .onScrollGeometryChange(for: MimoScrollExtent.self) { geometry in
+                MimoScrollExtent(geometry)
+            } action: { _, _ in
+                guard followsEnd, !isScrollingByHand else { return }
                 proxy.scrollTo(Self.bottomID, anchor: .bottom)
             }
-            // Your own scrolls open and close the composer; the chat following a reply doesn't.
-            .onScrollPhaseChange { _, phase, context in
+            .onScrollPhaseChange { old, phase, context in
                 scrollPhase = phase
                 switch phase {
-                case .interacting: composerScrollMark = context.geometry.contentOffset.y
-                case .idle: composerScrollMark = nil
-                default: break
+                case .interacting:
+                    // You're scrolling: the chat stops following until you let go at the end.
+                    followsEnd = false
+                    composerScrollMark = context.geometry.contentOffset.y
+                case .idle:
+                    composerScrollMark = nil
+                    if old == .interacting || old == .decelerating {
+                        followsEnd = MimoScrollExtent.distanceFromEnd(context.geometry) < 40
+                    } else if followsEnd {
+                        // An animated scroll aims where the end was when it
+                        // started; the reply may have grown since.
+                        proxy.scrollTo(Self.bottomID, anchor: .bottom)
+                    }
+                default:
+                    break
                 }
             }
+            // Your own scrolls open and close the composer; the chat following a reply doesn't.
             .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, y in
                 composerFollowsScroll(to: y)
             }
+            // Safeguard: once a reply ends (and when the tab comes back), check
+            // twice more that its end, sources included, is in view, after the
+            // text has caught up and the sources have faded in.
+            .task(id: lastTurnState) {
+                guard let turn = chat.turns.last, !turn.isStreaming else { return }
+                for delay in [0.3, 1.0] {
+                    try? await Task.sleep(for: .seconds(delay))
+                    guard !Task.isCancelled else { return }
+                    if followsEnd, !isScrollingByHand {
+                        withAnimation(.smooth) { proxy.scrollTo(Self.bottomID, anchor: .bottom) }
+                    }
+                }
+            }
         }
+    }
+
+    /// Whether you're dragging the chat or it's still gliding from your flick.
+    private var isScrollingByHand: Bool {
+        scrollPhase == .interacting || scrollPhase == .decelerating
+    }
+
+    /// The last turn and whether it's still streaming, for the end safeguard.
+    private var lastTurnState: String {
+        guard let turn = chat.turns.last else { return "" }
+        return "\(turn.id.uuidString)-\(turn.isStreaming)"
     }
 
     /// How far you scroll before the composer opens or closes.
@@ -483,8 +531,7 @@ struct MimoView: View {
     /// Scrolling toward the end of the chat opens the composer; scrolling back
     /// to read tucks it away, unless you're typing. Only your own scrolls count.
     private func composerFollowsScroll(to y: CGFloat) {
-        guard scrollPhase == .interacting || scrollPhase == .decelerating,
-              let mark = composerScrollMark else { return }
+        guard isScrollingByHand, let mark = composerScrollMark else { return }
         guard Date.now >= composerSettlesAt else {
             composerScrollMark = y
             return
@@ -661,16 +708,24 @@ private struct MimoHeaderButton: View {
     }
 }
 
-/// The transcript's height and whether it's scrolled to the end, for sticking
-/// to the bottom while a reply grows.
-private struct MimoScrollPosition: Equatable {
+/// What decides where the chat's end is: its content's height and the space
+/// it scrolls in (the keyboard and composer change the bottom inset). When one
+/// changes, a following chat scrolls to its end.
+private struct MimoScrollExtent: Equatable {
     var contentHeight: CGFloat
-    var isAtBottom: Bool
+    var containerHeight: CGFloat
+    var bottomInset: CGFloat
 
     init(_ geometry: ScrollGeometry) {
         contentHeight = geometry.contentSize.height
+        containerHeight = geometry.containerSize.height
+        bottomInset = geometry.contentInsets.bottom
+    }
+
+    /// How far the chat is scrolled above its end, in points.
+    static func distanceFromEnd(_ geometry: ScrollGeometry) -> CGFloat {
         let maxOffset = geometry.contentSize.height + geometry.contentInsets.bottom - geometry.containerSize.height
-        isAtBottom = maxOffset - geometry.contentOffset.y < 80
+        return maxOffset - geometry.contentOffset.y
     }
 }
 

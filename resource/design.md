@@ -245,7 +245,7 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
 - **Replies:**
   - Replies stream in as 2–4 short plain sentences, with inline Markdown only.
   - While a reply streams, one status pill with a small thinking Mimo sits centred just above the composer (or beside the corner button): "Thinking…" before anything arrives, the tool's line while one runs ("Searching the web…", "Finding places…"), "Working…" while it writes.
-  - Streaming is calm: text eases in at a steady pace instead of in network bursts, new pieces fade in, a places card waits until the sentence before it is finished (with a same-shape placeholder while its places are looked up), and the chat follows the reply only while you're at the bottom.
+  - Streaming is calm: text eases in at a steady pace instead of in network bursts, new pieces fade in, a places card waits until the sentence before it is finished (with a same-shape placeholder while its places are looked up), and the chat follows the reply to its end. Dragging the chat stops that; letting go at the end resumes it. When a reply ends, the app checks twice more that its end, sources included, is in view and clear of the composer or corner button.
 - A reply is an ordered list of segments: text, **phrase blocks**, place chips, and sources.
 - **Phrase blocks** (§6.2): every phrase Mimo suggests saying appears inside the reply, right after the sentence it belongs to, as a quiet line set off by a bar on its leading edge: script, gloss and an expand icon. Tapping it opens Show mode (#49).
 - **Places:**
@@ -255,7 +255,7 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
   - "What should I do this afternoon?" returns an ordered set of stops, each with a suggested time.
   - They're rendered as numbered chips and shown as numbered pins on the map.
   - No routing, no bookings, no multi-day plans.
-- **Web search:** Mimo can search the web (§6.4). Under the reply, a quiet "Searched the web" line with small site-name pills that open the sources.
+- **Web search:** Mimo can search the web (§6.4). Under the reply, a quiet "Searched the web" line with small site-name pills that open the sources. It's always the last thing in the reply and appears once the reply is over, even though the search ran before Mimo wrote.
 - **Starter suggestions** are fixed templates per place category ("What's popular here?", "How do I pay?", "Plan my afternoon"). They need no LLM call.
 - **Sessions:**
   - The device creates a session id, and a new one on **New chat**. The transcript is kept on the device.

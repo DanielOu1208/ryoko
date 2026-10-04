@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// One turn: your message, then Mimo's reply as ordered segments (design §4.9),
-/// the quiet tool line while it streams, how it ended, and its sources.
+/// how it ended, and, once it's over, its sources.
 struct MimoTurnView: View {
     let turn: MimoTurn
     /// Whether "Try again" can be offered now.
@@ -21,15 +21,22 @@ struct MimoTurnView: View {
                         .transition(.opacity)
                 }
                 ending
-                if !turn.sources.isEmpty {
+                // Sources come last, once the reply is over: a search runs
+                // before Mimo writes, but its sources shouldn't sit above
+                // sentences still streaming in.
+                if showsSources {
                     MimoSourcesView(sources: turn.sources)
                         .padding(.top, Theme.grid / 2)
                         .transition(.opacity)
                 }
             }
             .animation(.smooth(duration: 0.35), value: displayOrder)
-            .animation(.smooth(duration: 0.35), value: turn.sources.isEmpty)
+            .animation(.smooth(duration: 0.35), value: showsSources)
         }
+    }
+
+    private var showsSources: Bool {
+        !turn.sources.isEmpty && !turn.isStreaming
     }
 
     /// The segments' indices in the order they're shown. Mimo calls
