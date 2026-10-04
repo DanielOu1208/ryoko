@@ -143,4 +143,5 @@ private struct SurveyPageScreen: View {
 
 #Preview("Survey") {
     SurveyFlowView(mode: .firstLaunch, draft: .firstLaunch()) { _ in }
+        .environment(AppSituationStore.preview(nil))
 }

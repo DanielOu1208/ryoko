@@ -17,7 +17,11 @@ struct ProfileEditor: View {
 
     init(page: SurveyPage, profile: Profile) {
         self.page = page
-        _draft = State(initialValue: SurveyDraft(profile: profile))
+        var draft = SurveyDraft(profile: profile)
+        // A skipped page shows nothing picked (the survey's redo pre-fills the
+        // home language; here that would look like a saved answer).
+        if profile.spokenLanguages == nil { draft.spokenLanguages = [] }
+        _draft = State(initialValue: draft)
     }
 
     var body: some View {
@@ -29,6 +33,16 @@ struct ProfileEditor: View {
         .onChange(of: draft) { _, edited in
             profileStore.update { edited.apply(page, to: &$0) }
         }
+        #if DEBUG
+        .task {
+            // `-RyokoMeEditSample 1`: take the sample answers as if tapped in (keeps the home base).
+            guard OnboardingDebugOptions.meEditAppliesSample else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            var sample = OnboardingDebugOptions.sampleDraft
+            sample.homeBase = draft.homeBase
+            draft = sample
+        }
+        #endif
     }
 
     private var isSkipped: Bool { ProfileWording.isSkipped(page, in: profileStore.profile) }
@@ -36,13 +50,15 @@ struct ProfileEditor: View {
     @ViewBuilder
     private var answerStateSection: some View {
         if isSkipped {
-            if let noneTitle {
+            if page != .homeBase {
                 Section {
-                    Button(noneTitle) {
-                        profileStore.update { draft.apply(page, to: &$0) }
+                    if let noneTitle {
+                        Button(noneTitle) {
+                            profileStore.update { draft.apply(page, to: &$0) }
+                        }
                     }
                 } footer: {
-                    Text("You skipped this in the survey, so Ryoko doesn't use it.")
+                    Text("Skipped, so Ryoko doesn't use it. Pick something above to answer it.")
                 }
             }
         } else {

@@ -14,6 +14,8 @@ struct HomeBaseForm<Intro: View, Extra: View>: View {
     @ViewBuilder var extra: () -> Extra
 
     @State private var search = HomeBaseSearch()
+    @State private var showsMapPicker = false
+    @Environment(AppSituationStore.self) private var situationStore
 
     var body: some View {
         Form {
@@ -25,17 +27,32 @@ struct HomeBaseForm<Intro: View, Extra: View>: View {
                     chosen(home)
                 }
                 Section {
-                    NavigationLink {
-                        HomeBaseMapPicker(start: home?.coordinate, homeLanguage: homeLanguage) { picked in
-                            self.home = picked
-                        }
+                    Button {
+                        showsMapPicker = true
                     } label: {
-                        Label("Pick on map", systemImage: "mappin.and.ellipse")
+                        HStack {
+                            Label("Pick on map", systemImage: "mappin.and.ellipse")
+                                .foregroundStyle(.primary)
+                            Spacer(minLength: Theme.grid)
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                                .accessibilityHidden(true)
+                        }
+                        .contentShape(.rect)
                     }
                 } footer: {
                     if let failure = search.failure { Text(failure) }
                 }
                 extra()
+            }
+        }
+        .navigationDestination(isPresented: $showsMapPicker) {
+            HomeBaseMapPicker(
+                start: home?.coordinate ?? situationStore.situation?.place?.coordinate,
+                homeLanguage: homeLanguage
+            ) { picked in
+                home = picked
             }
         }
         .searchable(
@@ -149,6 +166,10 @@ struct HomeBaseForm<Intro: View, Extra: View>: View {
     /// `-RyokoOnboardingSearch "<query>"` types a query on this page; with
     /// `-RyokoOnboardingPick 1` (or the auto run) the first suggestion is picked too.
     private func runDebugSearch() async {
+        if OnboardingDebugOptions.mapPickerAction != nil {
+            showsMapPicker = true
+            return
+        }
         guard let query = OnboardingDebugOptions.homeBaseQuery, home == nil || context == .editor else { return }
         search.isPresented = true
         search.text = query
@@ -191,16 +212,26 @@ struct HomeBaseMapPicker: View {
 
     @State private var position: MapCameraPosition
     @State private var center: CLLocationCoordinate2D?
+    /// The visible span in degrees of latitude; picking needs street level.
+    @State private var span: CLLocationDegrees = 0
     @State private var isResolving = false
     @Environment(\.dismiss) private var dismiss
 
+    /// About 5 km of latitude: closer than this, the pin marks a street.
+    private static let maxPickSpan: CLLocationDegrees = 0.05
+    private var isZoomedIn: Bool { span > 0 && span <= Self.maxPickSpan }
+
+    /// - Parameter start: where to open (the home base, or the place you're
+    ///   at); nil opens at your location, or the whole map without one.
     init(start: Coordinate?, homeLanguage: String, onPick: @escaping (HomeBase) -> Void) {
         self.homeLanguage = homeLanguage
         self.onPick = onPick
         if let start {
             let center = CLLocationCoordinate2D(latitude: start.lat, longitude: start.lon)
-            _position = State(initialValue: .region(MKCoordinateRegion(center: center, latitudinalMeters: 800, longitudinalMeters: 800)))
+            let region = MKCoordinateRegion(center: center, latitudinalMeters: 800, longitudinalMeters: 800)
+            _position = State(initialValue: .region(region))
             _center = State(initialValue: center)
+            _span = State(initialValue: region.span.latitudeDelta)
         } else {
             _position = State(initialValue: .userLocation(fallback: .automatic))
         }
@@ -216,6 +247,7 @@ struct HomeBaseMapPicker: View {
         }
         .onMapCameraChange(frequency: .onEnd) { context in
             center = context.region.center
+            span = context.region.span.latitudeDelta
         }
         .overlay {
             // The pin's tip marks the centre of the map.
@@ -228,18 +260,31 @@ struct HomeBaseMapPicker: View {
                 .accessibilityHidden(true)
         }
         .safeAreaInset(edge: .bottom) {
-            SurveyContinueButton(title: isResolving ? "Finding the address…" : "Use this spot") {
+            SurveyContinueButton(title: buttonTitle) {
                 Task { await pick() }
             }
-            .disabled(center == nil || isResolving)
+            .disabled(center == nil || isResolving || !isZoomedIn)
         }
         .navigationTitle("Pick on map")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.visible, for: .navigationBar)
+        #if DEBUG
+        .task {
+            // `-RyokoOnboardingMapPicker use`: tap "Use this spot" once the map settles.
+            guard OnboardingDebugOptions.mapPickerAction == "use" else { return }
+            try? await Task.sleep(for: .seconds(3))
+            await pick()
+        }
+        #endif
+    }
+
+    private var buttonTitle: String {
+        if isResolving { return "Finding the address…" }
+        return isZoomedIn ? "Use this spot" : "Zoom in to pick a spot"
     }
 
     private func pick() async {
-        guard let center else { return }
+        guard let center, isZoomedIn else { return }
         isResolving = true
         defer { isResolving = false }
         guard let home = await HomeBaseLocalizer.homeBase(at: center, homeLanguage: homeLanguage) else { return }

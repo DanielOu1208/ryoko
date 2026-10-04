@@ -15,6 +15,8 @@ import os
 /// - `-RyokoOnboardingSample 1`: start from sample answers instead of a blank survey.
 /// - `-RyokoOnboardingSearch "<query>"`: type a query on the home base page.
 /// - `-RyokoOnboardingPick 1`: also pick the first suggestion for that query.
+/// - `-RyokoOnboardingMapPicker open|use`: open Pick on map from the home base
+///   page (or Me's editor); `use` then takes the spot under the pin.
 /// - `-RyokoOnboardingAutoRun 1`: go through every page by itself, through the
 ///   same Continue and Skip actions as the buttons (Skip for the pages listed in
 ///   `-RyokoOnboardingSkip 3,6`), pick the first home base suggestion, and
@@ -22,6 +24,8 @@ import os
 ///   `Application Support/Ryoko/profile.json`.
 /// - `-RyokoMeEdit <page name>|redo`: Me opens that page's editor, or the
 ///   survey, at launch. Use with `-RyokoInitialTab me`.
+/// - `-RyokoMeEditSample 1`: that editor then takes the sample answers, as if
+///   tapped in, so the saved profile and its version change.
 ///
 /// Page names: origin, languages, diet, allergies, usual, thisOrThat, homeBase.
 enum OnboardingDebugOptions {
@@ -50,6 +54,10 @@ enum OnboardingDebugOptions {
 
     static var picksHomeBase: Bool { autoRun || defaults.bool(forKey: "RyokoOnboardingPick") }
 
+    /// `-RyokoOnboardingMapPicker open|use`: the home base page opens Pick on
+    /// map, and with `use` also takes the spot under the pin.
+    static var mapPickerAction: String? { defaults.string(forKey: "RyokoOnboardingMapPicker") }
+
     static var autoRun: Bool { defaults.bool(forKey: "RyokoOnboardingAutoRun") }
 
     static var skippedPages: Set<SurveyPage> {
@@ -63,6 +71,10 @@ enum OnboardingDebugOptions {
     }
 
     static var meRedoesSurvey: Bool { defaults.string(forKey: "RyokoMeEdit") == "redo" }
+
+    /// `-RyokoMeEditSample 1`: the open editor takes the sample answers after a
+    /// moment, through its own change handler (the path a tap takes).
+    static var meEditAppliesSample: Bool { defaults.bool(forKey: "RyokoMeEditSample") }
 
     /// A page by number (`4`) or name (`allergies`).
     static func page(named name: String) -> SurveyPage? {
