@@ -108,6 +108,8 @@ final class MapHomeModel {
 
     /// Mirrors the server's `discover` cache key (design §7.5: area, hour
     /// bucket, profile version), so confirming a place nearby doesn't reload.
+    /// The real places sent with the request (`nearby`) come from the same
+    /// ~100 m area, so the key covers them too.
     struct PicksKey: Hashable {
         var center: Coordinate
         var city: String
@@ -123,7 +125,8 @@ final class MapHomeModel {
         }
     }
 
-    /// Loads `discover` for the key's area and resolves each name, one at a
+    /// Loads `discover` for the key's area, grounded in the real places MapKit
+    /// knows around it (`MapDiscoverNearby`), and resolves each name, one at a
     /// time, showing them as they're found. Misses are dropped. `situation` is
     /// the active situation as of now (`currentSituation()`); `origin` is the
     /// unrounded list centre that names are found near and measured from.
@@ -141,7 +144,17 @@ final class MapHomeModel {
         }
         picks = .loading([])
         do {
-            let request = DiscoverRequest(area: key.area, profile: profile, situation: situation)
+            let nearbyPlaces = await MapDiscoverNearby.places(around: key.center)
+            try Task.checkCancellation()
+            #if DEBUG
+            RyokoLog.places.info("Discover: sending \(nearbyPlaces.count) nearby places")
+            #endif
+            let request = DiscoverRequest(
+                area: key.area,
+                profile: profile,
+                situation: situation,
+                nearby: nearbyPlaces.isEmpty ? nil : nearbyPlaces
+            )
             let response = try await api.discover(request)
             var found: [MapPlace] = []
             for pick in response.places {
