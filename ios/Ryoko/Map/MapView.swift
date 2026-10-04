@@ -32,6 +32,8 @@ private struct MapHomeScreen: View {
     @Environment(\.ryokoAPI) private var api
     @Environment(\.placeResolver) private var resolver
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Namespace private var mapScope
     /// The space between the status bar and the tab bar (global), keyboard or not.
@@ -49,11 +51,13 @@ private struct MapHomeScreen: View {
     var body: some View {
         // Where the panel's space starts: under the search field.
         let belowSearch = Self.searchTop + searchBarHeight
+        let isCard = model.details != nil
         let metrics = MapSheetMetrics(
             screen: screenFrame.height,
             belowSearch: belowSearch,
             header: headerHeight,
-            isCard: model.details != nil
+            pinned: isCard ? model.cardActionsHeight : 0,
+            isCard: isCard
         )
         let anchor = MapHome.listAnchor(situationStore)
         let cardIsFull = model.details != nil && model.detent == .large && !search.isPresented
@@ -104,7 +108,12 @@ private struct MapHomeScreen: View {
             // Only real measurements: a card that opened before them is
             // framed again once they arrive.
             guard let geometry else { return }
-            model.setMapGeometry(safeArea: geometry.safeArea, cardStrip: geometry.strip)
+            model.setMapGeometry(safeArea: geometry.safeArea, cardViewports: geometry.viewports)
+        }
+        .onChange(of: model.detent) {
+            // The map follows the card: its place stays centred in the map
+            // above it at every size. The list leaves the camera alone.
+            model.followCard()
         }
         .onChange(of: situationStore.lastFix, initial: true) { _, fix in
             model.userLocation = fix
@@ -161,23 +170,31 @@ private struct MapHomeScreen: View {
 
     private struct CardGeometry: Equatable {
         var safeArea: CGRect
-        var strip: CGRect
+        var viewports: MapHomeModel.CardViewports
     }
 
     /// In global coordinates, once the screen is measured:
     /// - the map's safe area: the screen minus the padding for the search
     ///   field and the resting list. Camera positions are framed in it, and
     ///   its middle is the camera's centre;
-    /// - the strip of map left above a card at its large size.
+    /// - the map visible above a card at each size: under the search field
+    ///   (or, at large, where the search field steps aside, under the status
+    ///   bar) down to the top of the panel.
     private func cardGeometry(belowSearch: CGFloat, metrics: MapSheetMetrics) -> CardGeometry? {
         guard isMeasured else { return nil }
         let top = belowSearch + Theme.grid
-        let cardHeight = MapSheetMetrics(
+        let card = MapSheetMetrics(
             screen: screenFrame.height,
             belowSearch: belowSearch,
             header: headerHeight,
+            pinned: model.cardActionsHeight,
             isCard: true
-        ).large
+        )
+        func viewport(_ detent: MapSheetDetent) -> CGRect {
+            let minY = screenFrame.minY + (detent == .large ? 0 : top)
+            let maxY = screenFrame.maxY - MapSheetMetrics.bottomGap - card.height(for: detent)
+            return CGRect(x: screenFrame.minX, y: minY, width: screenFrame.width, height: max(maxY - minY, 44))
+        }
         return CardGeometry(
             safeArea: CGRect(
                 x: screenFrame.minX,
@@ -185,11 +202,10 @@ private struct MapHomeScreen: View {
                 width: screenFrame.width,
                 height: max(screenFrame.height - top - metrics.mapBottomPadding, 1)
             ),
-            strip: CGRect(
-                x: screenFrame.minX,
-                y: screenFrame.minY,
-                width: screenFrame.width,
-                height: max(screenFrame.height - MapSheetMetrics.bottomGap - cardHeight, 44)
+            viewports: MapHomeModel.CardViewports(
+                small: viewport(.small),
+                medium: viewport(.medium),
+                large: viewport(.large)
             )
         )
     }
@@ -299,63 +315,120 @@ private struct MapHomeScreen: View {
 
     // MARK: Panel
 
+    /// A card replaces the list in place, at the same size (Apple Maps
+    /// style): a calm crossfade with a small rise, or only the crossfade
+    /// with Reduce Motion.
+    private var swapAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.25) : .smooth(duration: 0.35)
+    }
+
+    private var cardTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 16))
+    }
+
     @ViewBuilder
     private func panel(metrics: MapSheetMetrics, anchor: Coordinate?) -> some View {
         let situation = situationStore.situation
+        let card = model.card
+        // At accessibility text sizes a pinned title would fill the panel, so
+        // the list's header and the card's title scroll with their content
+        // (only Back stays pinned).
+        let scrollsTitles = dynamicTypeSize.isAccessibilitySize
+        let listHeader = MapListHeader(
+            situation: situation,
+            liveState: situationStore.liveState,
+            onOpenPlace: openCurrentPlaceCard,
+            onRefresh: { situationStore.refresh() },
+            onBackToHere: { situationStore.endPreview() }
+        )
+        let cardTitle = card.map { card in
+            MapPlaceCardTitle(
+                place: card,
+                languageTag: languageTag(for: card),
+                localName: card.place.localName ?? model.detailsLocalName,
+                timeZone: card.timeZone ?? model.detailsArea?.timeZone
+            )
+        }
         MapSheetPanel(detent: $model.detent, metrics: metrics) {
-            Group {
-                switch model.panel {
-                case .list:
-                    MapListHeader(
-                        situation: situation,
-                        liveState: situationStore.liveState,
-                        onOpenPlace: openCurrentPlaceCard,
-                        onRefresh: { situationStore.refresh() },
-                        onBackToHere: { situationStore.endPreview() }
-                    )
-                case let .results(query):
-                    MapResultsHeader(query: query, count: model.searchResults.count, onBack: model.back)
-                case let .details(place):
+            // Overlapping while they crossfade, so the panel never stacks two
+            // headers; the panel measures whichever is showing.
+            ZStack(alignment: .topLeading) {
+                if let card {
                     MapPlaceCardHeader(
-                        place: place,
-                        languageTag: languageTag(for: place),
-                        localName: place.place.localName ?? model.detailsLocalName,
-                        timeZone: place.timeZone ?? model.detailsArea?.timeZone,
-                        onClose: model.back
+                        title: scrollsTitles ? nil : cardTitle,
+                        backTo: model.base == .list ? "the list" : "the results",
+                        onBack: model.back
                     )
+                    .id(card.id)
+                    .transition(.opacity)
+                } else {
+                    switch model.base {
+                    case .list:
+                        if !scrollsTitles {
+                            listHeader
+                                .transition(.opacity)
+                        }
+                    case let .results(query):
+                        MapResultsHeader(query: query, count: model.searchResults.count, onBack: model.back)
+                            .transition(.opacity)
+                    }
                 }
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+            .animation(swapAnimation, value: card?.id)
         } content: {
-            switch model.panel {
-            case .list:
-                MapPlaceList(
-                    picks: model.picks,
-                    nearby: model.nearby,
-                    languageTag: situation?.localLanguage,
-                    hasSituation: situation != nil && anchor != nil,
-                    liveState: situationStore.liveState,
-                    onSelect: { model.showDetails($0, fromMap: false) },
-                    onRetryPicks: { model.picksAttempt += 1 },
-                    onFindMe: { situationStore.refresh() }
-                )
-            case .results:
-                MapSearchResultsList(
-                    results: model.searchResults,
-                    languageTag: nil,
-                    onSelect: { model.showDetails($0, fromMap: false) }
-                )
-            case let .details(place):
-                MapPlaceCard(
-                    place: place,
-                    model: model,
-                    anchor: anchor,
-                    onHere: { place, area in makeHere(place, area: area, anchor: anchor) }
-                )
-                .id(place.id)
-                .debugCardAPIOverride()
+            // The list (or results) stays alive under a card, so Back finds
+            // it at the scroll position it had.
+            ZStack(alignment: .top) {
+                Group {
+                    switch model.base {
+                    case .list:
+                        MapPlaceList(
+                            picks: model.picks,
+                            nearby: model.nearby,
+                            languageTag: situation?.localLanguage,
+                            hasSituation: situation != nil && anchor != nil,
+                            liveState: situationStore.liveState,
+                            onSelect: { model.showDetails($0) },
+                            onRetryPicks: { model.picksAttempt += 1 },
+                            onFindMe: { situationStore.refresh() },
+                            header: scrollsTitles ? listHeader : nil
+                        )
+                        .debugListScroll(ready: isListSettled)
+                    case .results:
+                        MapSearchResultsList(
+                            results: model.searchResults,
+                            languageTag: nil,
+                            onSelect: { model.showDetails($0) }
+                        )
+                    }
+                }
+                .opacity(card == nil ? 1 : 0)
+                .allowsHitTesting(card == nil)
+                .accessibilityHidden(card != nil)
+
+                if let card {
+                    MapPlaceCard(
+                        place: card,
+                        title: scrollsTitles ? cardTitle : nil,
+                        model: model,
+                        anchor: anchor,
+                        onHere: { place, area in makeHere(place, area: area, anchor: anchor) }
+                    )
+                    .id(card.id)
+                    .debugCardAPIOverride()
+                    .transition(cardTransition)
+                }
             }
+            .animation(swapAnimation, value: card?.id)
         }
+    }
+
+    /// The list has its picks and nearby places (for `-RyokoMapScrollList`).
+    private var isListSettled: Bool {
+        guard case .loaded = model.nearby else { return false }
+        if case .loading = model.picks { return false }
+        return true
     }
 
     /// The tag for a place's local name: the situation's language for places
@@ -424,14 +497,21 @@ private struct MapHomeScreen: View {
     /// The header's tap: the current place's card.
     private func openCurrentPlaceCard() {
         guard let place = MapHome.currentPlace(situationStore) else { return }
-        model.showDetails(place, fromMap: false)
+        model.showDetails(place)
     }
 
-    /// A tapped point of interest or marker opens its card; tapping away
-    /// closes a card a map tap opened.
+    /// A tapped point of interest or marker opens its card (replacing an open
+    /// one); a tap on empty map goes back to the list.
+    ///
+    /// MapKit clears the selection when you tap empty map. Code clears it
+    /// only in `MapHomeModel.back()`, after the card has gone, so a nil
+    /// selection with a card still open is always a tap.
     private func handleSelection(_ selection: MapSelection<String>?, anchor: Coordinate?) {
+        #if DEBUG
+        RyokoLog.places.info("Selection: \(String(describing: selection?.value), privacy: .public) feature \(selection?.feature != nil), card \(model.details?.title ?? "none", privacy: .public)")
+        #endif
         guard let selection else {
-            if model.detailsFromMap, model.details != nil { model.back() }
+            if model.details != nil { model.back() }
             return
         }
         if let feature = selection.feature {
@@ -449,7 +529,7 @@ private struct MapHomeScreen: View {
                 source: .feature,
                 distanceMeters: anchor.map { coordinate.mapDistance(to: $0) }
             )
-            model.showDetails(placeholder, fromMap: true)
+            model.showDetails(placeholder)
             Task {
                 guard let item = try? await MKMapItemRequest(feature: feature).mapItem,
                       let place = MapPlace(item: item, source: .feature, from: anchor?.mapKitLocation, name: name)
@@ -459,7 +539,7 @@ private struct MapHomeScreen: View {
         } else if let tag = selection.value, let place = markerPlace(for: tag, anchor: anchor) {
             // The card selected its own marker: nothing more to do.
             guard place.id != model.details?.id else { return }
-            model.showDetails(place, fromMap: true)
+            model.showDetails(place)
         }
     }
 
@@ -494,8 +574,7 @@ private struct MapHomeScreen: View {
                     place: place,
                     source: .focus,
                     distanceMeters: anchor.map { place.coordinate.mapDistance(to: $0) }
-                ),
-                fromMap: false
+                )
             )
         case .fromMimo:
             model.layers.fromMimo = true
@@ -608,6 +687,11 @@ private struct MapHomeScreen: View {
 
     /// `-RyokoMapCard here|pick|nearby`, once there's such a place (up to 30 s).
     private func openDebugCard(_ which: String) async {
+        if MapDebugOptions.listScroll != nil {
+            // Let the list fill and scroll first (`MapListDebugScroll`).
+            for _ in 0..<120 where !isListSettled { try? await Task.sleep(for: .milliseconds(250)) }
+            try? await Task.sleep(for: .seconds(4))
+        }
         for _ in 0..<120 {
             let place: MapPlace? = switch which {
             case "here": MapHome.currentPlace(situationStore)
@@ -617,7 +701,7 @@ private struct MapHomeScreen: View {
             }
             if let place {
                 RyokoLog.places.info("Debug: opening the card for \(place.title, privacy: .public)")
-                model.showDetails(place, fromMap: false)
+                model.showDetails(place)
                 return
             }
             try? await Task.sleep(for: .milliseconds(250))
@@ -632,6 +716,15 @@ private struct MapHomeScreen: View {
 }
 
 private extension View {
+    /// DEBUG: `-RyokoMapScrollList`. Does nothing in release builds.
+    func debugListScroll(ready: Bool) -> some View {
+        #if DEBUG
+        modifier(MapListDebugScroll(ready: ready))
+        #else
+        self
+        #endif
+    }
+
     /// DEBUG: `-RyokoMapCardFailure` and `-RyokoMapCardLatency`. Does nothing
     /// in release builds.
     func debugCardAPIOverride() -> some View {
