@@ -192,6 +192,15 @@ describe('translate skill', () => {
     assert.match(ok(finalizeTranslate(req('少糖', 'zh-Hans', 'en'), zh, en, { translation: '少糖' })), /isn't written in English/);
   });
 
+  test('every non-Latin language Translate offers takes its own script', () => {
+    const en = languageInfo('en');
+    const samples: Record<string, string> = { gu: 'ઓછી ખાંડ', ur: 'کم چینی', kk: 'Қант аз', mk: 'Малку шеќер', be: 'Менш цукру', pa: 'ਘੱਟ ਖੰਡ', kn: 'ಕಡಿಮೆ ಸಕ್ಕರೆ', ml: 'പഞ്ചസാര കുറച്ച്', mr: 'कमी साखर' };
+    for (const [tag, translation] of Object.entries(samples)) {
+      const result = finalizeTranslate({ text: 'Less sugar', from: 'en', to: tag }, en, languageInfo(tag), { translation });
+      assert.ok(result.ok, `${tag}: ${result.ok ? '' : result.issues.join('; ')}`);
+    }
+  });
+
   test('the user message is JSON with only the four fields', () => {
     const user = JSON.parse(translateUser({ text: 'Hi', from: 'en', to: 'ja' }, languageInfo('en'), languageInfo('ja')));
     assert.deepEqual(user, { from: 'English', to: 'Japanese', place: null, text: 'Hi' });

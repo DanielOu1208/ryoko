@@ -2,15 +2,15 @@ import SwiftUI
 
 /// The bottom of Translate: the status line with the keyboard button (Type
 /// mode, T2.4) on its right, then your language, the big mic button and their
-/// language in one row, as in Google Translate. Each language is its own menu;
-/// while listening (manual turns, #68) the two become who's speaking: the
-/// speaker's is filled, and tapping the other hands the turn over.
+/// language in one row, as in Google Translate. Each language is its own menu
+/// of every language Soniox hears, Ryoko's own first; while listening (manual
+/// turns, #68) the two become who's speaking: the speaker's is filled, and
+/// tapping the other hands the turn over.
 struct TranslateControls: View {
     let model: TranslateModel
     let pair: TranslatePair?
     /// A caveat about the pair (Cantonese in Hong Kong), if any.
     let note: String?
-    let options: [PairLanguage]
     let homeTag: String
     let situationLanguage: String?
     @Binding var manualHome: String?
@@ -101,11 +101,10 @@ struct TranslateControls: View {
         Menu {
             Picker("Your language", selection: homeSelection) {
                 Text("From your profile: \(PairLanguage(tag: homeTag)?.name ?? homeTag)").tag("")
-                ForEach(options) { language in
-                    Text(language.name).tag(language.tag)
-                }
+                languageRows(PairChoice.featured)
             }
             .pickerStyle(.inline)
+            moreLanguages(selection: homeSelection)
         } label: {
             LanguagePillLabel(name: homeLanguage.name)
         }
@@ -120,16 +119,30 @@ struct TranslateControls: View {
                 if let here = situationLanguage.flatMap(PairLanguage.init(tag:)) {
                     Text("Here: \(here.name)").tag("")
                 }
-                ForEach(options.filter { $0.sonioxCode != homeLanguage.sonioxCode }) { language in
-                    Text(language.name).tag(language.tag)
-                }
+                languageRows(PairChoice.featured.filter { $0.sonioxCode != homeLanguage.sonioxCode })
             }
             .pickerStyle(.inline)
+            moreLanguages(selection: otherSelection, excluding: homeLanguage.sonioxCode)
         } label: {
             LanguagePillLabel(name: pair?.other.name ?? "Choose")
         }
         .languagePill(isDisabled: model.isActive)
         .accessibilityLabel("Their language, \(pair?.other.name ?? "not chosen")")
+    }
+
+    private func languageRows(_ languages: [PairLanguage]) -> some View {
+        ForEach(languages) { language in
+            Text(language.name).tag(language.tag)
+        }
+    }
+
+    /// The rest of Soniox's roster, A–Z below a divider. It's a second picker
+    /// on the same selection: a menu draws no divider inside one picker.
+    private func moreLanguages(selection: Binding<String>, excluding sonioxCode: String? = nil) -> some View {
+        Picker("More languages", selection: selection) {
+            languageRows(PairChoice.more.filter { $0.sonioxCode != sonioxCode })
+        }
+        .pickerStyle(.inline)
     }
 
     private var homeLanguage: PairLanguage {
@@ -288,6 +301,9 @@ private extension View {
     /// for a session.
     func languagePill(isDisabled: Bool) -> some View {
         self
+            // Rows top to bottom as written, so the A–Z list reads downward.
+            // Automatic order can put the first row nearest the pill instead.
+            .menuOrder(.fixed)
             .buttonStyle(.glass)
             .buttonBorderShape(.capsule)
             .controlSize(.large)

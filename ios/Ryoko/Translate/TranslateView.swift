@@ -103,7 +103,6 @@ struct TranslateView: View {
                         model: model,
                         pair: pair,
                         note: speechNote,
-                        options: PairChoice.options(situationLanguage: situationStore.situation?.localLanguage),
                         homeTag: profileStore.profile.homeLanguage,
                         situationLanguage: situationStore.situation?.localLanguage,
                         manualHome: $manualHome,

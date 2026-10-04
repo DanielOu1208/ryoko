@@ -142,7 +142,8 @@ const langTable = JSON.parse(readFileSync(join(CONTRACTS_DIR, 'tables', 'langcod
 const displayNames = new Intl.DisplayNames(['en'], { type: 'language' });
 
 const SCRIPT_BY_PRIMARY: Record<string, Script> = { zh: 'han', ja: 'japanese', ko: 'hangul' };
-const NON_LATIN_PRIMARY = new Set(['ar', 'he', 'ru', 'uk', 'el', 'th', 'hi', 'bn', 'ka', 'hy', 'fa', 'ta', 'te', 'km', 'lo', 'my', 'am', 'bg', 'sr', 'mn']);
+// Includes every non-Latin language Translate offers from Soniox's roster.
+const NON_LATIN_PRIMARY = new Set(['ar', 'he', 'ru', 'uk', 'be', 'bg', 'mk', 'sr', 'kk', 'el', 'th', 'hi', 'mr', 'bn', 'gu', 'pa', 'kn', 'ml', 'ta', 'te', 'ur', 'fa', 'ka', 'hy', 'km', 'lo', 'my', 'am', 'mn']);
 
 export function languageInfo(tag: string): LanguageInfo {
   const primary = tag.split('-')[0]?.toLowerCase() ?? tag;

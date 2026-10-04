@@ -207,6 +207,7 @@ For all of them:
 Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_way` mode, with language identification and endpoint detection on.
 
 - **Language pair:** defaults to (profile home language, local language of the active situation), e.g. English ⇄ Chinese in Shanghai. It can still be picked by hand, as in Google Translate: your language in a pill left of the mic, theirs in a pill to the right, each its own menu. It never changes mid-session (the pills are off while listening).
+  - **Every language Soniox hears (#77):** each menu lists the automatic choice, then the `LangCode` rows (§7.9), then below a divider the rest of `stt-rt-v5`'s 60 languages A–Z by English name (`SonioxConfig.languages`, from Soniox's `GET /v1/models`; two-way translation works between any two). A language without a row uses its bare code, which is also its Soniox code. A situation language Soniox doesn't have (Khmer, Cantonese) gives no pair, and you pick theirs by hand.
 - **Turns:**
   - Translate keeps an in-memory list of turns: id, speaker (me / them), original, translation, source (voice / typed), and whether it was edited.
   - The panes show the latest turn. A **History** toolbar button opens a sheet listing every turn.
@@ -645,6 +646,8 @@ One `LangCode` table (Swift and TypeScript) maps each BCP-47 tag to:
 | `ja` | `ja` | `ja_JP` | romaji (model) |
 | `en` | `en` | `en` | none |
 
+Translate also offers every other Soniox language by its bare code, outside this table (§4.8).
+
 A `LocalText` view applies `.typesettingLanguage` and `accessibilitySpeechLanguage` wherever local script appears, so CJK glyphs and VoiceOver are correct.
 
 ## 8. Sponsor integrations
@@ -977,4 +980,5 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 74 | Translate locks Soniox to the speaker's language: each session listens for one language (strict hint), and a hand-over finalizes it and opens a new session locked to the other language. A strong bias, not a filter (best effort per Soniox), but better than detecting between the pair, which mixed languages. Key limit 10 → 30 a minute (a key per session). §4.8 | user ("sometimes u still mix languages") |
 | 75 | Where Mimo's answers come from: situation, map data, profile and (later) trip memory are always in the prompt; the travel guides (`search_guides`, Snowflake Cortex Search) and the web (`web_search`) are tools Mimo picks; places it names are checked against the map. The most specific source wins. Place cards fetch the guides before their one call, and tips can cite them (`Tip.source`). §6.6, §8.4 | user (a hierarchy for how Mimo uses its sources) |
 | 76 | Trip memory on Tiger Data: the app reports places confirmed, phrases shown or spoken and typed translations (`POST /v1/trip-events`); the server stores them in a Timescale hypertable with Gemini embeddings and gives Mimo the latest and the most similar as `<trip_memory>` before each message; Mimo chats are saved to Postgres and survive a restart. §6.4, §6.6, §8.3 | user |
+| 77 | Translate offers every language Soniox hears (`stt-rt-v5`: 60, two-way between any two) instead of the `LangCode` rows plus the situation's language. The menus list the rows first, then the rest A–Z below a divider; a language Soniox doesn't have gives no pair. The server's script check knows the added non-Latin scripts, so typed translations into them pass. §4.8, §7.9 | user |
 | 78 | A slightly more agentic Mimo: `recall_trip` (search trip memory with its own query) and `remember` (save what the traveller says about themselves), parallel tools, up to 3 tool calls per message (hard cap 4, 5 turns), and a tool budget of 55% of the time limit. Trip memory stays in the prompt too, for quiet personalization. §6.4, §8.3 | user |

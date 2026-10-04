@@ -25,15 +25,16 @@ nonisolated struct PairLanguage: Hashable, Sendable, Identifiable {
         self.init(tag: lang.tag, sonioxCode: lang.sonioxCode, name: Self.shortName(lang), nativeName: Self.shortNativeName(lang))
     }
 
-    /// Any BCP-47 tag. Tags with a `LangCode` row use it; others (`fr`, `ko`)
-    /// use their bare language code, which is also the Soniox code.
+    /// Any BCP-47 tag Soniox can hear. Tags with a `LangCode` row use it;
+    /// others (`fr`, `ko`) use their bare language code, which is also the
+    /// Soniox code. nil for a language Soniox doesn't have (`km`, `yue`).
     init?(tag: String) {
         if let row = LangCode(tag: tag) {
             self.init(row)
             return
         }
         let language = Locale.Language(identifier: tag.replacingOccurrences(of: "_", with: "-"))
-        guard let code = language.languageCode?.identifier, code != "und", code.count <= 3 else { return nil }
+        guard let code = language.languageCode?.identifier, SonioxConfig.languages.contains(code) else { return nil }
         let name = Locale(identifier: "en").localizedString(forLanguageCode: code) ?? code
         let nativeName = Locale(identifier: code).localizedString(forLanguageCode: code) ?? name
         self.init(tag: code, sonioxCode: code, name: name, nativeName: nativeName)
@@ -102,23 +103,22 @@ nonisolated struct TranslatePair: Hashable, Sendable {
 /// How Translate picks its pair: home language ⇄ the active situation's local
 /// language, unless you picked one by hand.
 nonisolated enum PairChoice {
-    /// The languages offered in the picker: every `LangCode` row, plus the
-    /// situation's language if it has no row.
-    static func options(situationLanguage: String?) -> [PairLanguage] {
-        var options = LangCode.allCases.map(PairLanguage.init)
-        if let tag = situationLanguage, let extra = PairLanguage(tag: tag),
-           !options.contains(where: { $0.tag == extra.tag }) {
-            options.append(extra)
-        }
-        return options
-    }
+    /// First in the pickers: every `LangCode` row, the languages Ryoko is tuned for.
+    static let featured: [PairLanguage] = LangCode.allCases.map(PairLanguage.init)
+
+    /// Then the rest of Soniox's roster, A–Z by English name.
+    static let more: [PairLanguage] = SonioxConfig.languages
+        .filter { code in !featured.contains { $0.sonioxCode == code } }
+        .compactMap { PairLanguage(tag: $0) }
+        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
 
     /// The pair to use.
     /// - Parameters:
     ///   - homeTag: the profile's home language.
     ///   - situationLanguage: the active situation's `localLanguage`, if any.
     ///   - manualHome, manualOther: tags picked by hand, which win.
-    /// - Returns: nil when there's no other language, or it's the same as yours.
+    /// - Returns: nil when there's no other language, Soniox doesn't have it,
+    ///   or it's the same as yours.
     static func resolve(
         homeTag: String,
         situationLanguage: String?,

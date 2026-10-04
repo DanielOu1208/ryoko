@@ -121,6 +121,18 @@ nonisolated struct SonioxConfig: Hashable, Sendable {
     static let model = "stt-rt-v5"
     static let sampleRate = 16_000
 
+    /// Every language `model` hears, as Soniox codes. It translates two-way
+    /// between any two of them. From Soniox's `GET /v1/models` (2026-10-04,
+    /// 60 languages); `zh` covers both scripts.
+    static let languages: Set<String> = [
+        "af", "sq", "ar", "az", "eu", "be", "bn", "bs", "bg", "ca",
+        "zh", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "gl",
+        "de", "el", "gu", "he", "hi", "hu", "id", "it", "ja", "kn",
+        "kk", "ko", "lv", "lt", "mk", "ms", "ml", "mr", "no", "fa",
+        "pl", "pt", "pa", "ro", "ru", "sr", "sk", "sl", "es", "sw",
+        "sv", "tl", "ta", "te", "th", "tr", "uk", "ur", "vi", "cy",
+    ]
+
     /// Soniox codes, e.g. `en` and `zh`.
     var languageA: String
     var languageB: String

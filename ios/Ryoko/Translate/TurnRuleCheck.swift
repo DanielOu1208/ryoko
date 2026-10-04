@@ -379,7 +379,14 @@ nonisolated enum TurnRuleCheck {
         e.equal(PairChoice.resolve(homeTag: "en", situationLanguage: nil) == nil, true, "no situation: no pair")
         e.equal(PairChoice.resolve(homeTag: "en", situationLanguage: "zh-Hans", manualOther: "ja")?.other.tag, "ja", "manual pick wins")
         e.equal(PairChoice.resolve(homeTag: "en", situationLanguage: "fr")?.other.sonioxCode, "fr", "a language without a row")
-        e.equal(PairChoice.options(situationLanguage: "ko").last?.tag, "ko", "offered in the picker")
+        e.equal(PairChoice.resolve(homeTag: "en", situationLanguage: "km") == nil, true, "a language Soniox doesn't have: no pair")
+        e.equal(PairChoice.resolve(homeTag: "km", situationLanguage: "ja")?.home.tag, "en", "an unheard home language falls back to English")
+        let offered = PairChoice.featured + PairChoice.more
+        e.equal(PairChoice.featured.map(\.tag), ["zh-Hans", "ja", "en", "zh-Hant"], "Ryoko's rows first")
+        e.equal(Set(offered.map(\.sonioxCode)), SonioxConfig.languages, "the whole Soniox roster is offered")
+        e.equal(PairChoice.more.count, SonioxConfig.languages.count - 3, "each language once (zh, ja and en are rows)")
+        e.equal(PairChoice.more.first?.name, "Afrikaans", "the rest A–Z")
+        e.equal(PairChoice.more.first { $0.tag == "ko" }?.name, "Korean", "a language without a row is named")
     }
 
     private static func sonioxMessages(_ e: inout Expect) {
