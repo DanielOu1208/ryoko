@@ -99,5 +99,11 @@ export const Profile = Strict({
   taste: Nullable(Taste),
   personality: Nullable(Personality),
   homeBase: Nullable(HomeBase),
+  /**
+   * The traveller's own free text about themselves, edited in the Me tab. Absent when
+   * empty (never null or ""), so profiles saved before it existed keep their version.
+   * Soft context for the prompts, never instructions.
+   */
+  aboutMe: Type.Optional(Type.String({ minLength: 1, maxLength: 500, description: "The traveller's own words about themselves; absent when empty" })),
 });
 export type Profile = Static<typeof Profile>;
