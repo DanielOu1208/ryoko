@@ -16,7 +16,7 @@ import os
 ///   attribution stays visible.
 ///
 /// The Map workstream (W4) calls `card(for:language:placeNameLocal:)` from place
-/// details; Nearby's quick card calls it too. Keep that signature stable.
+/// card (Taxi). Keep that signature stable.
 /// Cards are cached for the session per place, language and appearance.
 enum TaxiCardFactory {
     /// The taxi card for `place`, in `language` (BCP-47, e.g. `zh-Hans`).
@@ -26,7 +26,7 @@ enum TaxiCardFactory {
         await build(place: place, language: language, placeNameLocal: placeNameLocal, storedAddress: nil)
     }
 
-    /// The taxi card for the home base (Nearby's quick card when no place is
+    /// The taxi card for the home base (when no place is
     /// known). The home base keeps its own `localName` and `addressLocal`; the
     /// stored address is used when it's in the target language's script.
     @MainActor

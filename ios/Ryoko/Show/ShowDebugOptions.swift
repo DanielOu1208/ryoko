@@ -6,21 +6,18 @@ import Foundation
 /// driven from the command line:
 ///
 ///     xcrun simctl launch <udid> com.danielou.ryoko \
-///       -RyokoAPIMode fixture -RyokoSamplePreview 19 -RyokoInitialTab nearby \
-///       -RyokoShow taxi
+///       -RyokoAPIMode fixture -RyokoSamplePreview 19 -RyokoShow taxi
 ///
-/// - `-RyokoShow phrase|allergy|taxi`: once Nearby's card has loaded, open Show
-///   mode with its first phrase, the allergy card or the taxi card (the quick
-///   cards' own code path).
+/// - `-RyokoShow phrase|allergy|taxi`: open the current place's card on the
+///   Map and, once it has loaded, open Show mode with its first phrase, the
+///   allergy card or the taxi card (the card's own buttons' code path). Same
+///   as `-RyokoMapCard here -RyokoMapCardAction <kind>` (`MapDebugOptions`).
 /// - `-RyokoShowFlipped 1`: Show mode opens flipped.
 /// - `-RyokoShowAutoClose <seconds>`: Show mode closes itself after that long,
 ///   the way Done does (to check brightness and the idle timer are restored).
 /// - `-RyokoExtraAllergy kiwi:serious`: add a free-text allergy to the allergy
 ///   card (not to the saved profile), to exercise `POST /v1/allergy-card`.
 /// - `-RyokoMeShowAllergy zh-Hans|ja`: Me's allergy row opens the card at launch.
-/// - `-RyokoTaxiTarget home`: the taxi quick card targets the home base even
-///   when there's a place.
-/// - Nearby's own: see `NearbyDebugOptions`.
 nonisolated enum ShowDebugOptions {
     enum Kind: String {
         case phrase, allergy, taxi
@@ -49,10 +46,6 @@ nonisolated enum ShowDebugOptions {
 
     static var meAllergyLanguage: String? {
         UserDefaults.standard.string(forKey: "RyokoMeShowAllergy")
-    }
-
-    static var taxiTargetsHome: Bool {
-        UserDefaults.standard.string(forKey: "RyokoTaxiTarget") == "home"
     }
 }
 #endif

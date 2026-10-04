@@ -9,22 +9,23 @@ import os
 ///
 /// - **Starts** when the active situation has a place: a place confirmed live,
 ///   or a preview. Not for city-only, and not where you speak the local
-///   language (Nearby shows no phrases there either). ActivityKit only starts
+///   language (place cards show no phrases there either). ActivityKit only starts
 ///   activities from the foreground, so a start that comes in the background
 ///   waits until the app is active again.
 /// - **One at a time.** Every activity from an earlier launch ends at start,
 ///   and the current one ends when the place changes.
 /// - **Content:** a placeholder first, then the place card's top phrase. The
 ///   card comes from the shared `RyokoAPI`; the server caches it, so this costs
-///   nothing extra when Nearby asks for the same card. It reloads when the
+///   nothing extra when the Map's place card asks for the same card. It reloads when the
 ///   situation (a new hour, a new preview time), the profile or the API changes.
 ///   Profile edits wait until they settle (`profileSettleDelay`): every profile
 ///   version is a new server generation (design §7.4), so a burst of edits in
 ///   Me loads once.
 /// - **Ends** when the situation has no place (or is gone), on a new place, or
 ///   after two hours, which is also its `staleDate`.
-/// - **Deep link:** each phrase it shows is kept (`LiveActivityPhraseStore`),
-///   so `ryoko://show?phrase=<id>` opens Show mode for it, on a cold start too.
+/// - **Deep link:** a tap opens the Map with the current place's card. Each
+///   phrase it shows is kept (`LiveActivityPhraseStore`), so
+///   `ryoko://show?phrase=<id>` also opens Show mode for it, on a cold start too.
 @MainActor
 final class LiveActivityCoordinator {
     typealias RyokoActivity = Activity<RyokoActivityAttributes>
@@ -124,26 +125,28 @@ final class LiveActivityCoordinator {
 
     // MARK: Deep link
 
-    /// Handles a `ryoko://` link: Show mode for a kept phrase, or Nearby.
-    /// Returns false for a link that isn't Ryoko's.
+    /// Handles a `ryoko://` link. Every link opens the Map with the current
+    /// place's card; a phrase link also opens Show mode for that kept phrase
+    /// on top, so Done lands on the place's card. Returns false for a link
+    /// that isn't Ryoko's.
     @discardableResult
     func open(_ url: URL, router: AppRouter) -> Bool {
         guard let link = RyokoDeepLink(url: url) else {
             RyokoLog.liveActivity.error("Unknown link \(url.absoluteString, privacy: .public)")
             return false
         }
+        router.openMapAtCurrentPlace()
         switch link {
         case let .show(phraseID):
             if let phrase = phrases.phrase(id: phraseID) {
                 RyokoLog.liveActivity.info("Link opens Show mode for \(phraseID, privacy: .public)")
                 router.show = .phrase(phrase)
             } else {
-                // Not kept (an old link): Nearby has this place's phrases.
-                RyokoLog.liveActivity.error("Link names an unknown phrase \(phraseID, privacy: .public); opening Nearby")
-                router.selectedTab = .nearby
+                // Not kept (an old link): the place's card has its phrases.
+                RyokoLog.liveActivity.error("Link names an unknown phrase \(phraseID, privacy: .public); opening the place's card")
             }
-        case .nearby:
-            router.selectedTab = .nearby
+        case .currentPlace:
+            RyokoLog.liveActivity.info("Link opens the current place's card")
         }
         return true
     }
@@ -374,7 +377,7 @@ private extension LiveActivityCoordinator {
 
         init?(_ inputs: Inputs) {
             guard let situation = inputs.situation, let place = situation.place,
-                  !NearbyView.speaks(inputs.profile, language: situation.localLanguage) else { return nil }
+                  !inputs.profile.speaks(situation.localLanguage) else { return nil }
             let where_ = place.id ?? "\(place.name)@\(String(format: "%.4f,%.4f", place.coordinate.lat, place.coordinate.lon))"
             key = PlaceKey(mode: situation.mode, place: where_)
             attributes = RyokoActivityAttributes(

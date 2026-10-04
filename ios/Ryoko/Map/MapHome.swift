@@ -2,17 +2,23 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
-/// The Map tab (design §4.7, W4): the home screen. The pieces:
+/// The Map tab (design §3, §4.7, W4): the home screen and the one place for
+/// places. Tapping a place anywhere (a pin, a POI, a list row, a search
+/// result, a dropped pin, a Mimo pick, a From Mimo pin, another tab's
+/// `router.openMap(selecting:)`) opens its card in the sheet. That never
+/// changes the situation: the card's "I'm here" and Preview do. The pieces:
 ///
 /// - `MapView`: the tab root. Map, search, layers, long-press, and the bottom
 ///   panel. Applies `router.mapFocus`.
 /// - `MapHomeModel`: what the Map shows (panel mode, picks, nearby places,
-///   search results, pins) and the caches behind it.
+///   search results, pins, the camera) and the caches behind it.
 /// - `MapSheetPanel`: the Apple Maps-style bottom panel with three snap points.
 ///   It's a panel inside the tab, not a `.sheet`: a native sheet covers the tab
 ///   bar inside `TabView` (checked on the iOS 27 simulator).
-/// - `MapPlaceList` (Mimo picks, then nearest places) and `MapPlaceDetails`
-///   (phrases, tips, Preview, Taxi card, Ask Mimo, Make this my place).
+/// - `MapListHeader` ("You're at …") and `MapPlaceList` (Mimo picks, then
+///   nearest places).
+/// - `MapPlaceCard`: a place's card (Directions, Taxi, Allergy, Ask Mimo;
+///   I'm here or Preview; Mimo's why; what to say; tips).
 /// - `LivePlaceResolver`: the app's one MapKit `PlaceResolver`.
 ///
 /// Every coordinate on the Map comes from MapKit (design §4.7): MapKit search,
@@ -27,11 +33,34 @@ enum MapHome {
     /// How far Mimo's names are looked for (the resolver clamps to 1.5–3 km).
     static let resolveRadius: Double = 3_000
 
+    /// How close your live location must be for a card to offer "I'm here"
+    /// rather than Preview (the same 300 m `makeCurrent` confirms within).
+    static let hereRadius: CLLocationDistance = 300
+
     /// Where the list is centred: the previewed place, otherwise your last fix
     /// (or the confirmed place). Stable while you confirm places around you.
     static func listAnchor(_ store: AppSituationStore) -> Coordinate? {
         if let preview = store.previewSituation { return preview.place?.coordinate }
         return store.lastFix ?? store.liveSituation?.place?.coordinate
+    }
+
+    /// The current place (live or previewed) as a Map place, for its card.
+    static func currentPlace(_ store: AppSituationStore) -> MapPlace? {
+        guard let situation = store.situation, let place = situation.place else { return nil }
+        let candidate = store.candidates.first { $0.place == place }
+        return MapPlace(
+            place: place,
+            source: .focus,
+            timeZone: situation.zone,
+            area: candidate?.area ?? PlaceArea(
+                city: situation.city,
+                district: situation.district,
+                countryCode: situation.countryCode,
+                subdivision: situation.countryCode == "CA" && situation.localLanguage == "fr" ? "QC" : nil,
+                timeZone: situation.zone
+            ),
+            distanceMeters: candidate?.distanceMeters ?? store.lastFix.map { place.coordinate.mapDistance(to: $0) }
+        )
     }
 }
 
@@ -54,7 +83,8 @@ struct MapPlace: Identifiable, Hashable {
         case droppedPin
         /// The From Mimo layer.
         case fromMimo(ShownPlace)
-        /// Another tab asked the Map to show it (`router.openMap(selecting:)`).
+        /// Another tab asked the Map to show it (`router.openMap(selecting:)`),
+        /// or it's the current place (the header's tap, the Live Activity).
         case focus
     }
 
@@ -121,13 +151,15 @@ extension MapPlace {
 
 // MARK: - Panel detents
 
-/// The bottom panel's three snap points (Apple Maps style).
+/// The bottom panel's three snap points (Apple Maps style; sizes in
+/// `MapSheetMetrics`).
 enum MapSheetDetent: Int, CaseIterable, Comparable {
-    /// About three rows.
+    /// Just the header.
     case small
-    /// About half the screen.
+    /// About 45% of the space: where the list rests.
     case medium
-    /// Nearly all of it, leaving the search field visible.
+    /// The list up to the search field, or a card almost full height with a
+    /// strip of map above it. Cards open here.
     case large
 
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
@@ -181,6 +213,24 @@ extension Coordinate {
     /// Metres to another coordinate.
     func mapDistance(to other: Coordinate) -> CLLocationDistance {
         mapKitLocation.distance(from: other.mapKitLocation)
+    }
+
+    /// Moved `east` and `north` metres (flat-earth; fine within a few km).
+    func mapOffset(east: Double, north: Double) -> Coordinate {
+        let metersPerDegree = 111_320.0
+        return Coordinate(
+            lat: lat + north / metersPerDegree,
+            lon: lon + east / (metersPerDegree * max(cos(lat * .pi / 180), 0.01))
+        )
+    }
+
+    /// Metres east and north from `self` to `other` (flat-earth).
+    func mapVector(to other: Coordinate) -> (east: Double, north: Double) {
+        let metersPerDegree = 111_320.0
+        return (
+            (other.lon - lon) * metersPerDegree * cos(lat * .pi / 180),
+            (other.lat - lat) * metersPerDegree
+        )
     }
 }
 

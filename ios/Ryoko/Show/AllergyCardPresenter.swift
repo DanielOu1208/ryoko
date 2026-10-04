@@ -2,7 +2,7 @@ import Observation
 import SwiftUI
 import os
 
-/// Opens the allergy card in Show mode from a button: Nearby's quick card and
+/// Opens the allergy card in Show mode from a button: a place card's Allergy and
 /// Me's preview row. Template-only cards open at once; a card with free-text
 /// allergens waits for the server (or its saved answer) and shows `isLoading`.
 ///

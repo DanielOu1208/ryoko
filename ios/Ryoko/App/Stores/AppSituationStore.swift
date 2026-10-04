@@ -4,7 +4,7 @@ import Observation
 import os
 
 /// The app's real `SituationStore` (design §4.2, §7.1, W2.3). Everything follows
-/// its `situation`, live or previewed: the Nearby card, Mimo picks, Translate's
+/// its `situation`, live or previewed: the current place's card, Mimo picks, Translate's
 /// pair, Mimo's context and the gradient.
 ///
 /// **Live:** `refresh()` gets one location fix (when-in-use), reverse-geocodes
@@ -24,8 +24,8 @@ import os
 /// `localTime` is as old as the last stamp: requests send `currentSituation()`
 /// (see `SituationStore`).
 ///
-/// **Map (W4): `makeCurrent(_:)`.** The Map's bottom sheet and place details
-/// make any MapKit place the current place (design §4.2, §4.7). While
+/// **Map (W4): `makeCurrent(_:)`.** A place card's "I'm here" (shown within
+/// 300 m of the last fix) makes that place current (design §4.7). While
 /// previewing, it previews that place at the same committed time. Live, a
 /// place within 300 m of the last fix is confirmed (with its own area when
 /// live mode has none yet); anything further, or with no fix, is previewed at
@@ -325,8 +325,8 @@ final class AppSituationStore: SituationStore {
 // MARK: - Map (W4)
 
 extension AppSituationStore {
-    /// Makes a place found on the Map the current place (design §4.7: tapping
-    /// a place in the Map's sheet, or "Make this my place").
+    /// Makes a place found on the Map the current place (design §4.7: a place
+    /// card's "I'm here", which ends any preview first).
     ///
     /// - Previewing: previews `candidate` at the same committed time.
     /// - Live, within 300 m of the last fix: confirms it. If live mode has no

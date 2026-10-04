@@ -16,7 +16,7 @@ nonisolated struct SituationPreview: Hashable, Sendable {
 }
 
 /// The active situation, live or previewed (design §4.2, W2.3). Everything
-/// follows it: the Nearby card, Mimo picks, Translate's pair and Mimo's context.
+/// follows it: the current place's card, Mimo picks, Translate's pair and Mimo's context.
 /// Features read `situation`; only the store builds one.
 ///
 /// **The clock.** `situation` changes when the place or the preview changes,

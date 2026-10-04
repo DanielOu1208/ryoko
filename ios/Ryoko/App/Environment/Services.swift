@@ -2,7 +2,7 @@ import SwiftUI
 
 extension EnvironmentValues {
     /// The app's one place resolver. MapKit allows about 50 searches a minute for
-    /// the whole app, so Map, Nearby and Mimo share this instance (and its cache and
+    /// the whole app, so Map and Mimo share this instance (and its cache and
     /// throttle) instead of making their own. `RyokoApp` sets it; W4 swaps in the
     /// MapKit resolver there. Previews get the fixture resolver.
     @Entry var placeResolver: any PlaceResolver = FixturePlaceResolver()

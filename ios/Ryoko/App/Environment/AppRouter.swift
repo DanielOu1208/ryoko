@@ -1,17 +1,21 @@
 import Observation
 import SwiftUI
 
-/// Hand-offs between tabs (design §4.3, §4.7, §4.9). `RyokoApp` owns the one
+/// Hand-offs between tabs (design §4.7, §4.9). `RyokoApp` owns the one
 /// instance and puts it in the environment; `RootTabView` binds the tab bar to
 /// `selectedTab` and presents `show`. Features never edit the shell for these:
 ///
 ///     @Environment(AppRouter.self) private var router
 ///
-///     router.openNearby()                      // Map sheet: a place became current (W4)
-///     router.openMap(centeredOn: coordinate)   // Nearby's mini map (W3)
-///     router.askMimo(about: place)             // place sheet: dismiss it first (W4)
+///     router.openMap(selecting: place)         // the Map, with that place's card open
+///     router.openMapAtCurrentPlace()           // the Map, with the current place's card (Live Activity)
+///     router.askMimo(about: place)             // a place card's Ask Mimo (W4)
 ///     router.showOnMap(pins)                   // Mimo's "Show on map" (W6)
-///     router.show = .phrase(phrase)            // Show mode from Nearby or Mimo
+///     router.show = .phrase(phrase)            // Show mode from a place card or Mimo
+///
+/// Places live on the Map: any hand-off that shows a place opens its card in
+/// the Map's sheet. None of them changes the situation; only the card's
+/// "I'm here" and Preview do.
 ///
 /// The receiving tab reads its hand-off and clears what it has used: Map sets
 /// `mapFocus` back to nil once applied, so the same focus can be asked for
@@ -37,29 +41,31 @@ final class AppRouter {
     private(set) var fromMimo: [FromMimoPin] = []
 
     /// Show mode, presented full screen over the tabs by `RootTabView`. A view
-    /// that is itself in a sheet (the Map's place sheet) presents Show mode with
-    /// its own `.fullScreenCover`, because the root can't present over a sheet.
+    /// that is itself in a native sheet presents Show mode with its own
+    /// `.fullScreenCover`, because the root can't present over a sheet. (The
+    /// Map's sheet is a panel inside the tab, so place cards use this.)
     var show: ShowContent?
 
     init(selectedTab: AppTab = .map) {
         self.selectedTab = selectedTab
     }
 
-    /// Opens Nearby: the Map sheet calls this after a tapped place became the
-    /// current place (design §4.7).
-    func openNearby() {
-        selectedTab = .nearby
-    }
-
-    /// Opens the Map centred on `coordinate` (Nearby's mini map tile).
+    /// Opens the Map centred on `coordinate`, with the list in the sheet.
     func openMap(centeredOn coordinate: Coordinate) {
         mapFocus = .coordinate(coordinate)
         selectedTab = .map
     }
 
-    /// Opens the Map on `place`, selected, with its place sheet.
+    /// Opens the Map on `place`, highlighted, with its card in the sheet.
     func openMap(selecting place: Place) {
         mapFocus = .place(place)
+        selectedTab = .map
+    }
+
+    /// Opens the Map with the current place's card (live or previewed), or
+    /// the list when there's no current place. The Live Activity's tap.
+    func openMapAtCurrentPlace() {
+        mapFocus = .currentPlace
         selectedTab = .map
     }
 
@@ -84,10 +90,12 @@ final class AppRouter {
 
 /// Where the Map should go next.
 nonisolated enum MapFocus: Hashable, Sendable {
-    /// Centre on a point (Nearby's mini map: "opens the Map tab centred here").
+    /// Centre on a point, with the list in the sheet.
     case coordinate(Coordinate)
-    /// Centre on a place and select it, opening its place sheet.
+    /// Centre on a place and highlight it, with its card in the sheet.
     case place(Place)
+    /// The current place's card (live or previewed), if there is one.
+    case currentPlace
     /// Fit the From Mimo layer's pins.
     case fromMimo
 }

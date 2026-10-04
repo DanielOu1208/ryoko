@@ -1,16 +1,15 @@
 import SwiftUI
 
-/// The five tabs, in tab-bar order (design §3). The app opens on Map, in the centre.
+/// The four tabs, in tab-bar order (design §3). The app opens on Map, the one
+/// place for places: tapping a place opens its card in the Map's sheet.
 enum AppTab: String, CaseIterable, Hashable {
     case translate
-    case nearby
     case map
     case mimo
     case me
 
     var title: String {
         switch self {
-        case .nearby: "Nearby"
         case .map: "Map"
         case .translate: "Translate"
         case .mimo: "Mimo"
@@ -21,7 +20,6 @@ enum AppTab: String, CaseIterable, Hashable {
     /// `translate` is reserved for Apple's Translate app, so Translate uses `character.bubble`.
     var systemImage: String {
         switch self {
-        case .nearby: "location.fill"
         case .map: "map"
         case .translate: "character.bubble"
         case .mimo: "bubble.left"
@@ -54,9 +52,6 @@ struct RootTabView: View {
         TabView(selection: $router.selectedTab) {
             Tab(AppTab.translate.title, systemImage: AppTab.translate.systemImage, value: AppTab.translate) {
                 TranslateView()
-            }
-            Tab(AppTab.nearby.title, systemImage: AppTab.nearby.systemImage, value: AppTab.nearby) {
-                NearbyView()
             }
             Tab(AppTab.map.title, systemImage: AppTab.map.systemImage, value: AppTab.map) {
                 MapView()

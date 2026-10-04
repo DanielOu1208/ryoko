@@ -5,10 +5,12 @@ import Foundation
 ///
 /// - `ryoko://show?phrase=<id>`: Show mode for that phrase, which the app
 ///   kept when it put the phrase on the activity.
-/// - `ryoko://nearby`: the Nearby tab (an activity with no phrase yet).
+/// - `ryoko://map`: the Map with the current place's card (an activity with
+///   no phrase yet). `ryoko://nearby`, from activities started before the
+///   Nearby tab was merged into the Map, opens the same.
 nonisolated enum RyokoDeepLink: Hashable, Sendable {
     case show(phraseID: String)
-    case nearby
+    case currentPlace
 
     static let scheme = "ryoko"
 
@@ -19,10 +21,10 @@ nonisolated enum RyokoDeepLink: Hashable, Sendable {
         case let .show(phraseID):
             components.host = "show"
             components.queryItems = [URLQueryItem(name: "phrase", value: phraseID)]
-        case .nearby:
-            components.host = "nearby"
+        case .currentPlace:
+            components.host = "map"
         }
-        return components.url ?? URL(string: "ryoko://nearby")!
+        return components.url ?? URL(string: "ryoko://map")!
     }
 
     init?(url: URL) {
@@ -33,15 +35,16 @@ nonisolated enum RyokoDeepLink: Hashable, Sendable {
             guard let id = components.queryItems?.first(where: { $0.name == "phrase" })?.value,
                   !id.isEmpty else { return nil }
             self = .show(phraseID: id)
-        case "nearby":
-            self = .nearby
+        case "map", "nearby":
+            self = .currentPlace
         default:
             return nil
         }
     }
 
-    /// The link for an activity: its phrase in Show mode, or Nearby until there is one.
+    /// The link for an activity: its phrase in Show mode, or the current
+    /// place's card until there is one.
     init(phrase: ActivityPhrase?) {
-        self = phrase.map { .show(phraseID: $0.id) } ?? .nearby
+        self = phrase.map { .show(phraseID: $0.id) } ?? .currentPlace
     }
 }

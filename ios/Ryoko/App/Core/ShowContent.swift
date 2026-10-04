@@ -4,7 +4,7 @@ import UIKit
 /// What Show mode displays (design §4.4). Show mode takes one of these, never raw
 /// strings. W3 builds the Show mode views and the allergy and taxi cards.
 enum ShowContent: Identifiable, Hashable {
-    /// From Nearby, place sheets and Mimo's phrase blocks.
+    /// From the Map's place cards and Mimo's phrase blocks.
     case phrase(Phrase)
     /// A scrollable stack: each line in local script with your language below,
     /// and the severity always in words.
