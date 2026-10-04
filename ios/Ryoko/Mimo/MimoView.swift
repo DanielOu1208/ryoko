@@ -22,6 +22,9 @@ struct MimoView: View {
     @State private var nearby: [NearbyPlace]?
     /// Goes up each time Show mode opens, for the haptic.
     @State private var showCount = 0
+    /// True for a moment after a reply finishes, so the avatar's happy beat
+    /// plays even while the composer keeps focus.
+    @State private var celebrating = false
     @FocusState private var isComposing: Bool
     #if DEBUG
     /// A segment to scroll to (`-RyokoMimoScrollTo places`).
@@ -59,6 +62,15 @@ struct MimoView: View {
             }
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: showCount)
+        .onChange(of: chat.turns.last?.status) { old, new in
+            guard old == .streaming, case .done = new else { return }
+            celebrating = true
+        }
+        .task(id: celebrating) {
+            guard celebrating else { return }
+            try? await Task.sleep(for: .seconds(2.5))
+            celebrating = false
+        }
         .task(id: nearbyAnchor) {
             nearby = nil
             guard let anchor = nearbyAnchor else { return }
@@ -81,8 +93,8 @@ struct MimoView: View {
         if let turn = chat.turns.last, turn.isStreaming {
             return turn.toolLine != nil || turn.segments.isEmpty ? .thinking : .talking
         }
+        if celebrating { return .happy }
         if isComposing { return .listening }
-        if let turn = chat.turns.last, case .done = turn.status { return .happy }
         return .idle
     }
 
