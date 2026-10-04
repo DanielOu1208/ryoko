@@ -225,7 +225,7 @@ private struct MimoSourcesView: View {
                 .foregroundStyle(.secondary)
             ScrollView(.horizontal) {
                 HStack(spacing: Theme.grid * 0.75) {
-                    ForEach(sources, id: \.url) { source in
+                    ForEach(onePerSite, id: \.url) { source in
                         if let url = source.link {
                             Link(destination: url) {
                                 Text(Self.siteName(url) ?? source.title)
@@ -243,6 +243,15 @@ private struct MimoSourcesView: View {
                 }
             }
             .scrollIndicators(.hidden)
+        }
+    }
+
+    /// The first source from each site: two pages from one site are one pill.
+    private var onePerSite: [WebSource] {
+        var seen = Set<String>()
+        return sources.filter { source in
+            guard let url = source.link else { return false }
+            return seen.insert(Self.siteName(url) ?? source.url).inserted
         }
     }
 

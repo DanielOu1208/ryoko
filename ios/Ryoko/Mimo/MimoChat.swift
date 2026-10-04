@@ -192,8 +192,16 @@ final class MimoChat {
         context: MimoSendContext
     ) async {
         var ended = false
+        /// When each web search started, to hold its line up for a moment.
+        var searchesStarted: [String: ContinuousClock.Instant] = [:]
         do {
             for try await event in stream {
+                if case let .toolStart(id, name, _) = event, name == .webSearch {
+                    searchesStarted[id] = .now
+                }
+                if case let .toolEnd(end) = event, let started = searchesStarted.removeValue(forKey: end.id) {
+                    try await Task.sleep(until: started + MimoFeature.minimumSearchTime, clock: .continuous)
+                }
                 ended = apply(event, to: turnID, context: context)
                 if ended { break } // `done` and `error` are terminal
             }
