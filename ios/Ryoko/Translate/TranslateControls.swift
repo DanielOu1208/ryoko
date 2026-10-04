@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// The bottom of Translate: the status line, the big mic button with the
-/// smaller keyboard button beside it (Type mode, T2.4), and the pair menu.
+/// The bottom of Translate: the status line with the keyboard button (Type
+/// mode, T2.4) on its right, then your language, the big mic button and their
+/// language in one row, as in Google Translate. Each language is its own menu.
 struct TranslateControls: View {
     let model: TranslateModel
     let pair: TranslatePair?
@@ -16,16 +17,20 @@ struct TranslateControls: View {
     /// Opens Type mode.
     let type: () -> Void
 
-    @ScaledMetric(relativeTo: .title3) private var sideButton: CGFloat = 52
+    @ScaledMetric(relativeTo: .title3) private var sideButton: CGFloat = 44
 
     var body: some View {
         VStack(spacing: Theme.grid * 1.5) {
+            // The status stays centred; Type sits at the trailing edge.
             status
-            HStack(spacing: Theme.grid * 3) {
-                // Keeps the mic button centred.
-                Color.clear
-                    .frame(width: sideSize, height: sideSize)
-                    .accessibilityHidden(true)
+                .padding(.horizontal, sideSize + Theme.grid)
+                .frame(maxWidth: .infinity, minHeight: sideSize)
+                .overlay(alignment: .trailing) {
+                    KeyboardButton(size: sideSize, action: type)
+                        .disabled(pair == nil)
+                }
+            HStack(spacing: Theme.grid * 1.5) {
+                homeMenu
                 MicButton(
                     isListening: model.phase == .listening,
                     isBusy: model.phase == .starting || model.phase == .finishing,
@@ -33,10 +38,8 @@ struct TranslateControls: View {
                     action: toggle
                 )
                 .disabled(pair == nil && !model.isActive)
-                KeyboardButton(size: sideSize, action: type)
-                    .disabled(pair == nil)
+                otherMenu
             }
-            pairMenu
             if let note, !model.isActive {
                 Text(note)
                     .font(.footnote)
@@ -52,7 +55,7 @@ struct TranslateControls: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var sideSize: CGFloat { min(sideButton, 72) }
+    private var sideSize: CGFloat { min(sideButton, 60) }
 
     private var status: some View {
         Group {
@@ -77,9 +80,27 @@ struct TranslateControls: View {
         .accessibilityAddTraits(.updatesFrequently)
     }
 
-    // MARK: Pair
+    // MARK: Languages
 
-    private var pairMenu: some View {
+    /// Your language (left): the profile's, or one picked here.
+    private var homeMenu: some View {
+        Menu {
+            Picker("Your language", selection: homeSelection) {
+                Text("From your profile: \(PairLanguage(tag: homeTag)?.name ?? homeTag)").tag("")
+                ForEach(options) { language in
+                    Text(language.name).tag(language.tag)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            LanguagePillLabel(name: homeLanguage.name)
+        }
+        .languagePill(isDisabled: model.isActive)
+        .accessibilityLabel("Your language, \(homeLanguage.name)")
+    }
+
+    /// Their language (right): the place's, or one picked here.
+    private var otherMenu: some View {
         Menu {
             Picker("Their language", selection: otherSelection) {
                 if let here = situationLanguage.flatMap(PairLanguage.init(tag:)) {
@@ -90,21 +111,11 @@ struct TranslateControls: View {
                 }
             }
             .pickerStyle(.inline)
-            Picker("Your language", selection: homeSelection) {
-                Text("From your profile: \(PairLanguage(tag: homeTag)?.name ?? homeTag)").tag("")
-                ForEach(options) { language in
-                    Text(language.name).tag(language.tag)
-                }
-            }
-            .pickerStyle(.menu)
         } label: {
-            Label(pair?.label ?? "Choose languages", systemImage: "character.bubble")
-                .font(.subheadline.weight(.medium))
+            LanguagePillLabel(name: pair?.other.name ?? "Choose")
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .disabled(model.isActive)
-        .accessibilityHint(model.isActive ? "Stop listening to change languages." : "Changes the languages to translate between.")
+        .languagePill(isDisabled: model.isActive)
+        .accessibilityLabel("Their language, \(pair?.other.name ?? "not chosen")")
     }
 
     private var homeLanguage: PairLanguage {
@@ -182,5 +193,39 @@ struct MicButton: View {
             }
         }
         .accessibilityLabel(isListening ? "Stop listening" : (isBusy ? "Stop" : "Start listening"))
+    }
+}
+
+/// A language's name in a pill, with the menu's up-and-down chevron.
+private struct LanguagePillLabel: View {
+    let name: String
+
+    var body: some View {
+        HStack(spacing: Theme.grid * 0.75) {
+            Text(name)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+        }
+        .font(.subheadline.weight(.semibold))
+        .frame(maxWidth: .infinity, minHeight: 32)
+    }
+}
+
+private extension View {
+    /// One of the two language buttons beside the mic: a glass pill that
+    /// takes half the row's spare width. Off while listening: the pair is fixed
+    /// for a session.
+    func languagePill(isDisabled: Bool) -> some View {
+        self
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
+            .frame(maxWidth: .infinity)
+            .disabled(isDisabled)
+            .accessibilityHint(isDisabled ? "Stop listening to change languages." : "Changes the language.")
     }
 }

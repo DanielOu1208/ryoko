@@ -209,7 +209,7 @@ For all of them:
 
 Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_way` mode, with language identification and endpoint detection on.
 
-- **Language pair:** defaults to (profile home language, local language of the active situation), e.g. English ⇄ Chinese in Shanghai. It can still be picked by hand. It never changes mid-session.
+- **Language pair:** defaults to (profile home language, local language of the active situation), e.g. English ⇄ Chinese in Shanghai. It can still be picked by hand, as in Google Translate: your language in a pill left of the mic, theirs in a pill to the right, each its own menu. It never changes mid-session (the pills are off while listening).
 - **Turns:**
   - Translate keeps an in-memory list of turns: id, speaker (me / them), original, translation, source (voice / typed), and whether it was edited.
   - The panes show the latest turn. A **History** toolbar button opens a sheet listing every turn.
