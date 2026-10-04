@@ -12,7 +12,7 @@ import { createLlm, type Llm } from '../llm/registry.ts';
 import { generateTyped, type GenerationStats } from '../llm/typed.ts';
 import { ALLERGY_CARD_PROMPT_VERSION, allergyCardModelOutput, allergyCardSystem, allergyCardUser, finalizeAllergyCard } from './allergy-card.ts';
 import { languageInfo } from './context.ts';
-import { DISCOVER_PROMPT_VERSION, DiscoverModelOutput, discoverSystem, discoverUser, finalizeDiscover, geohash } from './discover.ts';
+import { DISCOVER_PROMPT_VERSION, discoverGrounding, DiscoverModelOutput, discoverSystem, discoverUser, finalizeDiscover, geohash, nearbyKey } from './discover.ts';
 import { createExaSearch, type WebSearch } from './mimo/exa.ts';
 import { MimoSessions, type MimoRunStats } from './mimo/session.ts';
 import { finalizePlaceCard, normalizePlaceCard, PLACE_CARD_PROMPT_VERSION, PlaceCardModelOutput, placeCardSystem, placeCardUser } from './place-card.ts';
@@ -58,6 +58,22 @@ export function placeKey(request: PlaceCardRequest): string {
   const { place } = request.situation;
   if (!place) return `city:${request.situation.countryCode}:${norm(request.situation.city)}:${norm(request.situation.district ?? '')}`;
   return place.id ?? `${norm(place.name)}@${place.coordinate.lat.toFixed(4)},${place.coordinate.lon.toFixed(4)}`;
+}
+
+/** Geohash-6 area, radius, hour bucket, profile version and local language (design §6.5), plus the nearby names' hash (design #54). */
+export function discoverKey(request: DiscoverRequest, modelKey: string): string {
+  const { center } = request.area;
+  return cacheKey([
+    'discover',
+    DISCOVER_PROMPT_VERSION,
+    modelKey,
+    geohash(center.lat, center.lon, 6),
+    request.area.radiusMeters,
+    request.situation.hourBucket,
+    request.profile.version,
+    request.situation.localLanguage,
+    nearbyKey(request),
+  ]);
 }
 
 export function createModelSkills(config: Config, options: ModelSkillsOptions = {}): ModelSkills {
@@ -121,25 +137,14 @@ export function createModelSkills(config: Config, options: ModelSkillsOptions = 
 
     async discover(request: DiscoverRequest) {
       const { key: modelKey } = await llm.forSkill('discover');
-      const { center } = request.area;
-      const key = cacheKey([
-        'discover',
-        DISCOVER_PROMPT_VERSION,
-        modelKey,
-        geohash(center.lat, center.lon, 6),
-        request.area.radiusMeters,
-        request.situation.hourBucket,
-        request.profile.version,
-        request.situation.localLanguage,
-      ]);
-      return cached('discover', key, (stats) =>
+      return cached('discover', discoverKey(request, modelKey), (stats) =>
         generateTyped({
           llm,
           budget,
           skill: 'discover',
           label: 'list of places',
           schema: DiscoverModelOutput,
-          system: discoverSystem(languageInfo(request.situation.localLanguage), languageInfo(request.profile.homeLanguage)),
+          system: discoverSystem(languageInfo(request.situation.localLanguage), languageInfo(request.profile.homeLanguage), discoverGrounding(request)),
           user: discoverUser(request),
           maxTokens: 1500,
           timeoutMs,
