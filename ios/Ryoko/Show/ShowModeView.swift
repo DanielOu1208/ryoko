@@ -12,13 +12,17 @@ import SwiftUI
 ///   face them; raise it and it turns back. Flip overrides it until the next tilt.
 /// - Brightness goes to max and the idle timer is off while it's open
 ///   (`ShowScreenKeeper`); both are restored on close.
-/// - A haptic on open. Speak arrives in tier 2.
+/// - **Speak** (bottom bar) reads the content aloud: the phrase, the allergy
+///   card's lines and request, or the taxi phrase with the name and address.
+///   Closing stops it.
+/// - A haptic on open.
 struct ShowModeView: View {
     let content: ShowContent
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.speechService) private var speech
 
     @State private var isFlipped = false
     @State private var hasAppeared = false
@@ -46,6 +50,9 @@ struct ShowModeView: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
                     }
+                    ToolbarItem(placement: .bottomBar) {
+                        SpeakButton(phrase: content.spokenPhrase)
+                    }
                 }
                 .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
         }
@@ -55,7 +62,10 @@ struct ShowModeView: View {
         .sensoryFeedback(.selection, trigger: isFlipped)
         .statusBarHidden()
         .onAppear { tilt.start() }
-        .onDisappear { tilt.stop() }
+        .onDisappear {
+            tilt.stop()
+            speech.stop()
+        }
         .onChange(of: tilt.layout) { _, layout in
             let flipped = layout == .faceToFace
             guard flipped != isFlipped else { return }
@@ -68,6 +78,11 @@ struct ShowModeView: View {
             #endif
         }
         #if DEBUG
+        .task {
+            guard ShowDebugOptions.speaksOnOpen else { return }
+            try? await Task.sleep(for: .seconds(1))
+            await speech.speak(content.spokenPhrase)
+        }
         .task {
             guard let delay = ShowDebugOptions.autoCloseAfter else { return }
             try? await Task.sleep(for: delay)

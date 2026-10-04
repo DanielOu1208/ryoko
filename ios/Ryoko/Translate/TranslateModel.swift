@@ -38,6 +38,8 @@ final class TranslateModel {
         case interrupted
         /// Paused while you type or edit; `resume()` picks up again.
         case paused
+        /// A phrase is about to be spoken aloud (design §8.1).
+        case speaking
     }
 
     private(set) var phase: Phase = .idle
@@ -209,6 +211,15 @@ final class TranslateModel {
         stop(reason)
     }
 
+    /// Stops listening at once before a phrase is spoken, so the two never
+    /// overlap (design §8.1), then gives the session a moment to let go of the
+    /// audio session.
+    func stopForSpeech() async {
+        guard phase != .idle else { return }
+        stopAndForgetPause(.speaking)
+        try? await Task.sleep(for: .milliseconds(300))
+    }
+
     // MARK: Pause for typing and editing (T2.4)
 
     /// Pauses listening while you type or edit (design §4.8: "Soniox pauses
@@ -357,6 +368,7 @@ final class TranslateModel {
             case .silence: return "Stopped after \(silenceLimitText) of quiet"
             case .background: return "Stopped when Ryoko left the screen"
             case .interrupted: return "Stopped for another app's audio"
+            case .speaking: return "Stopped while a phrase played"
             case .paused: return isPaused ? "Paused while you type" : "Tap to start"
             case .user, nil: return "Tap to start"
             }

@@ -16,7 +16,7 @@ A living tracker for the build. **Update it as you work.** When you start a task
 | Setup (§12.2) | done | S1–S5 done |
 | Device spikes (§11) | doing | D1, D3, D4 done (D1/D4 from the Mac); D2 done (desk) |
 | Tier 1: working core | doing | **All of W1–W7 built, end-to-end checked against real GMI, reviewed and fixed.** W8 avatar done. **Merged on `main` (W8.6–W8.14):** Map-first places with Nearby removed (#53), picks grounded in real nearby places (#54), About me (#55), Mimo relevance (#56), allergen filter removed (#57), thinking levels (#58), compact Mimo header (#59), place thumbnails (#60), and the sidebar/composer fix. Open: minor follow-ups (see Fix round); W8.5 hand testing on the phone |
-| Tier 2 | doing | T2.2–T2.6 done (merged, verified end to end on real GMI, reviewed, fixed). T2.1 Speak waits for an ElevenLabs key; T2.7 Gemini deferred |
+| Tier 2 | doing | T2.2–T2.6 done (merged, verified end to end on real GMI, reviewed, fixed). T2.1 Speak built (on-device voice works; ElevenLabs waits for a key and voice id); T2.7 Gemini deferred |
 | After core | todo | |
 | Submission | todo | |
 
@@ -220,7 +220,7 @@ Write down what you find. The results may change the spec.
 
 | # | Task | Owner | Status | Branch/PR | Notes |
 | --- | --- | --- | --- | --- | --- |
-| T2.1 | Speak: ElevenLabs client (restricted key via the MLH code or Starter), audio cache, `AVSpeechSynthesizer` fallback, `.playback` session, stop Translate first | | todo | | |
+| T2.1 | Speak: ElevenLabs client (restricted key via the MLH code or Starter), audio cache, `AVSpeechSynthesizer` fallback, `.playback` session, stop Translate first | agent:speech | review | `ws/t2-speak` | `LiveSpeechService` (Speech/): `eleven_flash_v2_5` with `language_code`, MP3s cached in Caches/SpeechAudio by hash, on-device voice without a key or on error; `SpeakButton` beside Show on place-card phrases and in Show mode's bottom bar (phrase, allergy, taxi). Listening stops first (`TranslateModel.stopForSpeech`). Simulator-checked with the on-device voice (Show mode: Speak → Stop → Speak; place card). **Waiting on** `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID` in `Secrets.xcconfig` to hear ElevenLabs itself (#71) |
 | T2.2 | Live Activity: attributes in `Shared/`, lock screen, Dynamic Island, deep link to Show, one at a time | wf:T2 | done | `worktree-wf_be317781-a93-1` | Starts on confirm/preview (only where there are phrases), one at a time, placeholder → real top phrase (≤ ~320 B), 2 h end + staleDate; lock screen + Dynamic Island (category symbol + short name, expanded phrase); ryoko://show deep link opens Show (cold start too); waits 2.5 s for profile edits to settle. Real tap on the phone still to try |
 | T2.3 | Onboarding survey (7 pages) + editing in Me + redo survey | wf:T2 | done |  | 7-page survey on first launch (skips → null), DEBUG 'Use demo profile'; Me: every section editable live (text saves after a 1 s pause), home base via search or pick on map, Redo survey; profile.version updates so the server regenerates cards |
 | T2.4 | Translate Type mode + tap-to-edit turns + `/v1/translate` | wf:T2 | done |  | Type mode with a live preview (500 ms pauses, stale requests cancelled), Done adds the turn; tap your turn (panes or History) to edit and re-translate; /v1/translate on GMI ~1.6–2.2 s cold, cached |

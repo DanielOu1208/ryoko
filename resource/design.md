@@ -132,7 +132,7 @@ A full-screen cover meant to be handed to someone else. It takes a `ShowContent`
 For all of them:
 - Plain system background (white or black), no gradient. Contrast comes first.
 - A phrase's local script is as large as fits (`minimumScaleFactor`), with romanization below it in small type and the gloss smallest, at the bottom.
-- Buttons: **Flip** (rotates 180° for someone across a counter) and **Done**. **Speak** comes in tier 2.
+- Buttons: **Flip** (rotates 180° for someone across a counter) and **Done**, plus **Speak** in the bottom bar (§8.1). It reads the phrase; on the allergy card, the lines and the request; on the taxi card, the phrase, then the name and address. Closing Show mode stops it.
 - **Tilt:** like Translate's face-to-face layout (§4.8), laying the phone flat or tipping it toward the other person flips the content to face them; raising it flips it back. Flip overrides until the next tilt.
 - A long phrase starts smaller (about 60% of a short one's size) so it reads in a few lines.
 - Screen brightness goes to max and the idle timer is off while it's open. Both are restored on close.
@@ -181,7 +181,7 @@ For all of them:
   - Round buttons: **Directions** (Apple Maps, the default mode), **Taxi** (§4.6), **Allergy** (§4.5; only with allergies, when the language has templates and you don't speak it) and **Ask Mimo** (§4.9).
   - **I'm here** within about 300 m of your live location: it makes this the current place (ending a preview first), then shows "You're here". Further away, or with no fix: **Preview** with the date and time picker (§4.2).
   - Mimo's why (for picks and From Mimo places).
-  - **What to say:** 2–3 phrase cards, each with the local script (the largest text), romanization (pinyin or romaji; on by default, can be turned off in Me), the gloss, a "because…" line of about 8 words at most, and **Show**. **Speak** arrives in tier 2.
+  - **What to say:** 2–3 phrase cards, each with the local script (the largest text), romanization (pinyin or romaji; on by default, can be turned off in Me), the gloss, a "because…" line of about 8 words at most, and **Show** and **Speak** (§8.1).
   - **Tips (1–2),** framed against your nationality where that helps ("No tipping, same as… / unlike Canada").
   - The address.
   - Where you speak the local language: tips only (no phrases and no Allergy).
@@ -624,13 +624,13 @@ Relevant tracks: ElevenLabs, Gemini API, Tiger Data, Snowflake API, plus Best So
 
 ### 8.1 ElevenLabs: tier 2
 
-All spoken output goes through ElevenLabs: Speak on phrase cards and in Show mode, and on the allergy and taxi cards. Speech is always on demand, never in real time.
+All spoken output goes through ElevenLabs: Speak on phrase cards and in Show mode, which covers the allergy and taxi cards. Mimo's phrase blocks open Show mode, so they get Speak there. Speech is always on demand, never in real time. Tapping Speak again while it plays stops it (#71).
 
 - **Account:** the free tier can't use Voice Library voices over the API and gets blocked on shared IPs. Use the MLH ElevenLabs code (a free 3-month subscription) or Starter. Create a restricted key (Text to Speech only) with a credit limit.
-- **Voices:** stock voices only, one each for Mandarin, Japanese and English. Listen to candidates before hard-coding voice ids.
+- **Voice:** one voice from the account's own voices speaks all three languages (`eleven_flash_v2_5` is multilingual, and `language_code` pins the language). It's set as `ELEVENLABS_VOICE_ID` next to the key, not in code: the old stock voices only work on accounts made before March 2026, and they stop working on Dec 31, 2026 (#71). Listen before picking.
 - **Model:** `eleven_flash_v2_5` (low latency, includes Chinese and Japanese). `eleven_multilingual_v2` is an option because cached audio favours quality.
-- **Calls:** the device calls ElevenLabs directly, with the key in the gitignored `Secrets.xcconfig`.
-- **Caching:** audio is cached on the device by a hash of (text, voice, model), so repeated phrases are instant and free.
+- **Calls:** the device calls ElevenLabs directly, with `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` in the gitignored `Secrets.xcconfig` (Info.plist `RyokoElevenLabsAPIKey`, `RyokoElevenLabsVoiceID`). Without either, Speak uses the on-device voice.
+- **Caching:** audio is cached on the device by a hash of (text, language, voice, model), so repeated phrases are instant and free. Files older than 30 days are removed.
 - **Fallback:** `AVSpeechSynthesizer` when offline or on error.
 - **Audio session:** use `.playback` (the default category is silenced by the silent switch). Stop Translate's listening session before playing, so the two never overlap.
 
@@ -926,3 +926,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 68 | Translate's turns are manual: you say who's speaking by tapping their language, and everything heard stays in that turn until you tap the other. Soniox finalizes at each hand-over so last words stay put; strict language hints. Supersedes the automatic turn rule from #29 (kept for DEBUG) | user (auto switching too sensitive, text vanished on every switch) |
 | 69 | Me is a styled home instead of one long list: an avatar header (an SF Symbol you pick, kept on the device, not in the profile), where you're from, languages and this-or-that chips; the allergy card at a glance (local title, allergens with severity in words, tap for Show mode); Diet, Your usual and Home base; About me; and a Settings row that holds every profile page, the home base, Redo survey, romanization, credits and the developer section. §4.10 | user ("the Me screen looks like an afterthought") |
 | 70 | Every thinking orb is the Rubik's cube design (`.solving`) instead of one design per kind of work | user |
+| 71 | Speak: one ElevenLabs voice for every language, set in `Secrets.xcconfig` (`ELEVENLABS_VOICE_ID`) instead of a stock voice per language in code, because new accounts don't get the stock voices. Speak sits beside Show on phrase cards and in Show mode's bottom bar; Mimo's phrase blocks get it through Show mode. §8.1, §4.4 | research (ElevenLabs default voices: accounts made before March 2026 only) |
