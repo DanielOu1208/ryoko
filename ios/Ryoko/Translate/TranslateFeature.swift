@@ -4,14 +4,33 @@ import os
 /// Translate (design §4.8, W5): live two-way speech translation through Soniox.
 ///
 /// - `TranslateView`: the tab. Panes for the latest turn, upright or face to
-///   face, the mic button, the pair menu and History.
+///   face, the mic button, the keyboard button, the pair menu and History.
 /// - `TranslateModel`: one listening session at a time, the turns, the
-///   2-minute silence stop and the idle timer.
+///   2-minute silence stop, the pause for typing and the idle timer. The app
+///   owns it (`RyokoApp` puts it in the environment).
+/// - `TranslateComposer` + `TranslateComposerView`: Type mode and the turn
+///   editor, translated by `POST /v1/translate` (T2.4).
+/// - `ListeningAccessory`: the tab bar's accessory while listening (T2.5).
+/// - `SonioxKeyProvider`: a temporary key from the server per session, or the
+///   build's key when the server can't hand one out (T2.6).
 /// - `TurnBuilder` (`TurnRule.swift`): the pure turn rule. `TiltRule`: the pure
 ///   layout rule. `TurnRuleCheck.swift` checks both on the Mac.
 /// - `SonioxSession`, `SonioxRun`, `MicrophoneCapture`: the WebSocket client,
 ///   the session driver and 16 kHz capture.
 enum TranslateFeature {}
+
+extension TranslateModel {
+    /// The app's model: the microphone in release builds; in DEBUG, the source
+    /// and silence limit from the launch arguments.
+    static func forLaunch() -> TranslateModel {
+        #if DEBUG
+        let silence = TranslateDebug.silenceSeconds.map { Duration.seconds($0) } ?? .seconds(120)
+        return TranslateModel(source: TranslateDebug.source, silenceLimit: silence)
+        #else
+        return TranslateModel()
+        #endif
+    }
+}
 
 #if DEBUG
 /// DEBUG launch arguments for Translate (there's no tap automation):
@@ -23,7 +42,8 @@ enum TranslateFeature {}
 /// - `-RyokoTranslateSource microphone|silence|canned`: where the words come
 ///   from. `silence` streams silence to the real Soniox (checks the key and
 ///   its errors without a microphone); `canned` plays a scripted conversation.
-/// - `-RyokoTranslateAutoStart 1`: start listening when Translate appears.
+/// - `-RyokoTranslateAutoStart 1`: start listening at launch, whichever tab
+///   opens (so the Listening accessory shows on the others).
 /// - `-RyokoTranslateOther <tag>` / `-RyokoTranslateHome <tag>`: pick the pair by hand.
 /// - `-RyokoTranslateLayout upright|faceToFace`: force a layout.
 /// - `-RyokoTranslateHistory <seconds>`: open History that long after appearing.
@@ -32,6 +52,13 @@ enum TranslateFeature {}
 ///   error code (401, 402…), or `mic` for a denied microphone.
 /// - `-RyokoTranslateSilenceSeconds <n>`: the silence stop after n seconds, not 120.
 /// - `-RyokoTranslateSelfCheck 1`: run the turn-rule cases and log the result.
+/// - `-RyokoTranslateType "<text>"`: when Translate appears, open Type mode
+///   and type this (after `-RyokoTranslateTypeDelay <seconds>`, default 0.5).
+///   `-RyokoTranslateTypeDone <seconds>` then presses Done that much later.
+/// - `-RyokoTranslateEdit <seconds>`: that long after Translate appears, open
+///   the editor on your latest turn (listening pauses); `-RyokoTranslateEditText
+///   "<text>"` then replaces your words with this, and `-RyokoTranslateEditDone
+///   <seconds>` presses Done that much later (listening picks up again).
 enum TranslateDebug {
     private static var defaults: UserDefaults { .standard }
 
@@ -65,6 +92,52 @@ enum TranslateDebug {
     static var silenceSeconds: Double? {
         let seconds = defaults.double(forKey: "RyokoTranslateSilenceSeconds")
         return seconds > 0 ? seconds : nil
+    }
+
+    static var typeText: String? { defaults.string(forKey: "RyokoTranslateType") }
+
+    static var typeDelay: Double {
+        defaults.object(forKey: "RyokoTranslateTypeDelay") == nil ? 0.5 : defaults.double(forKey: "RyokoTranslateTypeDelay")
+    }
+
+    static var typeDoneDelay: Double? {
+        defaults.object(forKey: "RyokoTranslateTypeDone") == nil ? nil : defaults.double(forKey: "RyokoTranslateTypeDone")
+    }
+
+    static var editDelay: Double? {
+        defaults.object(forKey: "RyokoTranslateEdit") == nil ? nil : defaults.double(forKey: "RyokoTranslateEdit")
+    }
+
+    static var editText: String? { defaults.string(forKey: "RyokoTranslateEditText") }
+
+    static var editDoneDelay: Double? {
+        defaults.object(forKey: "RyokoTranslateEditDone") == nil ? nil : defaults.double(forKey: "RyokoTranslateEditDone")
+    }
+
+    /// `-RyokoTranslateAutoStart 1`: starts listening at launch with the pair
+    /// Translate would use (waiting up to 10 s for the situation if no
+    /// language was picked with `-RyokoTranslateOther`).
+    @MainActor
+    static func autoStartIfAsked(
+        model: TranslateModel,
+        homeTag: @escaping () -> String,
+        situationLanguage: @escaping () -> String?,
+        api: any RyokoAPI
+    ) async {
+        guard autoStart, !model.isActive, model.history.isEmpty else { return }
+        for _ in 0..<40 {
+            if let pair = PairChoice.resolve(
+                homeTag: homeTag(),
+                situationLanguage: situationLanguage(),
+                manualHome: manualHome,
+                manualOther: manualOther
+            ) {
+                await model.start(pair: pair, api: api)
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        RyokoLog.translate.notice("Auto start: no pair after 10 s")
     }
 
     /// Runs the turn-rule cases in the app and logs them (`-RyokoTranslateSelfCheck 1`).
