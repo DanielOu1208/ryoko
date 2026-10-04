@@ -1,4 +1,5 @@
 import SwiftUI
+import ThinkingOrbs
 
 /// Me → "Allergy card" (design §4.10): a preview row that opens the card in
 /// Show mode. It uses the situation's local language when there are templates
@@ -86,7 +87,9 @@ struct AllergyCardPreviewRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if presenter.isLoading {
-                ProgressView()
+                // Mimo writing the card in the local language.
+                ThinkingOrb(.composing, size: .small)
+                    .accessibilityLabel("Writing the allergy card")
             } else if let symbol {
                 Image(systemName: symbol)
                     .foregroundStyle(.secondary)

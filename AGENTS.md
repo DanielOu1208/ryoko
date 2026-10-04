@@ -56,7 +56,7 @@ Ryoko is an iOS travel app. **Mimo** is its agent, served by a Node server. Befo
 - **Secrets** come from `ios/Config/Secrets.xcconfig` (gitignored; copy `Secrets.example.xcconfig`) through the Info.plist keys `RyokoAppToken`, `RyokoAgentBaseURL` and `RyokoSonioxAPIKey`. In xcconfig, `//` starts a comment, so write URLs as `https:/$()/host:port`.
 - **Platform rules:**
   - Use `MKReverseGeocodingRequest`, not `CLGeocoder` (deprecated).
-  - Use `.redacted(reason: .placeholder)` for loading states.
+  - Loading where Mimo is working: `MimoWorking` (a thinking orb and a line) on a card, with `ArrivingStack` for content that arrives as a stack (design §9.5). Elsewhere, `.redacted(reason: .placeholder)` or the system spinner.
   - SF Symbols only; the Translate tab uses `character.bubble`.
   - Show local script through `LocalText`, which sets the language tag.
 - **Styling and copy:** design §9. Monochrome controls, no glass on content, sentence case, no exclamation marks, and never "AI", "smart" or "magic" in the UI.

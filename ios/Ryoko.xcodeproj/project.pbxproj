@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000029 /* RyokoLiveActivityExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000006 /* RyokoLiveActivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A10000000000000000000050 /* ThinkingOrbs in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000052 /* ThinkingOrbs */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +68,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000000050 /* ThinkingOrbs in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -135,6 +137,7 @@
 			);
 			name = Ryoko;
 			packageProductDependencies = (
+				A10000000000000000000052 /* ThinkingOrbs */,
 			);
 			productName = Ryoko;
 			productReference = A10000000000000000000005 /* Ryoko.app */;
@@ -190,6 +193,9 @@
 			);
 			mainGroup = A10000000000000000000002;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A10000000000000000000051 /* XCRemoteSwiftPackageReference "ThinkingOrbs" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A10000000000000000000003 /* Products */;
 			projectDirPath = "";
@@ -534,6 +540,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A10000000000000000000051 /* XCRemoteSwiftPackageReference "ThinkingOrbs" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/haplollc/ThinkingOrbs";
+			requirement = {
+				kind = exactVersion;
+				version = 1.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A10000000000000000000052 /* ThinkingOrbs */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000051 /* XCRemoteSwiftPackageReference "ThinkingOrbs" */;
+			productName = ThinkingOrbs;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A10000000000000000000001 /* Project object */;
 }

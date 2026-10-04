@@ -1,5 +1,6 @@
 import MapKit
 import SwiftUI
+import ThinkingOrbs
 
 /// The places from one `show_places` call (design §4.9), as one card in the
 /// reply: a small map with their pins (numbered for a plan) that opens the
@@ -12,8 +13,14 @@ struct MimoPlacesView: View {
     var onShowOnMap: () -> Void
 
     var body: some View {
-        content
-            .animation(.smooth(duration: 0.35), value: places.found == nil)
+        // While the names are looked up on the map, Mimo's working card,
+        // which dissolves into the places card.
+        ArrivingStack(isLoading: places.found == nil) {
+            MimoWorking(design: .connecting, line: "Finding places on the map")
+                .background(Theme.cardFill, in: Theme.cardShape)
+        } content: {
+            content
+        }
     }
 
     @ViewBuilder
@@ -35,29 +42,6 @@ struct MimoPlacesView: View {
                     }
                 }
             }
-        } else {
-            // Looking the names up on the map: the card's shape, so nothing jumps
-            // when the places come in.
-            card {
-                Rectangle()
-                    .fill(.quaternary)
-                    .frame(height: MimoPlacesMap.height)
-                ForEach(Array(places.lookupOrder.enumerated()), id: \.offset) { index, shown in
-                    if index > 0 { Divider().padding(.leading, MimoPlaceRow.textInset) }
-                    MimoPlaceRow(
-                        shown: shown,
-                        category: .other,
-                        number: places.isPlan ? shown.order ?? index + 1 : nil,
-                        distanceMeters: nil,
-                        language: places.language,
-                        action: {}
-                    )
-                }
-            }
-            .redacted(reason: .placeholder)
-            .disabled(true)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Finding places on the map")
         }
     }
 

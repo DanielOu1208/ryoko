@@ -120,7 +120,7 @@ Built from native parts: a paged `NavigationStack` with large titles, bordered/p
 Removed (#53). Its content is now the place card in the Map's sheet (§4.7): phrases with "because…" and Show, tips, Allergy and Taxi, and Preview. Its special cases carry over:
 - **No place yet:** the sheet's header says "Near you".
 - **The local language is one you speak:** the card shows tips only.
-- **Loading:** native `.redacted(reason: .placeholder)`; an error offers Try again, with the saved card as a fallback.
+- **Loading:** Mimo's working card (§9.5); an error offers Try again, with the saved card as a fallback.
 
 ### 4.4 Show mode
 
@@ -185,7 +185,7 @@ For all of them:
   - **Tips (1–2),** framed against your nationality where that helps ("No tipping, same as… / unlike Canada").
   - The address.
   - Where you speak the local language: tips only (no phrases and no Allergy).
-  - Loading is `.redacted`; an error offers **Try again**; the saved card is the fallback, marked as saved.
+  - Loading is Mimo's working card ("Writing phrases and tips"), which dissolves into the sections (§9.5); an error offers **Try again**; the saved card is the fallback, marked as saved.
 - **Look Around only in the place card** (#60, #61). MapKit has no public API for Apple Maps listing photos (checked against the iOS 27 SDK). Look Around is the street in front of a place, so every shop in one building shared a picture as a row thumbnail: rows went back to category icons. The card's `LookAroundPreview` stays.
   - `PlaceThumbnail` and its loader remain in `Map/` (the card's scene comes from the loader); the row thumbnail view is unused. Foursquare photos are parked on `feature/foursquare-photos` (tracker W8.15).
 - MapKit with the user's location, plus `.searchable` with `MKLocalSearchCompleter` suggestions. Queries can be in English or local script ("Heytea Jing'an", "喜茶 静安"). Picking a result moves the camera and opens the place's card.
@@ -309,7 +309,7 @@ Holds:
 
 ### 4.12 States
 
-Every tab defines its empty, loading (`.redacted`), error (a message plus retry), offline (the last cached card, marked as such) and permission-denied (location, microphone) states. The server being unreachable is a normal error state, never a crash or an endless spinner.
+Every tab defines its empty, loading (Mimo's working card where Mimo is at work, §9.5; otherwise `.redacted` or the system spinner), error (a message plus retry), offline (the last cached card, marked as such) and permission-denied (location, microphone) states. The server being unreachable is a normal error state, never a crash or an endless spinner.
 
 ## 5. Personalization rules
 
@@ -702,6 +702,14 @@ Reference: Luma. Lots of whitespace, confident type, few controls, and colour th
 
 - SF Symbols only, monochrome or hierarchical rendering. The app icon is not built from SF Symbols; their licence doesn't allow it.
 - Native springs (`.smooth`, `.snappy`), symbol effects and `contentTransition` for changing text.
+- **Where Mimo is working** (#65), a dotted thinking orb (the `ThinkingOrbs` package, after Jakub Antalik's thinking-orbs, MIT; monochrome, still under Reduce Motion) with a short line, on a card:
+  - Mimo picks: "Picking places for you" (`.weaving`); once picks come in, a small orb row "Picking more places" until they're done.
+  - A place card: "Writing phrases and tips" or "Writing tips for this place" (`.composing`).
+  - Mimo's places: "Finding places on the map" (`.connecting`).
+  - Finding where you are: the orb alone (`.searching`; the header says it).
+  - The allergy card row: a small orb (`.composing`).
+  - Stacked results arrive from that one card: it dissolves (blur, a small swell, fade) into the first card in its place, and the rest rise in one by one. Content already at hand (a saved card) just appears.
+  - Busy buttons (the mic, Taxi, translating) keep the system spinner, which fits inside a button. Nearby places keep `.redacted` rows (MapKit, not Mimo).
 - `sensoryFeedback` on confirming a place, opening Show mode, starting or stopping listening, and the face-to-face flip.
 - Every icon-only button has an `accessibilityLabel`.
 
@@ -903,3 +911,4 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 62 | Map navigation like Apple Maps: the sheet rests at about 60%; a place's card replaces the list in place at the same height (resting when collapsed); "‹ Back" at the top left returns to the list at its height and scroll position (no ✕); another place swaps the card; a tap on empty map goes back; the camera keeps the pin centred above the card at every height; a collapsed card shows only its name and round buttons (now before Look Around); drags follow the finger 1:1 and snap with velocity. Supersedes #53's "rests at about 45%; a card opens almost full" | user |
 | 63 | Mimo's places resolve more often. MapKit names places in the device's language, so a local-script name can't be compared with a hit: when nothing matches by name, the resolver takes a local-name search hit that has every distinctive word of the English name and isn't part of a place, if all such hits are within 300 m (the nearest wins). "Office", "observation", "observatory" and "deck" count as kinds of place, and common romanized words match their English ("Chuo" = "Central", "Koen" = "Park"). A MapKit throttle retries the search after the pause instead of dropping the place. Mimo copies names from `nearby` exactly and gives other places their full name and a local name | user (Mimo's places went missing in chats) |
 | 64 | The profile only where it matters, tightened: Mimo brings up allergies or diet only when asked or when ordering at a food or drink place (finding or planning places isn't ordering), at most one allergy phrase, never explains a suggestion by the profile, never claims it as its own, and its prompt names no example allergens. Place cards: allergy, diet, taste and favourites are allowed bases only at food places; at most one profile phrase per card. A before/after check: Mimo's unasked allergy mentions 5 of 18 replies → 1 of 28; profile phrases on non-food cards 7 of 12 → 0 of 12; allergy phrases kept when ordering (3 of 3) and on food cards | user (Mimo and cards kept bringing up allergies and preferences) |
+| 65 | Loading where Mimo is working is a thinking orb (`haplollc/ThinkingOrbs` 1.1.0, MIT, a SwiftUI port of Jakub Antalik's thinking-orbs) on one card with a short line, not a `.redacted` skeleton stack. When the content arrives the card dissolves into the first card and the rest rise in one by one. Picks, place cards, Mimo's places, locating and the allergy row; busy buttons keep the system spinner. No text shimmer (§9.7). §4.3, §4.7, §4.12, §9.5 | user |

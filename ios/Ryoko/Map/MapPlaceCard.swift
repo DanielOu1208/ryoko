@@ -1,5 +1,6 @@
 import MapKit
 import SwiftUI
+import ThinkingOrbs
 import os
 
 // MARK: - Header
@@ -116,8 +117,9 @@ struct MapPlaceCardTitle: View {
 /// 5. Tips.
 ///
 /// Where the local language is one you speak: no phrases and no Allergy, tips
-/// only. Loading is `.redacted`; an error has Try again; a failed load falls
-/// back to this place's saved card (`PlaceCardCache`), marked as saved.
+/// only. While it loads, Mimo's working card dissolves into the sections
+/// (`ArrivingStack`); an error has Try again; a failed load falls back to
+/// this place's saved card (`PlaceCardCache`), marked as saved.
 ///
 /// The card never changes the situation by itself: only I'm here and Preview do.
 struct MapPlaceCard: View {
@@ -391,29 +393,37 @@ struct MapPlaceCard: View {
                 .foregroundStyle(.secondary)
                 .cardSurface()
         } else {
-            switch load {
-            case .loading:
-                MapCardSections(card: .placeholder, showsPhrases: !speaksLocal, showsRomanization: true)
-                    .redacted(reason: .placeholder)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(speaksLocal ? "Loading tips" : "Loading phrases")
-            case let .loaded(card):
-                MapCardSections(card: card, showsPhrases: !speaksLocal, showsRomanization: showsRomanization, onShow: show)
-            case let .saved(entry, message):
-                SavedCardNotice(savedAt: entry.savedAt, message: message) { attempt += 1 }
-                MapCardSections(card: entry.card, showsPhrases: !speaksLocal, showsRomanization: showsRomanization, onShow: show)
-            case let .failed(message):
-                VStack(alignment: .leading, spacing: Theme.grid) {
-                    Label(speaksLocal ? "Can't load tips" : "Can't load phrases", systemImage: "exclamationmark.bubble")
-                        .font(.headline)
-                    Text(message)
-                        .foregroundStyle(.secondary)
-                    Button("Try again") { attempt += 1 }
-                        .buttonStyle(.bordered)
-                        .padding(.top, Theme.grid / 2)
-                }
-                .cardSurface()
+            // Mimo's working card, which dissolves into the card's sections.
+            ArrivingStack(isLoading: load.isLoading) {
+                MimoWorking(design: .composing, line: speaksLocal ? "Writing tips for this place" : "Writing phrases and tips")
+                    .background(Theme.cardFill, in: Theme.cardShape)
+            } content: {
+                loadedSections(speaksLocal: speaksLocal)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func loadedSections(speaksLocal: Bool) -> some View {
+        switch load {
+        case .loading:
+            EmptyView()
+        case let .loaded(card):
+            MapCardSections(card: card, showsPhrases: !speaksLocal, showsRomanization: showsRomanization, onShow: show)
+        case let .saved(entry, message):
+            SavedCardNotice(savedAt: entry.savedAt, message: message) { attempt += 1 }
+            MapCardSections(card: entry.card, showsPhrases: !speaksLocal, showsRomanization: showsRomanization, onShow: show)
+        case let .failed(message):
+            VStack(alignment: .leading, spacing: Theme.grid) {
+                Label(speaksLocal ? "Can't load tips" : "Can't load phrases", systemImage: "exclamationmark.bubble")
+                    .font(.headline)
+                Text(message)
+                    .foregroundStyle(.secondary)
+                Button("Try again") { attempt += 1 }
+                    .buttonStyle(.bordered)
+                    .padding(.top, Theme.grid / 2)
+            }
+            .cardSurface()
         }
     }
 
@@ -573,6 +583,10 @@ private enum CardLoad {
     case saved(PlaceCardCache.Entry, String)
     case failed(String)
 
+    var isLoading: Bool {
+        if case .loading = self { true } else { false }
+    }
+
     /// The card on screen, fresh or saved.
     var card: PlaceCardResponse? {
         switch self {
@@ -642,26 +656,4 @@ private struct SavedCardNotice: View {
         .cardSurface()
         .accessibilityElement(children: .contain)
     }
-}
-
-private extension PlaceCardResponse {
-    /// Shape-only content for the `.redacted` loading state.
-    static let placeholder = PlaceCardResponse(
-        language: "en",
-        phrases: (1...2).map { index in
-            Phrase(
-                id: "map-placeholder-\(index)",
-                lang: "en",
-                local: "A phrase to say here",
-                romanization: "How it sounds, spelled out",
-                gloss: "What it means in your language",
-                because: "Because of something about you",
-                basis: nil
-            )
-        },
-        tips: [Tip(text: "A short tip about how things work at this place.", basis: [])],
-        placeNameLocal: nil,
-        addressLocal: nil,
-        generatedAt: ""
-    )
 }

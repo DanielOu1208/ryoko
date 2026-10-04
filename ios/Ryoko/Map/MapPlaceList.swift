@@ -1,4 +1,5 @@
 import SwiftUI
+import ThinkingOrbs
 
 // MARK: - Header
 
@@ -209,14 +210,7 @@ struct MapPlaceList: View {
             .padding(.bottom, Theme.grid)
 
             MapListCard {
-                ForEach(Array(places.enumerated()), id: \.element.id) { index, place in
-                    if index > 0 { MapListDivider() }
-                    MapPlaceRow(place: place, languageTag: languageTag) { onSelect(place) }
-                }
                 switch picks {
-                case let .loading(found) where found.count < 2:
-                    if !found.isEmpty { MapListDivider() }
-                    placeholderRows(found.isEmpty ? 3 : 1, why: true)
                 case let .failed(message):
                     VStack(alignment: .leading, spacing: Theme.grid) {
                         Text(message)
@@ -229,10 +223,31 @@ struct MapPlaceList: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(MapListLayout.inset)
                 default:
-                    EmptyView()
+                    // Mimo's working card until the first pick, which it
+                    // dissolves into; the rest rise in as they're found.
+                    ArrivingStack(isLoading: isPicking && places.isEmpty, spacing: 0) {
+                        MimoWorking(design: .weaving, line: "Picking places for you")
+                    } content: {
+                        ForEach(Array(places.enumerated()), id: \.element.id) { index, place in
+                            VStack(spacing: 0) {
+                                if index > 0 { MapListDivider() }
+                                MapPlaceRow(place: place, languageTag: languageTag) { onSelect(place) }
+                            }
+                        }
+                        if isPicking, !places.isEmpty {
+                            VStack(spacing: 0) {
+                                MapListDivider()
+                                MapWorkingRow(design: .weaving, line: "Picking more places")
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private var isPicking: Bool {
+        if case .loading = picks { true } else { false }
     }
 
     // MARK: Nearest places
@@ -250,7 +265,7 @@ struct MapPlaceList: View {
         MapListCard {
             switch nearby {
             case .idle, .loading:
-                placeholderRows(3, why: false)
+                placeholderRows(3)
             case let .failed(message):
                 note(message)
             case .loaded:
@@ -272,7 +287,8 @@ struct MapPlaceList: View {
         VStack(alignment: .leading, spacing: Theme.grid * 1.5) {
             switch liveState {
             case .locating, .searching:
-                ProgressView()
+                // The header says "Finding where you are".
+                MimoWorking(design: .searching)
             case .denied:
                 Text("Turn on location for Ryoko in Settings to see places near you. You can still search, or long-press the map to look around.")
                     .foregroundStyle(.secondary)
@@ -292,7 +308,7 @@ struct MapPlaceList: View {
 
     // MARK: Pieces
 
-    private func placeholderRows(_ count: Int, why: Bool) -> some View {
+    private func placeholderRows(_ count: Int) -> some View {
         ForEach(0..<count, id: \.self) { index in
             if index > 0 { MapListDivider() }
             MapPlaceRow(
@@ -305,7 +321,7 @@ struct MapPlaceList: View {
                         address: nil,
                         coordinate: Coordinate(lat: 0, lon: 0)
                     ),
-                    source: why ? .pick(why: "A short line on why it fits you", bestTime: nil) : .nearby,
+                    source: .nearby,
                     distanceMeters: 300
                 ),
                 languageTag: nil,
@@ -350,6 +366,32 @@ struct MapListCard<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.cardFill, in: Theme.cardShape)
         .padding(.horizontal, MapListLayout.sideMargin)
+    }
+}
+
+/// A row while Mimo finds more: a small orb in the icon column and what it's
+/// doing.
+struct MapWorkingRow: View {
+    let design: OrbDesign
+    let line: String
+
+    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = MapPlaceRow.iconColumn
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        HStack(spacing: Theme.grid * 1.5) {
+            ThinkingOrb(design, size: .small)
+                .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : iconSize)
+            Text(line)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, MapListLayout.inset)
+        .padding(.vertical, Theme.grid * 1.5)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(line)
+        .accessibilityAddTraits(.updatesFrequently)
     }
 }
 
