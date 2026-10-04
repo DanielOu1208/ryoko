@@ -18,6 +18,9 @@ import os
 ///   card comes from the shared `RyokoAPI`; the server caches it, so this costs
 ///   nothing extra when Nearby asks for the same card. It reloads when the
 ///   situation (a new hour, a new preview time), the profile or the API changes.
+///   Profile edits wait until they settle (`profileSettleDelay`): every profile
+///   version is a new server generation (design §7.4), so a burst of edits in
+///   Me loads once.
 /// - **Ends** when the situation has no place (or is gone), on a new place, or
 ///   after two hours, which is also its `staleDate`.
 /// - **Deep link:** each phrase it shows is kept (`LiveActivityPhraseStore`),
@@ -34,6 +37,10 @@ final class LiveActivityCoordinator {
         #endif
         return 2 * 60 * 60
     }
+
+    /// How long a change to the profile alone waits before the activity
+    /// follows it. Situation and API changes are followed at once.
+    static let profileSettleDelay: Duration = .seconds(2.5)
 
     let phrases = LiveActivityPhraseStore()
 
@@ -78,6 +85,8 @@ final class LiveActivityCoordinator {
     private var activeTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
     private var expiryTask: Task<Void, Never>?
+    /// A reconcile waiting for profile edits to settle.
+    private var settleTask: Task<Void, Never>?
     /// The last content update sent; the next one waits for it.
     private var pushTask: Task<Void, Never>?
 
@@ -143,8 +152,27 @@ final class LiveActivityCoordinator {
 
     private func receive(_ inputs: Inputs) {
         guard inputs != latest else { return }
+        let profileOnly = latest.map {
+            $0.situation == inputs.situation && $0.apiGeneration == inputs.apiGeneration
+        } ?? false
         latest = inputs
-        reconcile()
+        settleTask?.cancel()
+        settleTask = nil
+        guard profileOnly else {
+            reconcile()
+            return
+        }
+        // Each new edit restarts the wait; the reconcile uses the latest inputs.
+        settleTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: Self.profileSettleDelay)
+            } catch {
+                return // a newer input came first
+            }
+            guard !Task.isCancelled else { return }
+            self?.settleTask = nil
+            self?.reconcile()
+        }
     }
 
     private func appBecameActive() {
