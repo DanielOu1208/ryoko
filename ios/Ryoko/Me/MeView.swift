@@ -1,23 +1,37 @@
 import SwiftUI
 
-/// The Me tab, minimal (design §4.10): a read-only summary of the profile, the
-/// romanization toggle, and a small developer section. Editing arrives with
-/// onboarding (tier 2). Plain system background: no time-of-day gradient here.
+/// The Me tab (design §4.10): the profile from the survey, each section
+/// editable with the survey's own pickers; the home base for the taxi card;
+/// Redo survey; the allergy card preview; the romanization toggle; credits;
+/// and a small developer section. Plain system background: no time-of-day
+/// gradient here.
+///
+/// Every edit goes through `ProfileStore`, so `profile.version` changes and the
+/// server's caches (keyed on it) regenerate.
 struct MeView: View {
     /// The last row of the developer section (DEBUG), for `-RyokoScrollToBottom`.
     static let lastRowID = "me-last-row"
 
+    @Environment(ProfileStore.self) private var profileStore
+    @State private var path: [SurveyPage] = []
+    @State private var isRedoingSurvey = false
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollViewReader { proxy in
                 List {
-                    ProfileSummarySection()
+                    ProfileSection()
+                    HomeBaseSection()
+                    RedoSurveySection(isPresented: $isRedoingSurvey)
                     AllergyCardSection() // the allergy card preview row (W3, ios/Ryoko/Show/)
                     DisplaySection()
                     CreditsSection()
                     DeveloperSection()
                 }
                 .navigationTitle("Me")
+                .navigationDestination(for: SurveyPage.self) { page in
+                    ProfileEditor(page: page, profile: profileStore.profile)
+                }
                 #if DEBUG
                 .task {
                     // `-RyokoScrollToBottom 1` (screenshots).
@@ -26,74 +40,103 @@ struct MeView: View {
                 #endif
             }
         }
+        .fullScreenCover(isPresented: $isRedoingSurvey) {
+            SurveyFlowView(
+                mode: .redo,
+                draft: SurveyDraft(profile: profileStore.profile),
+                onFinish: { profile in
+                    profileStore.completeOnboarding(with: profile)
+                    isRedoingSurvey = false
+                },
+                onCancel: { isRedoingSurvey = false }
+            )
+        }
+        #if DEBUG
+        .task {
+            // `-RyokoMeEdit <page>|redo` (screenshots).
+            if OnboardingDebugOptions.meRedoesSurvey {
+                isRedoingSurvey = true
+            } else if let page = OnboardingDebugOptions.meEditorPage, path.isEmpty {
+                path = [page]
+            }
+        }
+        #endif
     }
 }
 
 // MARK: - Profile
 
-private struct ProfileSummarySection: View {
+/// One row per survey page, each opening that page's editor.
+private struct ProfileSection: View {
     @Environment(ProfileStore.self) private var profileStore
+
+    private static let pages: [SurveyPage] = SurveyPage.allCases.filter { $0 != .homeBase }
 
     var body: some View {
         let profile = profileStore.profile
         Section {
-            LabeledContent("From", value: Describe.country(profile.nationality))
-            LabeledContent("Home language", value: Describe.language(profile.homeLanguage))
-            LabeledContent("Speaks", value: Describe.list(profile.spokenLanguages?.map(Describe.language)))
-            LabeledContent("Diet", value: Describe.list(profile.diet?.map(Describe.diet)))
-            if let notes = profile.dietNotes, !notes.isEmpty {
-                LabeledContent("Diet notes", value: notes)
+            ForEach(Self.pages) { page in
+                NavigationLink(value: page) {
+                    LabeledContent(page.meLabel) {
+                        Text(ProfileWording.summary(of: page, in: profile))
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
             }
-            allergies(profile.allergies)
-            LabeledContent("Favourite foods", value: Describe.list(profile.favourites?.foods))
-            LabeledContent("Favourite drinks", value: Describe.list(profile.favourites?.drinks))
-            LabeledContent("Sweetness", value: Describe.taste(profile.taste?.sweetness, noun: "sweet"))
-            LabeledContent("Spice", value: Describe.taste(profile.taste?.spice, noun: "spicy"))
-            LabeledContent("Style", value: Describe.personality(profile.personality))
         } header: {
             Text("Profile")
         } footer: {
-            Text("Ryoko uses this to pick phrases, tips and places. Editing arrives with the survey.")
-        }
-
-        Section("Home base") {
-            if let home = profile.homeBase {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(home.name)
-                    if let localName = home.localName {
-                        LocalText(localName, languageTag: Describe.scriptTag(localName))
-                            .foregroundStyle(.secondary)
-                    }
-                    if let address = home.address {
-                        Text(address)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let addressLocal = home.addressLocal {
-                        LocalText(addressLocal, languageTag: Describe.scriptTag(addressLocal))
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.vertical, 2)
-            } else {
-                Text("Not set")
-                    .foregroundStyle(.secondary)
-            }
+            Text("Ryoko uses this to pick phrases, tips and places. Changes apply right away.")
         }
     }
+}
 
-    @ViewBuilder
-    private func allergies(_ allergies: [Allergy]?) -> some View {
-        if let allergies, !allergies.isEmpty {
-            ForEach(Array(allergies.enumerated()), id: \.offset) { index, allergy in
-                LabeledContent(index == 0 ? "Allergies" : "") {
-                    // Severity is always written in words (design §9.2).
-                    Text("\(Describe.allergen(allergy)) · \(Describe.severity(allergy.severity))")
+/// The home base for the taxi card; opens its editor (search to change it).
+private struct HomeBaseSection: View {
+    @Environment(ProfileStore.self) private var profileStore
+
+    var body: some View {
+        Section {
+            NavigationLink(value: SurveyPage.homeBase) {
+                if let home = profileStore.profile.homeBase {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(home.name)
+                        if let localName = home.localName, localName != home.name {
+                            LocalText(localName, languageTag: ProfileWording.scriptTag(localName))
+                                .foregroundStyle(.secondary)
+                        }
+                        if let address = home.address {
+                            Text(address)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let addressLocal = ProfileWording.distinctLocalAddress(of: home) {
+                            LocalText(addressLocal, languageTag: ProfileWording.scriptTag(addressLocal))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                } else {
+                    LabeledContent("Not set", value: "Add")
                 }
             }
-        } else {
-            LabeledContent("Allergies", value: allergies == nil ? "Skipped" : "None")
+        } header: {
+            Text("Home base")
+        } footer: {
+            Text("Where you're staying. The taxi card takes you back here.")
+        }
+    }
+}
+
+private struct RedoSurveySection: View {
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        Section {
+            Button("Redo survey") { isPresented = true }
+        } footer: {
+            Text("Goes through the questions again, starting from your current answers.")
         }
     }
 }
@@ -182,6 +225,11 @@ private struct DeveloperSection: View {
                 }
 
             #if DEBUG
+            if profileStore.isOnboarded {
+                Button("Show the survey on next launch") { profileStore.resetOnboarding() }
+            } else {
+                LabeledContent("Survey", value: "Shows on next launch")
+            }
             if situationStore.isPreviewing {
                 Button("End preview") { situationStore.endPreview() }
             }
@@ -219,99 +267,10 @@ private struct DeveloperSection: View {
     }
 }
 
-// MARK: - Wording
-
-/// Plain-language descriptions of profile values, sentence case.
-private enum Describe {
-    static func country(_ code: String?) -> String {
-        guard let code else { return "Skipped" }
-        return Locale.current.localizedString(forRegionCode: code) ?? code
-    }
-
-    static func language(_ tag: String) -> String {
-        if let row = LangCode(tag: tag) { return row.displayName }
-        return Locale.current.localizedString(forIdentifier: tag) ?? tag
-    }
-
-    /// A comma-separated list; "None" for an empty list and "Skipped" for nil.
-    static func list(_ items: [String]?) -> String {
-        guard let items else { return "Skipped" }
-        return items.isEmpty ? "None" : items.joined(separator: ", ")
-    }
-
-    static func diet(_ diet: Diet) -> String {
-        switch diet {
-        case .vegetarian: "Vegetarian"
-        case .vegan: "Vegan"
-        case .halal: "Halal"
-        case .kosher: "Kosher"
-        case .noPork: "No pork"
-        case .noBeef: "No beef"
-        case .glutenFree: "Gluten-free"
-        case .lactoseFree: "Lactose-free"
-        }
-    }
-
-    static func allergen(_ allergy: Allergy) -> String {
-        switch allergy.id {
-        case .egg: "Egg"
-        case .milk: "Milk"
-        case .mustard: "Mustard"
-        case .peanut: "Peanut"
-        case .crustaceanMollusc: "Shellfish"
-        case .fish: "Fish"
-        case .sesame: "Sesame"
-        case .soy: "Soy"
-        case .sulphite: "Sulphites"
-        case .treeNut: "Tree nuts"
-        case .wheat: "Wheat"
-        case .custom: allergy.label ?? "Other"
-        }
-    }
-
-    static func severity(_ severity: Severity) -> String {
-        switch severity {
-        case .mild: "mild"
-        case .serious: "serious"
-        case .lifeThreatening: "life-threatening"
-        }
-    }
-
-    /// Taste sliders run 0–4, where 2 is "as usual".
-    static func taste(_ value: Int?, noun: String) -> String {
-        switch value {
-        case nil: "Skipped"
-        case 0?: "Much less \(noun)"
-        case 1?: "Less \(noun)"
-        case 2?: "As usual"
-        case 3?: "More \(noun)"
-        default: "Much more \(noun)"
-        }
-    }
-
-    static func personality(_ personality: Personality?) -> String {
-        guard let personality else { return "Skipped" }
-        let parts: [String] = [
-            personality.rhythm.map { $0 == .earlyBird ? "Early bird" : "Night owl" },
-            personality.food.map { $0 == .localFavourite ? "Local favourite" : "My usual" },
-            personality.budget.map { $0 == .save ? "Save" : "Splurge" },
-            personality.vibe.map { $0 == .quiet ? "Quiet" : "Lively" },
-        ].compactMap(\.self)
-        return parts.isEmpty ? "Skipped" : parts.joined(separator: " · ")
-    }
-
-    /// A language tag for local text with no tag of its own: kana means
-    /// Japanese, other Han text is treated as Simplified Chinese.
-    static func scriptTag(_ text: String) -> String {
-        if text.unicodeScalars.contains(where: { (0x3040...0x30FF).contains($0.value) }) { return LangCode.ja.tag }
-        if text.unicodeScalars.contains(where: { $0.properties.isIdeographic }) { return LangCode.zhHans.tag }
-        return LangCode.en.tag
-    }
-}
-
 #Preview {
     MeView()
         .environment(ProfileStore.preview())
         .environment(APIStore())
         .environment(AppSituationStore.preview(nil))
+        .environment(AppRouter())
 }
