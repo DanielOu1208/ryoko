@@ -26,6 +26,9 @@ import os
 ///   survey, at launch. Use with `-RyokoInitialTab me`.
 /// - `-RyokoMeEditSample 1`: that editor then takes the sample answers, as if
 ///   tapped in, so the saved profile and its version change.
+/// - `-RyokoMeEditType "<text>"`: that editor then types the text into its
+///   free-text field (diet notes, or the home base's local name) one character
+///   at a time, as the keyboard does, to check what each keystroke reloads.
 ///
 /// Page names: origin, languages, diet, allergies, usual, thisOrThat, homeBase.
 enum OnboardingDebugOptions {
@@ -75,6 +78,12 @@ enum OnboardingDebugOptions {
     /// `-RyokoMeEditSample 1`: the open editor takes the sample answers after a
     /// moment, through its own change handler (the path a tap takes).
     static var meEditAppliesSample: Bool { defaults.bool(forKey: "RyokoMeEditSample") }
+
+    /// `-RyokoMeEditType "<text>"`: the open editor types this into its
+    /// free-text field, a character every 150 ms.
+    static var meEditTypedText: String? {
+        defaults.string(forKey: "RyokoMeEditType").flatMap { $0.isEmpty ? nil : $0 }
+    }
 
     /// A page by number (`4`) or name (`allergies`).
     static func page(named name: String) -> SurveyPage? {
