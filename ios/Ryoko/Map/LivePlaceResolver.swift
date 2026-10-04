@@ -18,6 +18,14 @@ import os
 /// 3. Accept only hits within 5 km whose name is the requested name or local
 ///    name, give or take area, branch and kind-of-place words
 ///    (`PlaceNameMatch`, word by word); the closest name wins, then the nearest.
+/// 4. If no term finds a match: a local-name search hit within 5 km that has
+///    every distinctive word of the English name and isn't part of a place
+///    (`PlaceNameMatch.corroborates`). Several such hits must sit within
+///    300 m of each other (one building's two observation decks); the nearest
+///    wins. Hits further apart are different places, so none is taken. MapKit names places in the
+///    device's language, so step 3 can't compare a hit with the local name:
+///    "東京都庁" finds "Tokyo Metropolitan Government Office", which step 3
+///    rejects for "Tokyo Metropolitan Government Building".
 ///
 /// Answers, misses included, are cached by (normalized name, area). Places are
 /// kept by `identifier.rawValue`, or normalized name plus the coordinate
@@ -25,12 +33,14 @@ import os
 /// and Hong Kong POIs). Concurrent requests for the same name share one lookup.
 ///
 /// MapKit allows about 50 requests a minute per app, so lookups go through a
-/// sliding-window throttle of `requestsPerMinute`, and a `loadingThrottled`
-/// error pauses lookups for a minute without caching a miss.
+/// sliding-window throttle of `requestsPerMinute`. A `loadingThrottled` error
+/// pauses lookups for a minute, then the search is tried once more.
 @MainActor
 final class LivePlaceResolver: PlaceResolver {
     /// Hits further than this from the query's centre are dropped.
     static let maxDistance: CLLocationDistance = 5_000
+    /// Local-name fallback hits further apart than this are different places.
+    static let fallbackCluster: CLLocationDistance = 300
     /// The search region's radius is clamped to this range.
     static let regionRadius: ClosedRange<Double> = 1_500...3_000
     /// MapKit requests this resolver makes per rolling minute. Under MapKit's
@@ -110,12 +120,15 @@ final class LivePlaceResolver: PlaceResolver {
 
     private enum Term: CustomStringConvertible {
         case text(String)
+        /// The local-script name, when it differs from the name: its sole hit
+        /// is the fallback (step 4).
+        case localName(String)
         /// A category query: any hit must still match the name.
         case category(String)
 
         var description: String {
             switch self {
-            case let .text(text): "\"\(text)\""
+            case let .text(text), let .localName(text): "\"\(text)\""
             case let .category(text): "category \"\(text)\""
             }
         }
@@ -127,30 +140,42 @@ final class LivePlaceResolver: PlaceResolver {
         let inChina = await countryCode(near: query.near) == "CN"
         let centreArea = areaWords[Self.cell(query.near)] ?? []
 
-        var texts = [query.name, query.localName].compactMap { ContractText.clean($0, maxLength: 120) }
-        if inChina { texts.reverse() }
-        var terms = texts.reduce(into: [Term]()) { terms, text in
-            if !terms.contains(where: { if case let .text(existing) = $0 { existing == text } else { false } }) {
-                terms.append(.text(text))
-            }
-        }
+        let name = ContractText.clean(query.name, maxLength: 120)
+        let localName = ContractText.clean(query.localName, maxLength: 120).flatMap { $0 == name ? nil : $0 }
+        var terms: [Term] = [name.map(Term.text), localName.map(Term.localName)].compactMap(\.self)
+        if inChina { terms.reverse() }
         if let category = query.category, let categoryText = Self.searchText(for: category, inChina: inChina) {
             terms.append(.category(categoryText))
         }
 
         var failed = false
+        var fallback: (hit: ResolvedPlace, item: MKMapItem)?
         for term in terms {
-            switch await search(term, in: region) {
-            case let .some(items):
-                if let hit = bestHit(in: items, for: query, centreArea: centreArea) {
-                    RyokoLog.places.info(
-                        "Resolved \(query.name, privacy: .public) → \(hit.place.name, privacy: .public), \(Int(hit.distanceMeters)) m, via \(term.description, privacy: .public)"
-                    )
-                    return .found(hit)
-                }
-            case .none:
-                failed = true
+            var outcome = await search(term, in: region)
+            if case .throttled = outcome {
+                // `search` paused lookups for a minute; the retry waits it out.
+                outcome = await search(term, in: region)
             }
+            guard case let .items(items) = outcome else {
+                failed = true
+                continue
+            }
+            if let hit = bestHit(in: items, for: query, centreArea: centreArea) {
+                RyokoLog.places.info(
+                    "Resolved \(query.name, privacy: .public) → \(hit.place.name, privacy: .public), \(Int(hit.distanceMeters)) m, via \(term.description, privacy: .public)"
+                )
+                return .found(hit)
+            }
+            if case .localName = term {
+                fallback = corroboratedHit(in: items, for: query, centreArea: centreArea)
+            }
+        }
+        if let fallback {
+            PlaceThumbnailLoader.shared.remember(fallback.item, for: fallback.hit.place)
+            RyokoLog.places.info(
+                "Resolved \(query.name, privacy: .public) → \(fallback.hit.place.name, privacy: .public), \(Int(fallback.hit.distanceMeters)) m, via its local name (loose match)"
+            )
+            return .found(fallback.hit)
         }
         if failed {
             RyokoLog.places.error("Couldn't resolve \(query.name, privacy: .public): MapKit failed")
@@ -160,31 +185,55 @@ final class LivePlaceResolver: PlaceResolver {
         return .miss
     }
 
-    /// One `MKLocalSearch`. nil when MapKit failed; empty for no results.
-    private func search(_ term: Term, in region: MKCoordinateRegion) async -> [MKMapItem]? {
-        guard await waitForSlot() else { return nil }
+    private enum SearchOutcome {
+        /// Empty for no results.
+        case items([MKMapItem])
+        /// MapKit throttled the app; lookups are paused for a minute.
+        case throttled
+        case failed
+    }
+
+    /// One `MKLocalSearch`.
+    private func search(_ term: Term, in region: MKCoordinateRegion) async -> SearchOutcome {
+        guard await waitForSlot() else { return .failed }
         let request = MKLocalSearch.Request()
         switch term {
-        case let .text(text), let .category(text):
+        case let .text(text), let .localName(text), let .category(text):
             request.naturalLanguageQuery = text
         }
         request.region = region
         request.regionPriority = .required
         request.resultTypes = .pointOfInterest
         do {
-            return try await MKLocalSearch(request: request).start().mapItems
+            return .items(try await MKLocalSearch(request: request).start().mapItems)
         } catch let error as MKError where error.code == .placemarkNotFound {
-            return []
+            return .items([])
         } catch let error as MKError where error.code == .loadingThrottled {
             pausedUntil = .now + .seconds(60)
             RyokoLog.places.error("MapKit throttled the resolver; pausing for a minute")
-            return nil
+            return .throttled
         } catch {
             if !Task.isCancelled {
                 RyokoLog.places.error("MapKit search failed: \(String(describing: error), privacy: .public)")
             }
-            return nil
+            return .failed
         }
+    }
+
+    /// Step 4's candidate from the local-name search's hits: the nearest one
+    /// that `PlaceNameMatch.corroborates`, when every such hit is within
+    /// `fallbackCluster` of it.
+    private func corroboratedHit(in items: [MKMapItem], for query: PlaceQuery, centreArea: Set<String>) -> (hit: ResolvedPlace, item: MKMapItem)? {
+        let center = query.near.mapKitLocation
+        let candidates = items.filter { item in
+            guard let name = item.name, item.location.distance(from: center) <= Self.maxDistance else { return false }
+            return PlaceNameMatch.corroborates(name, wanted: query.name, areaWords: centreArea.union(Self.areaWords(of: item)))
+        }
+        guard let nearest = candidates.min(by: { $0.location.distance(from: center) < $1.location.distance(from: center) }),
+              candidates.allSatisfy({ $0.location.distance(from: nearest.location) <= Self.fallbackCluster }),
+              let place = NearbySearch.place(from: nearest)
+        else { return nil }
+        return (ResolvedPlace(query: query, place: place, distanceMeters: nearest.location.distance(from: center)), nearest)
     }
 
     /// The best-matching hit within 5 km: the same name first, then the name

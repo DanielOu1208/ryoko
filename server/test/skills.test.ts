@@ -216,6 +216,11 @@ describe('prompt context', () => {
     assert.doesNotMatch(placeCardUser(placeCardRequest), /aboutMe/);
   });
 
+  test('Mimo names places so the phone can find them: nearby names copied, others in full with a local name', () => {
+    assert.match(MIMO_SYSTEM, /When a place is in <nearby>, copy its name and localName exactly as written there, letter for letter\./);
+    assert.match(MIMO_SYSTEM, /full official name as on maps \(English or romanized, never shortened\), always with its localName in local script/);
+  });
+
   test('Mimo keeps allergies and diet as quiet hard limits, brought up only around food', () => {
     assert.match(MIMO_SYSTEM, /Allergies and diet are hard limits[^\n]*never suggest food or drink that breaks them\./);
     assert.match(MIMO_SYSTEM, /only when the message is about eating or drinking[^\n]*or the traveller asks about them\./);

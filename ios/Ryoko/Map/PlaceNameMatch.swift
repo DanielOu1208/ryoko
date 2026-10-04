@@ -78,11 +78,23 @@ nonisolated enum PlaceNameMatch {
         "ramen", "sushi", "bakery", "patisserie", "shop", "store", "market", "park", "garden", "gardens", "national",
         "shrine", "shinto", "jinja", "jingu", "temple", "museum", "gallery", "hall", "center", "centre", "plaza", "building", "tower",
         "station", "hotel", "inn", "house", "kitchen", "dining", "bistro", "brewery", "books", "bookstore",
-        "library", "square", "mall", "hostel", "lounge", "stand",
+        "library", "square", "mall", "hostel", "lounge", "stand", "office", "observatory", "observation", "deck",
     ]
 
-    /// Romanized words MapKit uses where Mimo translates ("Kohi Seibu" / "Coffee Seibu").
-    static let sameWords: [String: String] = ["kohi": "coffee", "kohii": "coffee", "koohii": "coffee"]
+    /// Parts of a place that a looser match must never land on: the parking
+    /// garage under the building, not the building.
+    static let subPlaceWords: Set<String> = [
+        "parking", "garage", "lot", "entrance", "gate", "atm", "toilet", "toilets", "restroom", "restrooms",
+        "platform", "stop", "bus", "taxi", "rank", "ticket", "tickets",
+    ]
+
+    /// Romanized words MapKit uses where Mimo translates ("Kohi Seibu" / "Coffee
+    /// Seibu", "Shinjuku Chuo Park" / "Shinjuku Central Park").
+    static let sameWords: [String: String] = [
+        "kohi": "coffee", "kohii": "coffee", "koohii": "coffee",
+        "chuo": "central", "koen": "park", "kouen": "park", "eki": "station",
+        "hakubutsukan": "museum", "toshokan": "library", "kokuritsu": "national", "shijo": "market", "ichiba": "market",
+    ]
 
     /// Folded words: apostrophes join ("Jing'an" → "jingan"); anything else
     /// that isn't a letter or digit splits, hyphens too ("Shinjuku-Shop").
@@ -121,6 +133,25 @@ nonisolated enum PlaceNameMatch {
             candidateAll.contains($0) && !isArea($0, in: area) && !branchWords.contains($0) && !kindWords.contains($0)
         }
         return distinctive.isEmpty ? 0 : 1
+    }
+
+    /// Looser than `score`, for places MapKit found by the local-script name
+    /// (`LivePlaceResolver`, step 4): MapKit names it in the device's language,
+    /// so `score` can't compare it with the local name. True when every
+    /// distinctive word of the requested name (not an area, branch or kind
+    /// word) is in the map's name, and the map's name isn't part of a place
+    /// (`subPlaceWords`). "Coffee Edinburgh" → "Coffee Aristocracy Edinburgh
+    /// Shinjuku"; "Tokyo Metropolitan Government Building" → "Tokyo
+    /// Metropolitan Government Office". Latin-script names only.
+    static func corroborates(_ candidate: String, wanted: String?, areaWords area: Set<String> = []) -> Bool {
+        guard let wanted, !hasCJK(wanted), !hasCJK(candidate) else { return false }
+        let candidateWords = words(candidate)
+        guard !candidateWords.contains(where: subPlaceWords.contains) else { return false }
+        let candidateAll = Set(candidateWords)
+        let distinctive = words(withoutBrackets(wanted)).filter {
+            !isArea($0, in: area) && !branchWords.contains($0) && !kindWords.contains($0)
+        }
+        return !distinctive.isEmpty && distinctive.allSatisfy(candidateAll.contains)
     }
 
     // MARK: Chinese and Japanese
@@ -179,6 +210,8 @@ nonisolated enum PlaceNameMatchCheck {
         var wanted: String
         var area: [String] = ["Shinjuku, Tokyo, Japan"]
         var accept: Bool
+        /// Checks `corroborates` instead of `score`.
+        var loose = false
     }
 
     static let cases: [Case] = [
@@ -192,7 +225,8 @@ nonisolated enum PlaceNameMatchCheck {
         Case(candidate: "Gyoen Cafe", wanted: "Shinjuku Gyoen National Garden", accept: false),
         Case(candidate: "Kokoro", wanted: "Kokoro Tea", accept: false),
         Case(candidate: "Golden Gai Bar Albatross", wanted: "Shinjuku Golden Gai", accept: false),
-        // A real miss, kept on purpose: the map adds a word Mimo left out.
+        // A miss by name, kept on purpose: the map adds a word Mimo left out. The
+        // resolver's local-name fallback finds it instead (loose cases below).
         Case(candidate: "Coffee Aristocracy Edinburgh Shinjuku", wanted: "Coffee Edinburgh", accept: false),
         // The same place, named a little differently.
         Case(candidate: "Hanazono Shrine", wanted: "Hanazono Shrine", accept: true),
@@ -215,15 +249,30 @@ nonisolated enum PlaceNameMatchCheck {
         Case(candidate: "喜茶静安店", wanted: "喜茶", accept: true),
         Case(candidate: "椿屋珈琲 新宿本館", wanted: "椿屋珈琲", accept: true),
         Case(candidate: "CoCo都可(南京西路店)", wanted: "CoCo都可", accept: true),
+        Case(candidate: "Tokyo Metropolitan Government Building North Observation Deck", wanted: "Tokyo Metropolitan Government Building", accept: true),
+        Case(candidate: "Shinjuku Chuo Park", wanted: "Shinjuku Central Park", accept: true),
+        Case(candidate: "Tsukiji Market", wanted: "Tsukiji Shijo", area: ["Chuo City, Tokyo, Japan"], accept: true),
+        Case(candidate: "Shinjuku Chuo Park", wanted: "Shinjuku Gyoen National Garden", accept: false),
+        // Still not the place by name alone (Mimo, 2026-10-04): only the local-name fallback may take it.
+        Case(candidate: "Tokyo Metropolitan Government Office", wanted: "Tokyo Metropolitan Government Building", accept: false),
+        // The local-name fallback (`corroborates`): MapKit found one place by the local name.
+        Case(candidate: "Coffee Aristocracy Edinburgh Shinjuku", wanted: "Coffee Edinburgh", accept: true, loose: true),
+        Case(candidate: "Tokyo Metropolitan Government Office", wanted: "Tokyo Metropolitan Government Building", accept: true, loose: true),
+        Case(candidate: "Tokyo Metropolitan Government Building Main Building No.1 Parking", wanted: "Tokyo Metropolitan Government Building", accept: false, loose: true),
+        Case(candidate: "Coffee Aristocracy Shinjuku", wanted: "Coffee Edinburgh", accept: false, loose: true),
+        Case(candidate: "Shinjuku Cafe", wanted: "Shinjuku Coffee", accept: false, loose: true),
+        Case(candidate: "東京都庁", wanted: "Tokyo Metropolitan Government Building", accept: false, loose: true),
     ]
 
     /// Failure lines; empty when every case passes.
     static func run() -> [String] {
         cases.compactMap { item in
             let area = PlaceNameMatch.areaWords(from: item.area)
-            let score = PlaceNameMatch.score(item.candidate, against: item.wanted, areaWords: area)
+            let score = item.loose
+                ? (PlaceNameMatch.corroborates(item.candidate, wanted: item.wanted, areaWords: area) ? 1 : 0)
+                : PlaceNameMatch.score(item.candidate, against: item.wanted, areaWords: area)
             guard (score > 0) != item.accept else { return nil }
-            return "\(item.accept ? "should match" : "should not match"): \"\(item.wanted)\" → \"\(item.candidate)\" (score \(score))"
+            return "\(item.accept ? "should match" : "should not match")\(item.loose ? " (loose)" : ""): \"\(item.wanted)\" → \"\(item.candidate)\" (score \(score))"
         }
     }
 }
