@@ -112,12 +112,30 @@ export const BASE_REQUEST_OPTIONS: SimpleStreamOptions = {
 };
 
 /**
- * A provider's error text, safe to send to the app: long token-like runs (keys,
- * request ids) are masked and it's kept short.
+ * A provider's error text, safe to send to the app: the innermost message of a
+ * JSON error body, long token-like runs (keys, request ids) masked, kept short.
  */
 export function providerErrorText(message: string | undefined): string {
-  const text = (message ?? 'unknown error').replace(/\s+/g, ' ').replace(/[A-Za-z0-9_\-]{24,}/g, '…').trim();
+  const text = innermostMessage(message ?? 'unknown error').replace(/\s+/g, ' ').replace(/[A-Za-z0-9_\-]{24,}/g, '…').trim();
   return text.length <= 160 ? text : `${text.slice(0, 159)}…`;
+}
+
+/**
+ * Gemini's errors arrive as JSON inside JSON (`{"error":{"message":"{\n \"error\":
+ * {\"code\": 503, \"message\": \"This model is currently experiencing high
+ * demand…\"}}"}}`): unwrap `error.message` while it parses.
+ */
+function innermostMessage(text: string): string {
+  for (let depth = 0; depth < 3; depth++) {
+    try {
+      const inner = (JSON.parse(text) as { error?: { message?: unknown } } | null)?.error?.message;
+      if (typeof inner !== 'string' || !inner.trim()) break;
+      text = inner;
+    } catch {
+      break;
+    }
+  }
+  return text;
 }
 
 /** Cost in US dollars of one response. Uses the provider's figure, else the model's prices (the faux test provider reports 0). */

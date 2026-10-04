@@ -16,7 +16,7 @@ import { ApiError } from '../src/errors.ts';
 import { EXAMPLES_DIR } from '../src/fixtures.ts';
 import { Budget } from '../src/llm/budget.ts';
 import { MIMO_CATALOG, mimoModels, mimoSpec, nearestEffort } from '../src/llm/catalog.ts';
-import { createLlm, staticLlm } from '../src/llm/registry.ts';
+import { createLlm, providerErrorText, staticLlm } from '../src/llm/registry.ts';
 import { MimoSessions, type MimoRunStats } from '../src/skills/mimo/session.ts';
 import { createModelSkills } from '../src/skills/model.ts';
 import type { SseSink } from '../src/sse.ts';
@@ -204,4 +204,12 @@ describe('a chat that changes model', () => {
     assert.deepEqual(stats.map((s) => s.model), ['gmi:faux-a', 'gmi:faux-b@low']);
     assert.equal(sessions.size, 1);
   });
+});
+
+test("a Gemini error nested in JSON reaches the app as Gemini's own sentence", () => {
+  const body = JSON.stringify({ error: { code: 503, message: 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', status: 'UNAVAILABLE' } }, null, 2);
+  const sdk = JSON.stringify({ error: { message: body, code: 503, status: 'Service Unavailable' } });
+  assert.equal(providerErrorText(sdk), 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.');
+  assert.equal(providerErrorText('429 Too Many Requests'), '429 Too Many Requests');
+  assert.equal(providerErrorText('{not json'), '{not json');
 });
