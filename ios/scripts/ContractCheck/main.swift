@@ -62,6 +62,7 @@ do {
     let object = try json(skipped)
     let nullKeys = ["nationality", "spokenLanguages", "diet", "dietNotes", "allergies", "favourites", "homeBase"]
     expect(nullKeys.allSatisfy { object[$0] is NSNull }, "profile writes skipped fields as null")
+    expect(!object.keys.contains("aboutMe"), "profile omits aboutMe when nil (never null)")
     expect((object["taste"] as? [String: Any])?["sweetness"] is NSNull, "taste writes a skipped slider as null")
     expect((object["personality"] as? [String: Any])?["rhythm"] is NSNull, "personality writes a skipped pair as null")
 
@@ -82,6 +83,54 @@ do {
 } catch {
     failures += 1
     print("  FAIL building values: \(error)")
+}
+
+// MARK: - Profile version and About me
+
+section("Profile version and aboutMe")
+do {
+    // Hashes from contracts/src/canonical.ts `profileVersion` (Node), for the
+    // seed as is and for the seed with `aboutMeSample` added.
+    let seedVersion = "98591c7f262f993cd4302bfea86f424c3f7e9a3b2c1ebefff7a6384f391f37ed"
+    let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}" // 5 scalars, 1 character
+    let aboutMeSample = "Travelling with my mum, \"slow\" mornings.\nInto tea, jazz and old 書店 \\ \u{1F375}\t\(family)"
+    let aboutMeVersion = "b5ce94534afcaae0941a3738a4cef7ce82467dfd8762f754f64072cda410019a"
+
+    let seed = try FixtureSource.directory(examples).decode(Profile.self, from: .profileSeed)
+    expect(seed.aboutMe == nil, "a profile without the aboutMe key decodes it as nil")
+    expect(try CanonicalJSON.profileVersion(seed) == seedVersion, "seed version matches canonical.ts")
+    expect(seed.version == seedVersion, "seed fixture carries its canonical version")
+
+    var described = seed
+    described.aboutMe = aboutMeSample
+    expect(try CanonicalJSON.profileVersion(described) == aboutMeVersion, "version with aboutMe matches canonical.ts")
+    let object = try json(described)
+    expect(object["aboutMe"] as? String == aboutMeSample, "profile writes aboutMe as a plain string when set")
+    let decoded = try JSONDecoder().decode(Profile.self, from: JSONEncoder().encode(described))
+    expect(decoded == described, "aboutMe round-trips")
+    let explicitNull = Data(#"{"version":"\#(seedVersion)","nationality":null,"homeLanguage":"en","spokenLanguages":null,"diet":null,"dietNotes":null,"allergies":null,"favourites":null,"taste":null,"personality":null,"homeBase":null,"aboutMe":null}"#.utf8)
+    expect(try JSONDecoder().decode(Profile.self, from: explicitNull).aboutMe == nil, "aboutMe: null decodes as nil")
+
+    described.aboutMe = nil
+    expect(try CanonicalJSON.profileVersion(described) == seedVersion, "clearing aboutMe restores the old version")
+
+    // Cleaning: trimmed, capped, nil when empty.
+    expect(Profile.cleanedAboutMe(nil) == nil, "cleaned nil is nil")
+    expect(Profile.cleanedAboutMe(" \n\t ") == nil, "whitespace-only aboutMe is nil")
+    expect(Profile.cleanedAboutMe("  slow mornings \n") == "slow mornings", "aboutMe is trimmed")
+    let long = String(repeating: "a", count: 600)
+    expect(Profile.cleanedAboutMe(long)?.count == Profile.aboutMeLimit, "aboutMe is capped at the limit")
+    expect(Profile.cappedAboutMe(String(repeating: "x", count: 500)).count == 500, "text at the limit isn't cut")
+    expect(Profile.cleanedAboutMe(String(repeating: "a", count: 499) + "  b")?.count == 499, "a cut that ends in spaces is trimmed again")
+    // TypeBox counts some text with more characters than Swift (Thai marks,
+    // skin tones, \r\n), so the cap counts scalars and cuts between characters.
+    let families = Profile.cappedAboutMe(String(repeating: family, count: 200))
+    expect(families.unicodeScalars.count <= Profile.aboutMeLimit && families == String(repeating: family, count: 100), "a cut never splits a character")
+    let thai = Profile.cappedAboutMe(String(repeating: "\u{0E01}\u{0E34}", count: 300)) // 2 scalars, 1 character
+    expect(thai.unicodeScalars.count == Profile.aboutMeLimit, "marks count toward the limit")
+} catch {
+    failures += 1
+    print("  FAIL profile version: \(error)")
 }
 
 // MARK: - SSE line reader

@@ -29,6 +29,8 @@ import os
 /// - `-RyokoMeEditType "<text>"`: that editor then types the text into its
 ///   free-text field (diet notes, or the home base's local name) one character
 ///   at a time, as the keyboard does, to check what each keystroke reloads.
+/// - `-RyokoMeAboutType "<text>"`: Me's "About me" field types the text the
+///   same way (replacing what's there). Use with `-RyokoInitialTab me`.
 ///
 /// Page names: origin, languages, diet, allergies, usual, thisOrThat, homeBase.
 enum OnboardingDebugOptions {
@@ -83,6 +85,12 @@ enum OnboardingDebugOptions {
     /// free-text field, a character every 150 ms.
     static var meEditTypedText: String? {
         defaults.string(forKey: "RyokoMeEditType").flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// `-RyokoMeAboutType "<text>"`: Me's "About me" field types this, a
+    /// character every 150 ms.
+    static var meAboutTypedText: String? {
+        defaults.string(forKey: "RyokoMeAboutType").flatMap { $0.isEmpty ? nil : $0 }
     }
 
     /// A page by number (`4`) or name (`allergies`).

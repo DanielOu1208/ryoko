@@ -52,7 +52,8 @@ final class ProfileStore {
         self.defaults = defaults
         profile = seed
         var hasSavedProfile = false
-        if let fileURL, let saved = Self.load(from: fileURL) {
+        if let fileURL, var saved = Self.load(from: fileURL) {
+            saved.aboutMe = Profile.cleanedAboutMe(saved.aboutMe)
             profile = Self.versioned(saved)
             hasSavedProfile = true
         }
@@ -70,6 +71,8 @@ final class ProfileStore {
     func update(_ change: (inout Profile) -> Void) {
         var edited = profile
         change(&edited)
+        // Every request carries the profile, so it must always validate.
+        edited.aboutMe = Profile.cleanedAboutMe(edited.aboutMe)
         edited = Self.versioned(edited)
         guard edited != profile else { return }
         profile = edited
@@ -88,10 +91,22 @@ final class ProfileStore {
         update { $0 = newProfile }
     }
 
+    /// Me's "About me": trimmed, capped at `Profile.aboutMeLimit`, and nil
+    /// (the key left out) when empty. A new text is a new version.
+    func setAboutMe(_ text: String) {
+        set(\.aboutMe, to: Profile.cleanedAboutMe(text))
+    }
+
     // MARK: Onboarding
 
     /// The survey finished: saves its profile and stops showing it on launch.
+    /// The survey doesn't ask for "About me", so the traveller's own text
+    /// (typed in Me) is kept; a seed profile's never carries over.
     func completeOnboarding(with newProfile: Profile) {
+        var newProfile = newProfile
+        if newProfile.aboutMe == nil, !isSeed {
+            newProfile.aboutMe = profile.aboutMe
+        }
         replace(with: newProfile)
         markOnboarded()
     }
