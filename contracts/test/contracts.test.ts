@@ -83,6 +83,23 @@ test('seed profile matches design §10 and its version is the canonical hash', (
   assert.equal(p.personality?.budget, 'save');
   assert.equal(p.personality?.vibe, 'quiet');
   assert.ok(p.homeBase?.name.includes('placeholder'), 'home base must stay marked as a placeholder');
+  assert.equal('aboutMe' in p, false, 'the seed has no about me (design §10)');
+});
+
+test('aboutMe is optional: absent when empty, and leaving it out keeps the version', () => {
+  const seed = readJson('examples/profile.seed.json') as C.Profile;
+  const aboutMe = "I'm a chemistry teacher who loves jazz bars and café hopping.";
+  const withAboutMe = { ...seed, aboutMe };
+  // Parity anchor for the device's CanonicalJSON: the same profile must hash the same there.
+  const version = C.profileVersion(withAboutMe as unknown as Record<string, unknown>);
+  assert.equal(version, '315173f8b3d39fd32c90b06d8ab9a70b49590d47286124185b6963edd0457af1');
+  assertValid(C.Profile, { ...withAboutMe, version }, 'a profile with aboutMe');
+  const { version: _version, ...rest } = withAboutMe;
+  assert.ok(C.canonicalJson(rest).startsWith(`{"aboutMe":${JSON.stringify(aboutMe)},"allergies":`), 'aboutMe sorts first');
+  // Absent (or undefined) is left out of the canonical JSON, so older profiles keep their version.
+  assert.equal(C.profileVersion({ ...seed, aboutMe: undefined }), seed.version);
+  for (const bad of ['', null, 'a'.repeat(501)]) assert.equal(Value.Check(C.Profile, { ...seed, aboutMe: bad }), false, `aboutMe ${JSON.stringify(bad)?.slice(0, 20)} is rejected`);
+  assertValid(C.Profile, { ...seed, aboutMe: 'a'.repeat(500) }, 'aboutMe at 500 characters');
 });
 
 /** An endpoint's variant example files, e.g. `discover.request.json` and `discover.tokyo.request.json`. */

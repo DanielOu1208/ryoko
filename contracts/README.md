@@ -23,9 +23,9 @@ pnpm contracts:check    # typecheck + emit + test
 
 - **Enums** use the local `StringEnum`. It emits `{type: 'string', enum: [...]}` like pi-ai's, never `anyOf`/`const`. Never use `Type.Enum` or `Type.Literal`. A test fails if `const` appears in any schema.
 - **Objects** use `Strict(...)`, which sets `additionalProperties: false`.
-- **`null` vs absent:** in the profile, `null` means skipped and `[]` means none. Optional fields elsewhere are omitted, not `null`.
+- **`null` vs absent:** in the profile, `null` means skipped and `[]` means none. The one exception is `aboutMe`, which is absent when empty (never `null` or `""`), so older profiles keep their version. Optional fields elsewhere are omitted, not `null`.
 - **Times:** `situation.localTime` always carries its UTC offset. The server never uses its own clock for the situation.
-- **Profile version:** sha-256 (lowercase hex) of the canonical JSON of the profile without `version`. Canonical means keys sorted, no whitespace, `JSON.stringify` escaping (`profileVersion()` in `src/canonical.ts`). The server treats it as an opaque cache key.
+- **Profile version:** sha-256 (lowercase hex) of the canonical JSON of the profile without `version`. Canonical means keys sorted, no whitespace, `JSON.stringify` escaping, and absent optional keys left out (`profileVersion()` in `src/canonical.ts`). The server treats it as an opaque cache key.
 
 ## Importing from the server (Node 24 type stripping)
 

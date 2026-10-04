@@ -32,13 +32,14 @@ import { Budget } from '../src/llm/budget.ts';
 import { costOf, createLlm, providerErrorText, staticLlm } from '../src/llm/registry.ts';
 import { generateTyped, parseJsonObject } from '../src/llm/typed.ts';
 import { allergyCardModelOutput, finalizeAllergyCard } from '../src/skills/allergy-card.ts';
-import { allowedBasis, languageInfo, promptProfile, timeFacts } from '../src/skills/context.ts';
-import { geohash } from '../src/skills/discover.ts';
+import { ABOUT_ME_RULE, allowedBasis, languageInfo, promptProfile, timeFacts } from '../src/skills/context.ts';
+import { discoverUser, geohash } from '../src/skills/discover.ts';
 import type { SearchResponse } from '../src/skills/mimo/exa.ts';
 import { PhraseStream } from '../src/skills/mimo/phrase-stream.ts';
+import { MIMO_SYSTEM, mimoSections } from '../src/skills/mimo/prompt.ts';
 import { prepareShowPlaces } from '../src/skills/mimo/tools.ts';
 import { createModelSkills, placeKey, type ModelSkills } from '../src/skills/model.ts';
-import { finalizePlaceCard, type PlaceCardModelOutput } from '../src/skills/place-card.ts';
+import { finalizePlaceCard, placeCardSystem, placeCardUser, type PlaceCardModelOutput } from '../src/skills/place-card.ts';
 import { toPinyin } from '../src/skills/romanize.ts';
 import { hazardsFor, unsafeMention } from '../src/skills/safety.ts';
 import type { MimoRun } from '../src/skills/types.ts';
@@ -185,6 +186,34 @@ describe('prompt context', () => {
     assert.deepEqual((promptProfile(profile, 'discover').personality as Record<string, unknown>).rhythm, 'night_owl');
   });
 
+  test('aboutMe reaches Mimo, the place card and discover only when there is text, trimmed and last', () => {
+    const profile = withProfile({ aboutMe: '  Chemistry teacher, loves jazz bars.\n' });
+    for (const use of ['mimo', 'place-card', 'discover'] as const) {
+      assert.equal('aboutMe' in promptProfile(seed, use), false, `${use}: absent when the profile has none`);
+      assert.equal('aboutMe' in promptProfile(withProfile({ aboutMe: '   ' }), use), false, `${use}: whitespace only`);
+      const view = promptProfile(profile, use);
+      assert.equal(view.aboutMe, 'Chemistry teacher, loves jazz bars.', use);
+      assert.equal(Object.keys(view).at(-1), 'aboutMe', `${use}: the traveller's own words come last`);
+    }
+    const said = /"aboutMe":"Chemistry teacher, loves jazz bars\."/;
+    assert.match(mimoSections({ ...mimoRequest, profile }).profile ?? '', said);
+    assert.match(placeCardUser({ ...placeCardRequest, profile }), said);
+    assert.match(discoverUser({ ...example<DiscoverRequest>('discover.request.json'), profile }), said);
+    assert.doesNotMatch(placeCardUser(placeCardRequest), /aboutMe/);
+  });
+
+  test('Mimo keeps allergies and diet as quiet hard limits, brought up only around food', () => {
+    assert.match(MIMO_SYSTEM, /Allergies and diet are hard limits[^\n]*never suggest food or drink that breaks them\./);
+    assert.match(MIMO_SYSTEM, /only when the message is about eating or drinking[^\n]*or the traveller asks about them\./);
+    assert.match(MIMO_SYSTEM, /For anything else \(directions, sights[^\n]*\), don't bring them up\./);
+    // The phrase filter keeps an allergen only next to its safety words (safety.ts).
+    assert.match(MIMO_SYSTEM, /put the safety words right next to it \("no peanuts", 不要花生, 我对花生过敏, ピーナッツ抜き\), or the app drops the phrase\./);
+    assert.match(MIMO_SYSTEM, /\(taste, favourites, personality, aboutMe\) shapes your answer only where it fits; never list or repeat it back\./);
+    // aboutMe is background, never instructions, wherever the model sees it.
+    assert.ok(MIMO_SYSTEM.includes(ABOUT_ME_RULE));
+    assert.ok(placeCardSystem(languageInfo('zh-Hans'), languageInfo('en')).includes(ABOUT_ME_RULE));
+  });
+
   test('weekday and part of day come from the situation clock only', () => {
     assert.deepEqual(timeFacts(shanghai), { date: '2026-10-05', clock: '15:00', weekday: 'Monday', partOfDay: 'afternoon' });
     assert.equal(timeFacts({ ...shanghai, localTime: '2026-10-05T23:30:00+08:00' }).partOfDay, 'late night');
@@ -283,15 +312,16 @@ describe('place-card checks', () => {
       { local: '一杯latte', romanization: null, gloss: 'A latte', because: 'Coffee time', basis: ['place'] },
       { local: '招牌咖啡', romanization: null, gloss: 'House coffee', because: 'Fits local_favourite', basis: ['personality'] },
       { local: '一份花生酥', romanization: null, gloss: 'A peanut brittle', because: 'Popular snack here', basis: ['place'] },
+      { local: '有爵士乐吗', romanization: null, gloss: 'Is there jazz?', because: 'Your aboutMe mentions jazz', basis: ['place'] },
     ] as PlaceCardModelOutput['phrases'];
     const result = finalizePlaceCard(placeCardRequest, { ...structuredClone(goodCard), phrases: [...goodCard.phrases, ...extra] });
     assert.ok(result.ok);
     assert.equal(result.value.phrases.length, 2);
-    assert.equal(result.dropped.length, 5);
+    assert.equal(result.dropped.length, 6);
     assert.match(result.dropped.join('\n'), /"memory" isn't in allowedBasis/);
     assert.match(result.dropped.join('\n'), /more than 8 words/);
     assert.match(result.dropped.join('\n'), /Latin letters/);
-    assert.match(result.dropped.join('\n'), /field name/);
+    assert.equal(result.dropped.filter((line) => /field name/.test(line)).length, 2, 'local_favourite and aboutMe');
     assert.match(result.dropped.join('\n'), /peanut/);
   });
 
