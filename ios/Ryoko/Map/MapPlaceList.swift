@@ -129,7 +129,13 @@ struct MapPlaceList: View {
     private var picksSection: some View {
         let places = picks.places
         if !(isLoaded(picks) && places.isEmpty) {
-            sectionTitle("Mimo picks")
+            HStack(spacing: Theme.grid) {
+                MimoAvatarView(mood: places.isEmpty && !isLoaded(picks) ? .thinking : .idle, size: 28)
+                    .padding(.leading, Theme.margin)
+                    .padding(.top, Theme.grid)
+                sectionTitle("Mimo picks")
+                    .padding(.leading, -Theme.margin)
+            }
         }
         ForEach(Array(places.enumerated()), id: \.element.id) { index, place in
             row(place, index: index)

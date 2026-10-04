@@ -14,6 +14,7 @@ struct MeView: View {
                     ProfileSummarySection()
                     AllergyCardSection() // the allergy card preview row (W3, ios/Ryoko/Show/)
                     DisplaySection()
+                    CreditsSection()
                     DeveloperSection()
                 }
                 .navigationTitle("Me")
@@ -109,6 +110,19 @@ private struct DisplaySection: View {
             Text("Display")
         } footer: {
             Text("Pinyin and romaji under the local script. Turning it off only hides that line.")
+        }
+    }
+}
+
+// MARK: - Credits
+
+/// Third-party credits (THIRD_PARTY_NOTICES.md).
+private struct CreditsSection: View {
+    var body: some View {
+        Section("Credits") {
+            Link(destination: URL(string: "https://github.com/jeremy-prt/bloub")!) {
+                LabeledContent("Mimo's avatar", value: "bloub, MIT License")
+            }
         }
     }
 }

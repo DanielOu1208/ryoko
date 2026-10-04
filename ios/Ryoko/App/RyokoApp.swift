@@ -54,6 +54,7 @@ struct RyokoApp: App {
                 .environment(\.speechService, speechService)
                 #if DEBUG
                 .task { await DebugLaunchOptions.apply(to: situationStore) }
+                .overlay { if MimoAvatarGallery.launchRequested { MimoAvatarGallery().background(.background) } }
                 #endif
         }
         .onChange(of: scenePhase) { _, phase in

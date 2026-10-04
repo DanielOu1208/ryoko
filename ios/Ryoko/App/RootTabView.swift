@@ -49,8 +49,10 @@ struct RootTabView: View {
             Tab(AppTab.map.title, systemImage: AppTab.map.systemImage, value: AppTab.map) {
                 MapView()
             }
-            Tab(AppTab.mimo.title, systemImage: AppTab.mimo.systemImage, value: AppTab.mimo) {
+            Tab(value: AppTab.mimo) {
                 MimoView()
+            } label: {
+                Label { Text(AppTab.mimo.title) } icon: { MimoAvatarIcon.image() }
             }
             Tab(AppTab.me.title, systemImage: AppTab.me.systemImage, value: AppTab.me) {
                 MeView()

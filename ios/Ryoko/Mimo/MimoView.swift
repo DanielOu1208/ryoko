@@ -46,6 +46,12 @@ struct MimoView: View {
             .safeAreaBar(edge: .top) { subjectBar }
             .safeAreaBar(edge: .bottom) { composer }
             .toolbar {
+                if !chat.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) {
+                        MimoAvatarView(mood: avatarMood, size: 30)
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("New chat", systemImage: "square.and.pencil", action: startNewChat)
                         .disabled(chat.isEmpty && router.mimoSubject == nil)
@@ -68,13 +74,25 @@ struct MimoView: View {
         }
     }
 
+    /// What the avatar shows (design §4.9): thinking while a tool runs or
+    /// before any text arrives, talking while text streams, listening while you
+    /// type, a brief happy beat after a reply, idle otherwise.
+    private var avatarMood: MimoMood {
+        if let turn = chat.turns.last, turn.isStreaming {
+            return turn.toolLine != nil || turn.segments.isEmpty ? .thinking : .talking
+        }
+        if isComposing { return .listening }
+        if let turn = chat.turns.last, case .done = turn.status { return .happy }
+        return .idle
+    }
+
     // MARK: Transcript
 
     private var transcript: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.grid * 3) {
-                    MimoIntro()
+                    MimoIntro(mood: avatarMood)
                     if chat.isEmpty {
                         if situationStore.situation == nil {
                             noPlace
@@ -304,39 +322,20 @@ extension MimoView {
 
 // MARK: - Pieces
 
-/// The top of the conversation. The square slot is where the Mimo avatar goes
-/// later (design §4.9); for now it holds the tab's symbol.
+/// The top of the conversation: Mimo's avatar (design §4.9) and a one-line intro.
 private struct MimoIntro: View {
+    var mood: MimoMood
     @ScaledMetric(relativeTo: .title) private var avatarSize: CGFloat = 56
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.grid * 1.5) {
-            MimoAvatarSlot(size: min(avatarSize, 88))
+            MimoAvatarView(mood: mood, size: min(avatarSize, 88))
             Text("Ask me what to order, how to say it, or where to go next.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
-    }
-}
-
-/// Room for the future animated avatar. A plain circle with the tab's symbol
-/// until then.
-struct MimoAvatarSlot: View {
-    var size: CGFloat
-
-    var body: some View {
-        Circle()
-            .fill(Theme.cardFill)
-            .frame(width: size, height: size)
-            .overlay {
-                Image(systemName: "bubble.left.fill")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                    .symbolRenderingMode(.hierarchical)
-            }
-            .accessibilityHidden(true)
     }
 }
 
