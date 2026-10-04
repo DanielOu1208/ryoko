@@ -13,6 +13,7 @@ import type {
   TranslateRequest,
   TranslateResponse,
 } from '@ryoko/contracts';
+import type { Budget } from '../llm/budget.ts';
 import type { SseSink } from '../sse.ts';
 
 export interface SkillContext {
@@ -42,6 +43,8 @@ export type MimoRun = (sink: SseSink) => Promise<StopReason>;
 export interface Skills {
   /** For logs, e.g. 'faux'. */
   readonly name: string;
+  /** The daily spend ledger, when the skills call paid models. Place photos add their Foursquare cost to it. */
+  readonly budget?: Budget;
   placeCard(request: PlaceCardRequest, ctx: SkillContext): Promise<PlaceCardResponse>;
   discover(request: DiscoverRequest, ctx: SkillContext): Promise<DiscoverResponse>;
   allergyCard(request: AllergyCardRequest, ctx: SkillContext): Promise<AllergyCardResponse>;

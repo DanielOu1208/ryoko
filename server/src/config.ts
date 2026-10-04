@@ -78,6 +78,8 @@ export interface Config {
   timeouts: { skillMs: number; mimoMs: number; translateMs: number };
   /** Short-lived Soniox keys for the app (POST /v1/soniox-key, design §6.4). The key itself stays in `env`. */
   soniox: SonioxKeyConfig;
+  /** Place photos from Foursquare (POST /v1/place-photos): whether FOURSQUARE_API_KEY is set. The key stays in `env`. */
+  placePhotos: { configured: boolean };
   /** The raw merged environment, for W7 skills (provider keys etc.). Secret: never log it. */
   env: Readonly<Record<string, string | undefined>>;
 }
@@ -208,6 +210,7 @@ export function configFromEnv(env: Record<string, string | undefined>): Config {
       expiresInSeconds: intFrom(env, 'SONIOX_KEY_TTL_SECONDS', 60, 10, 3600),
       maxSessionSeconds: intFrom(env, 'SONIOX_MAX_SESSION_SECONDS', 3600, 60, 18_000),
     },
+    placePhotos: { configured: Boolean(env.FOURSQUARE_API_KEY?.trim()) },
     env: Object.freeze({ ...env }),
   };
 }
@@ -233,5 +236,6 @@ export function describeConfig(config: Config): string {
     models += `, budget $${config.dailyBudgetUsd}/day, cache ${config.cacheDir ? 'on disk' : 'in memory'}`;
   }
   const soniox = config.soniox.configured ? `Soniox keys on (${config.soniox.perMinute}/min)` : 'Soniox keys off (no SONIOX_API_KEY)';
-  return `MODEL=${config.model}${models}${pace}, rate limit ${config.rateLimitPerMinute}/min, body limit ${config.bodyLimitBytes / 1024} KB, ${soniox}, APP_TOKEN set`;
+  const photos = config.model === 'faux' ? 'place photos off (faux)' : config.placePhotos.configured ? 'place photos on (Foursquare)' : 'place photos off (no FOURSQUARE_API_KEY)';
+  return `MODEL=${config.model}${models}${pace}, rate limit ${config.rateLimitPerMinute}/min, body limit ${config.bodyLimitBytes / 1024} KB, ${soniox}, ${photos}, APP_TOKEN set`;
 }

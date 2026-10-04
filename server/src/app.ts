@@ -14,6 +14,8 @@ import {
   MimoMessageRequest,
   PlaceCardRequest,
   PlaceCardResponse,
+  PlacePhotosRequest,
+  PlacePhotosResponse,
   SonioxKeyResponse,
   TranslateRequest,
   TranslateResponse,
@@ -23,6 +25,7 @@ import { ApiError, errorResponse, toApiError } from './errors.ts';
 import { bearerAuth } from './middleware/auth.ts';
 import { clientInfo, type AppEnv } from './middleware/client.ts';
 import { RateLimiter, rateLimit } from './middleware/rate-limit.ts';
+import { placePhotosFromConfig, type PlacePhotos } from './photos/service.ts';
 import { SESSION_ID, SessionLocks } from './sessions.ts';
 import { createSkills, type MimoContext, type MimoRun, type SkillContext, type Skills } from './skills/index.ts';
 import { createSonioxMinter, type SonioxMinter } from './soniox.ts';
@@ -37,6 +40,8 @@ export interface AppOptions {
    * is set (whatever MODEL is), else null: the route answers 503. Tests inject a stub.
    */
   soniox?: SonioxMinter | null;
+  /** Defaults to Foursquare when FOURSQUARE_API_KEY is set and MODEL isn't faux, else "no photo" for every place. Tests inject their own. */
+  placePhotos?: PlacePhotos;
   log?: (line: string) => void;
 }
 
@@ -47,6 +52,7 @@ export interface RyokoApp {
 }
 
 const newRunId = () => `run_${randomBytes(6).toString('hex')}`;
+const PLACE_PHOTOS_PATH = '/v1/place-photos';
 
 export function createApp(config: Config, options: AppOptions = {}): RyokoApp {
   const log = options.log ?? ((line: string) => console.log(line));
@@ -58,6 +64,10 @@ export function createApp(config: Config, options: AppOptions = {}): RyokoApp {
   const sonioxKey = config.env.SONIOX_API_KEY?.trim();
   const soniox =
     options.soniox !== undefined ? options.soniox : sonioxKey ? createSonioxMinter({ apiKey: sonioxKey, settings: config.soniox }) : null;
+  // Thumbnails ask for photos as rows scroll into view: their own bucket, so
+  // they can never use up the requests a place card or Mimo needs.
+  const photoLimiter = new RateLimiter(config.rateLimitPerMinute);
+  const placePhotos = options.placePhotos ?? placePhotosFromConfig(config, { budget: skills.budget ?? null, log: config.logRequests ? log : () => {} });
   const app = new Hono<AppEnv>();
 
   if (config.logRequests) {
@@ -92,7 +102,8 @@ export function createApp(config: Config, options: AppOptions = {}): RyokoApp {
   // Order: auth first (cheap), then who's calling, then the limits, then the body.
   app.use('/v1/*', bearerAuth(config.appToken));
   app.use('/v1/*', clientInfo());
-  app.use('/v1/*', rateLimit(limiter));
+  const sharedLimit = rateLimit(limiter);
+  app.use('/v1/*', (c, next) => (c.req.path === PLACE_PHOTOS_PATH ? next() : sharedLimit(c, next)));
   app.use(
     '/v1/*',
     bodyLimit({
@@ -131,6 +142,14 @@ export function createApp(config: Config, options: AppOptions = {}): RyokoApp {
     const request = await readJson(c, TranslateRequest, 'translate');
     const response = await skills.translate(request, skillContext(c));
     return c.json(checkResponse(TranslateResponse, response, 'translate'));
+  });
+
+  // Photos for place thumbnails and the place card's header. Never an error for
+  // Foursquare's sake: a place it can't answer for gets no url.
+  app.post(PLACE_PHOTOS_PATH, rateLimit(photoLimiter), async (c) => {
+    const request = await readJson(c, PlacePhotosRequest, 'place-photos');
+    const response = await placePhotos(request);
+    return c.json(checkResponse(PlacePhotosResponse, response, 'place-photos'));
   });
 
   // A short-lived, single-use Soniox key for one listening session (tier 2).
