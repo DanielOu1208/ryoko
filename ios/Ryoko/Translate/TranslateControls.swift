@@ -2,7 +2,9 @@ import SwiftUI
 
 /// The bottom of Translate: the status line with the keyboard button (Type
 /// mode, T2.4) on its right, then your language, the big mic button and their
-/// language in one row, as in Google Translate. Each language is its own menu.
+/// language in one row, as in Google Translate. Each language is its own menu;
+/// while listening (manual turns, #68) the two become who's speaking: the
+/// speaker's is filled, and tapping the other hands the turn over.
 struct TranslateControls: View {
     let model: TranslateModel
     let pair: TranslatePair?
@@ -30,7 +32,11 @@ struct TranslateControls: View {
                         .disabled(pair == nil)
                 }
             HStack(spacing: Theme.grid * 1.5) {
-                homeMenu
+                if let pair, showsSpeakers {
+                    SpeakerPill(name: pair.home.name, isSpeaking: model.speaker == .me) { model.handOver(to: .me) }
+                } else {
+                    homeMenu
+                }
                 MicButton(
                     isListening: model.phase == .listening,
                     isBusy: model.phase == .starting || model.phase == .finishing,
@@ -38,8 +44,13 @@ struct TranslateControls: View {
                     action: toggle
                 )
                 .disabled(pair == nil && !model.isActive)
-                otherMenu
+                if let pair, showsSpeakers {
+                    SpeakerPill(name: pair.other.name, isSpeaking: model.speaker == .them) { model.handOver(to: .them) }
+                } else {
+                    otherMenu
+                }
             }
+            .sensoryFeedback(.selection, trigger: model.speaker)
             if let note, !model.isActive {
                 Text(note)
                     .font(.footnote)
@@ -56,6 +67,9 @@ struct TranslateControls: View {
     }
 
     private var sideSize: CGFloat { min(sideButton, 60) }
+
+    /// While listening with manual turns, the pills say who's speaking.
+    private var showsSpeakers: Bool { model.isActive && model.turnMode == .manual }
 
     private var status: some View {
         Group {
@@ -193,6 +207,59 @@ struct MicButton: View {
             }
         }
         .accessibilityLabel(isListening ? "Stop listening" : (isBusy ? "Stop" : "Start listening"))
+    }
+}
+
+/// While listening (manual turns), one person's language: filled while it's
+/// their turn, and a tap hands the turn to them.
+private struct SpeakerPill: View {
+    let name: String
+    let isSpeaking: Bool
+    let action: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Group {
+            if isSpeaking {
+                // Filled with the primary colour (black, or white in dark mode),
+                // the label in the background's. The glass style's own label
+                // colour stays white on a white fill.
+                Button(action: action) {
+                    label
+                        .foregroundStyle(Color(uiColor: .systemBackground))
+                        .padding(.horizontal, Theme.grid * 2)
+                        .padding(.vertical, 10)
+                        .background(Color.primary, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button(action: action) { label }
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityLabel(isSpeaking ? "\(name), speaking now" : name)
+        .accessibilityHint(isSpeaking ? "" : "Switches the turn to \(name).")
+        .accessibilityAddTraits(isSpeaking ? .isSelected : [])
+    }
+
+    private var label: some View {
+        HStack(spacing: Theme.grid * 0.75) {
+            if isSpeaking {
+                Image(systemName: "waveform")
+                    .symbolEffect(.variableColor.iterative, isActive: !reduceMotion)
+                    .accessibilityHidden(true)
+            }
+            Text(name)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .font(.subheadline.weight(.semibold))
+        .frame(maxWidth: .infinity, minHeight: 32)
     }
 }
 

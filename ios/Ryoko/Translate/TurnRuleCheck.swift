@@ -42,6 +42,12 @@ nonisolated enum TurnRuleCheck {
             check("orphan translations are dropped", orphanTranslation),
             check("ending the session keeps live words", endSessionKeepsTail),
             check("speakers and tags follow the pair", speakersAndTags),
+            check("manual: a turn stays locked to its speaker", manualLocked),
+            check("manual: hand-over waits for <fin>, then the panes keep the old turn", manualHandOver),
+            check("manual: late translations and stray tags", manualTranslations),
+            check("manual: hand-over with nothing heard is instant; tapping back cancels", manualQuickSwitches),
+            check("manual: a forced hand-over and the session end", manualForcedAndEnd),
+            check("manual: canned conversation with hand-overs", manualCanned),
             check("canned zh conversation", cannedConversation(enZh)),
             check("canned ja conversation", cannedConversation(enJa)),
             check("tilt: flat and tipped away switch to face to face", tiltEnters),
@@ -401,10 +407,120 @@ nonisolated enum TurnRuleCheck {
         e.equal(json["sample_rate"] as? Int, 16000, "sample rate")
         e.equal(json["num_channels"] as? Int, 1, "mono")
         e.equal(json["language_hints"] as? [String], ["en", "zh"], "hints")
+        e.equal(json["language_hints_strict"] as? Bool, true, "strict hints")
         e.equal(json["enable_language_identification"] as? Bool, true, "language ID")
         e.equal(json["enable_endpoint_detection"] as? Bool, true, "endpoints")
         let translation = json["translation"] as? [String: String]
         e.equal(translation, ["type": "two_way", "language_a": "en", "language_b": "zh"], "two-way translation")
+    }
+
+    // MARK: Manual turns (#68)
+
+    private static func manualLocked(_ e: inout Expect) {
+        var b = TurnBuilder(pair: enZh, mode: .manual)
+        b.apply(en("Could I get a"))
+        // Soniox tags a few words as Chinese: still your turn, no new turn.
+        b.apply([original("奶", "zh"), original("茶", "zh")])
+        b.apply(en(" please") + [end])
+        b.apply(en(" No ice."))
+        e.equal(b.turns.count, 1, "one turn")
+        e.equal(b.turns.first?.speaker, .me, "yours")
+        e.equal(b.turns.first?.original, "Could I get a奶茶 please No ice.", "every word, across <end>")
+        e.equal(b.turns.first?.isClosed, false, "a pause doesn't close it")
+        e.equal(b.hearsOtherSpeaker, false, "two Chinese characters aren't a hint")
+        b.apply(zh("要中杯还是大杯"))
+        e.equal(b.turns.count, 1, "still one turn")
+        e.equal(b.hearsOtherSpeaker, true, "a run of Chinese suggests a hand-over")
+        b.apply(en(" Medium"))
+        e.equal(b.hearsOtherSpeaker, false, "your language again clears it")
+    }
+
+    private static func manualHandOver(_ e: inout Expect) {
+        var b = TurnBuilder(pair: enZh, mode: .manual)
+        b.apply(en("Could I get a milk tea") + live("?", "en"))
+        e.equal(b.handOver(to: .them), true, "asks Soniox to finalize")
+        e.equal(b.activeSpeaker, .them, "the controls show them at once")
+        // Your last word turns final before <fin>: it stays yours.
+        b.apply([original("?", "en")])
+        e.equal(b.turns.count, 1, "no new turn before <fin>")
+        b.apply([SonioxToken(text: SonioxToken.finalizeMarker, isFinal: true, language: nil)])
+        e.equal(b.turns.first?.closedBy, .handOver, "closed by the hand-over")
+        e.equal(b.turns.first?.original, "Could I get a milk tea?", "with its last word")
+        e.equal(b.speaker, .them, "their turn now")
+        e.equal(b.display?.original, "Could I get a milk tea?", "panes keep your turn")
+        b.apply(live("好的", "zh"))
+        e.equal(b.display?.speaker, .them, "their live words show as theirs")
+        e.equal(b.display?.original, "好的", "with their text")
+        b.apply(zh("好的") + [original(" OK", "en")])
+        e.equal(b.turns.count, 2, "their turn")
+        e.equal(b.turns.last?.speaker, .them, "as them")
+        e.equal(b.turns.last?.original, "好的 OK", "an English word stays in their turn")
+    }
+
+    private static func manualTranslations(_ e: inout Expect) {
+        var b = TurnBuilder(pair: enZh, mode: .manual)
+        b.apply(en("Could I get a milk tea?"))
+        _ = b.handOver(to: .them)
+        b.apply([SonioxToken(text: SonioxToken.finalizeMarker, isFinal: true, language: nil)])
+        b.apply(zh("好的"))
+        // Your line's translation arrives after their turn started.
+        b.apply(tr("我可以要一杯奶茶吗？", from: "en", to: "zh"))
+        b.apply(tr("Sure", from: "zh", to: "en"))
+        e.equal(b.turns.map(\.translation), ["我可以要一杯奶茶吗？", "Sure"], "each on its own turn")
+        // An English word in their turn: its translation stays with their turn.
+        b.apply([original(" OK", "en")])
+        b.apply(tr("好", from: "en", to: "zh"))
+        e.equal(b.turns.last?.translation, "Sure好", "kept, in their turn")
+        e.equal(b.strayTranslationTokens, 1, "counted as stray")
+        e.equal(b.turns.first?.translation, "我可以要一杯奶茶吗？", "your turn untouched")
+    }
+
+    private static func manualQuickSwitches(_ e: inout Expect) {
+        var b = TurnBuilder(pair: enZh, mode: .manual)
+        e.equal(b.handOver(to: .them), false, "nothing heard: no finalize")
+        e.equal(b.speaker, .them, "their turn at once")
+        b.apply(zh("你好"))
+        e.equal(b.turns.first?.speaker, .them, "first turn is theirs")
+        e.equal(b.handOver(to: .me), true, "finalize")
+        e.equal(b.handOver(to: .them), false, "tapping back cancels")
+        e.equal(b.activeSpeaker, .them, "still theirs")
+        b.apply([SonioxToken(text: SonioxToken.finalizeMarker, isFinal: true, language: nil)])
+        e.equal(b.turns.first?.isClosed, false, "a stale <fin> closes nothing")
+        b.apply(zh("吗"))
+        e.equal(b.turns.count, 1, "same turn")
+        e.equal(b.handOver(to: .them), false, "tapping the speaker does nothing")
+    }
+
+    private static func manualForcedAndEnd(_ e: inout Expect) {
+        var b = TurnBuilder(pair: enZh, mode: .manual)
+        b.apply(en("Thank you"))
+        _ = b.handOver(to: .them)
+        b.completeHandOver(force: true)
+        e.equal(b.turns.first?.closedBy, .handOver, "closed without <fin>")
+        e.equal(b.speaker, .them, "their turn")
+        b.apply([SonioxToken(text: SonioxToken.finalizeMarker, isFinal: true, language: nil)])
+        e.equal(b.turns.count, 1, "a late <fin> does nothing")
+        b.apply(zh("不客气") + live("。", "zh"))
+        _ = b.handOver(to: .me)
+        b.endSession()
+        e.equal(b.turns.map(\.closedBy), [.handOver, .sessionEnd], "the session end closes the last")
+        e.equal(b.turns.last?.original, "不客气。", "with its live words")
+        e.equal(b.speaker, .me, "the waiting hand-over still counts for next time")
+    }
+
+    private static func manualCanned(_ e: inout Expect) {
+        var b = TurnBuilder(pair: enZh, mode: .manual)
+        for step in CannedConversation.steps(for: enZh, pace: 0) {
+            if let speaker = step.speaker, b.handOver(to: speaker) {
+                b.apply([SonioxToken(text: SonioxToken.finalizeMarker, isFinal: true, language: nil)])
+            }
+            b.apply(step.response.tokens)
+        }
+        b.endSession()
+        let lines = CannedConversation.lines(for: enZh)
+        e.equal(b.turns.map(\.speaker), lines.map(\.speaker), "speakers")
+        e.equal(b.turns.map(\.original), lines.map(\.said), "originals")
+        e.equal(b.turns.map(\.translation), lines.map(\.translated), "translations")
     }
 
     // MARK: Helpers

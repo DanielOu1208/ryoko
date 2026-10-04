@@ -53,6 +53,12 @@ nonisolated final class SonioxSession: Sendable {
         }
     }
 
+    /// Asks Soniox to finalize everything sent so far now; it answers with
+    /// final tokens and then `<fin>`. The session carries on.
+    func finalize() async {
+        try? await task.send(.string(#"{"type":"finalize"}"#))
+    }
+
     /// Ends the audio: Soniox finalizes what it heard, then sends `finished`.
     func endAudio() async {
         try? await task.send(.string(""))

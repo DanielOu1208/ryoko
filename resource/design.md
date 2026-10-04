@@ -210,7 +210,12 @@ Translate is translation only. Speech goes through Soniox `stt-rt-v5` in `two_wa
 - **Turns:**
   - Translate keeps an in-memory list of turns: id, speaker (me / them), original, translation, source (voice / typed), and whether it was edited.
   - The panes show the latest turn. A **History** toolbar button opens a sheet listing every turn.
-  - A new turn starts when at least 2 final tokens (or 2 CJK characters) arrive in the other language. The panes never clear before the new turn has text. Soniox's `<end>` commits a turn to history.
+  - **Turns are manual (#68).** While listening, the two language pills say who's speaking: the speaker's is filled, with a moving waveform. Listening starts as you; tapping the other language hands the turn over. Everything heard goes into the speaker's turn, whatever language Soniox tags it with, and a pause doesn't end it.
+  - On a hand-over, Soniox is asked to finalize (`{"type":"finalize"}`), and the turn changes hands at its `<fin>` (or after 2 s), so the last words stay with the person who said them. The panes keep the old turn until the new speaker's words arrive.
+  - Translations attach to the turn that last heard words in their source language, so late ones still land on the right turn.
+  - If Soniox keeps hearing the other language in a turn (4 words or 4 CJK characters in a row), the status line asks whether to switch. It never switches by itself.
+  - Hints are strict (`language_hints_strict`): Soniox only ever hears the pair.
+  - The automatic rule is still in `TurnBuilder` (DEBUG `-RyokoTranslateTurns automatic`): a new turn starts when at least 2 final tokens (or 2 CJK characters) arrive in the other language, and `<end>` commits a turn. It switched too easily in use and the panes cleared on every false switch.
   - Listening stops after 2 minutes of silence or when the app goes to the background. History isn't persisted.
 - **Upright layout** (phone held normally): what was said on top, the translation below.
 - **Face-to-face layout** (phone flat or tilted forward):
@@ -671,22 +676,19 @@ Reference: Luma. Lots of whitespace, confident type, few controls, and colour th
 ### 9.2 Colour
 
 - **Controls are monochrome.** The accent is the primary label colour (black in light mode, white in dark), e.g. `.tint(.primary)`.
-- **Colour on screen comes only from the time-of-day gradient, the map and content.**
+- **Colour on screen comes only from the blue wash (§9.3), the map and content.**
 - Red is reserved for recording/stop and for allergy severity. Severity is also always written in words.
 - Light and dark mode are both supported.
 
-### 9.3 Time-of-day gradient
+### 9.3 Blue wash
 
-- A soft, static `LinearGradient` wash over the top ~45% of a screen, fading into the system background. No animation.
-- It's driven by the active situation's local time, so a previewed 8 AM looks like morning.
-- **Starting values** (tune on device):
-
-  | Part of day | Light (top → fade) | Dark (top → fade) |
-  | --- | --- | --- |
-  | Morning 05–11 | `#FFD8B5` → `#FFF3E3` | `#5A3A26` → black |
-  | Midday 11–16 | `#CDE5FF` → `#EEF6FF` | `#1D3A5C` → black |
-  | Evening 16–20 | `#FFC48A` → `#F9B9B0` | `#5C3524` → black |
-  | Night 20–05 | `#C5CCE0` → `#E6E9F2` | `#1A1F3D` → black |
+- A soft blue wash over the top ~45% of a screen, fading into the page background (`AmbientGradient`, a 3 × 3 `MeshGradient`). The same blue at every hour (#67; it used to follow the time of day, with orange mornings and evenings).
+- **Colours** (tune on device): light `#ADD2FF` → `#DDECFF`, a little more saturated than before so it stands out from white; dark `#1E416A` → black. When it reacts, the top leans toward a brighter blue (`#86BAFF` / `#2A5F9E`) and a periwinkle (`#B6C0FF` / `#2E3A86`).
+- **It reacts to what's happening (#67):**
+  - At rest it holds still.
+  - **Mimo working** (a reply streaming) and **Translate connecting**: the wash drifts slowly, its colours shifting between the blues, and grows a little.
+  - **Translate listening:** it swells and brightens with the microphone level, easing between readings.
+  - It eases in and out of motion over about a second. Under Reduce Motion it never moves.
 
 - **Where it appears:** Translate, Mimo and Me (#48). It was also on Nearby, which is removed (#53).
 - **Where it doesn't appear:** the Map (its sheet and place cards included), Show mode and the onboarding survey. Those use plain system backgrounds.
@@ -912,3 +914,5 @@ Source: **user** (decided by the team), **research** (checked against primary so
 | 64 | The profile only where it matters, tightened: Mimo brings up allergies or diet only when asked or when ordering at a food or drink place (finding or planning places isn't ordering), at most one allergy phrase, never explains a suggestion by the profile, never claims it as its own, and its prompt names no example allergens. Place cards: allergy, diet, taste and favourites are allowed bases only at food places; at most one profile phrase per card. A before/after check: Mimo's unasked allergy mentions 5 of 18 replies → 1 of 28; profile phrases on non-food cards 7 of 12 → 0 of 12; allergy phrases kept when ordering (3 of 3) and on food cards | user (Mimo and cards kept bringing up allergies and preferences) |
 | 65 | Loading where Mimo is working is a thinking orb (`haplollc/ThinkingOrbs` 1.1.0, MIT, a SwiftUI port of Jakub Antalik's thinking-orbs) on one card with a short line, not a `.redacted` skeleton stack. When the content arrives the card dissolves into the first card and the rest rise in one by one. Picks, place cards, Mimo's places, locating and the allergy row; busy buttons keep the system spinner. No text shimmer (§9.7). §4.3, §4.7, §4.12, §9.5 | user |
 | 66 | Map fixes from use: a place's card opens at full height (supersedes #62's "at the same height"; Back still returns to the list's height); Mimo picks show as pins by default (the Hidden gems layer, renamed Mimo picks); Food & drink and Washrooms pin those places from a search of the visible map instead of filtering MapKit's own POIs, which showed next to nothing; Ask Mimo starts a new chat that asks about the place at once. §4.7, §4.9 | user |
+| 67 | The wash is blue at every hour (no orange mornings or evenings), a little more saturated in light mode, and it reacts: it drifts while Mimo works or Translate connects, and swells with the voice while Translate listens. Still under Reduce Motion | user |
+| 68 | Translate's turns are manual: you say who's speaking by tapping their language, and everything heard stays in that turn until you tap the other. Soniox finalizes at each hand-over so last words stay put; strict language hints. Supersedes the automatic turn rule from #29 (kept for DEBUG) | user (auto switching too sensitive, text vanished on every switch) |

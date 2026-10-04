@@ -57,7 +57,7 @@ struct TranslatePanes: View {
             languageTag: turn?.originalTag ?? "en",
             font: .title2,
             placeholder: .init(
-                text: pair.map { "Tap the mic, then speak \($0.home.name) or \($0.other.name)." } ?? "Tap the mic to start.",
+                text: pair.map { "Tap the mic and speak \($0.home.name). Tap \($0.other.name) when it's their turn." } ?? "Tap the mic to start.",
                 languageTag: "en"
             ),
             onTap: canEdit ? editMine : nil
@@ -97,7 +97,7 @@ struct TranslatePanes: View {
             text: text,
             languageTag: you?.tag ?? "en",
             font: .title.weight(.semibold),
-            placeholder: .init(text: turn == nil ? "Tap the mic, then take turns speaking." : "…", languageTag: "en"),
+            placeholder: .init(text: turn == nil ? "Tap the mic and speak. Tap their language when it's their turn." : "…", languageTag: "en"),
             onTap: canEdit ? editMine : nil
         )
     }

@@ -7,6 +7,8 @@ import UIKit
 /// Translate's listening sessions and turns (design §4.8, W5.2, T2.4, T2.5).
 ///
 /// - One session at a time. Its pair is fixed when it starts.
+/// - Turns are manual by default (#68): you start as the speaker, and tapping
+///   the other language hands the turn over (`handOver(to:)`).
 /// - Turns live in memory only. A session's turns move to `log` when it ends;
 ///   typed turns (Type mode) and edits go there too.
 /// - Listening stops after 2 minutes without speech, when the app goes to the
@@ -54,6 +56,16 @@ final class TranslateModel {
     private(set) var builder: TurnBuilder?
     /// Listening stopped for the editor and comes back with `resume()`.
     private(set) var isPaused = false
+    /// How turns change hands: manual unless a DEBUG launch argument says otherwise.
+    let turnMode: TurnMode
+    /// Manual turns: who speaks when listening starts (you, or whoever had the
+    /// turn when listening paused for the editor).
+    private(set) var nextSpeaker: TurnSpeaker = .me
+
+    /// Manual turns: who's speaking now, as the controls show it.
+    var speaker: TurnSpeaker { builder?.activeSpeaker ?? nextSpeaker }
+    /// Manual turns: the other language keeps coming through in this turn.
+    var suggestsHandOver: Bool { builder?.hearsOtherSpeaker ?? false }
 
     /// What the panes show: the session's latest turn with its live words; or
     /// the turn you just edited; or the latest turn.
@@ -79,10 +91,13 @@ final class TranslateModel {
     @ObservationIgnored private var interruptionObserver: (any NSObjectProtocol)?
     /// The API the last session got its key from, for `resume()`.
     @ObservationIgnored private var lastAPI: (any RyokoAPI)?
+    /// Completes a hand-over if Soniox's `<fin>` doesn't come back in time.
+    @ObservationIgnored private var handOverTimeout: Task<Void, Never>?
 
-    init(source: TranscriptionSourceKind = .microphone, silenceLimit: Duration = .seconds(120)) {
+    init(source: TranscriptionSourceKind = .microphone, silenceLimit: Duration = .seconds(120), turnMode: TurnMode = .manual) {
         sourceKind = source
         self.silenceLimit = silenceLimit
+        self.turnMode = turnMode
         interruptionObserver = NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
         ) { [weak self] note in
@@ -98,6 +113,8 @@ final class TranslateModel {
     /// - Parameter api: where the session gets its Soniox key (T2.6).
     func start(pair: TranslatePair, api: any RyokoAPI) async {
         guard phase == .idle else { return }
+        // A fresh start is yours; picking up after the editor keeps the speaker.
+        if !isPaused { nextSpeaker = .me }
         isPaused = false
         lastAPI = api
         guard pair.isUsable else {
@@ -117,11 +134,11 @@ final class TranslateModel {
             }
         }
 
-        builder = TurnBuilder(pair: pair, firstId: log.nextId)
+        builder = TurnBuilder(pair: pair, mode: turnMode, speaker: nextSpeaker, firstId: log.nextId)
         sessionPair = pair
         session += 1
         let current = session
-        let run = sourceKind.makeRun(pair: pair, api: api)
+        let run = sourceKind.makeRun(pair: pair, api: api, turnMode: turnMode)
         self.run = run
         lastHeard = .now
         setIdleTimerDisabled(true)
@@ -138,6 +155,30 @@ final class TranslateModel {
             }
         }
         startWatchdog(session: current)
+    }
+
+    // MARK: Hand-over (manual turns)
+
+    /// Makes `next` the speaker. While listening, the words so far are
+    /// finalized first, so they stay in the current speaker's turn; the panes
+    /// keep that turn until the new speaker's words arrive. Before listening,
+    /// it picks who starts.
+    func handOver(to next: TurnSpeaker) {
+        guard turnMode == .manual else { return }
+        nextSpeaker = next
+        guard builder != nil else { return }
+        let needsFinalize = builder?.handOver(to: next) ?? false
+        RyokoLog.translate.notice("Hand-over to \(next.rawValue, privacy: .public)\(needsFinalize ? ", finalizing" : "", privacy: .public)")
+        guard needsFinalize else { return }
+        run?.finalize()
+        let current = session
+        handOverTimeout?.cancel()
+        handOverTimeout = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self, current == self.session, self.builder?.handOverTo != nil else { return }
+            RyokoLog.translate.notice("Hand-over: no <fin> after 2 s, switching anyway")
+            self.builder?.completeHandOver(force: true)
+        }
     }
 
     /// Stops listening. A user stop lets Soniox finalize the last words; the
@@ -244,6 +285,10 @@ final class TranslateModel {
             if response.tokens.contains(where: { $0.isOriginal && TurnRule.isWordy($0.text) }) {
                 lastHeard = .now
             }
+        #if DEBUG
+        case .handOver(let speaker):
+            handOver(to: speaker)
+        #endif
         }
     }
 
@@ -253,7 +298,10 @@ final class TranslateModel {
             builder.endSession()
             log.archive(builder.turns)
         }
+        if let builder { nextSpeaker = builder.activeSpeaker }
         builder = nil
+        handOverTimeout?.cancel()
+        handOverTimeout = nil
         phase = .idle
         level = 0
         run = nil
@@ -313,7 +361,12 @@ final class TranslateModel {
             case .user, nil: return "Tap to start"
             }
         case .starting: return "Connecting…"
-        case .listening: return "Listening"
+        case .listening:
+            guard turnMode == .manual, let pair = sessionPair else { return "Listening" }
+            let speaking = speaker == .me ? pair.home : pair.other
+            let waiting = speaker == .me ? pair.other : pair.home
+            if suggestsHandOver { return "Hearing \(waiting.name)? Tap \(waiting.name) to switch" }
+            return "Listening for \(speaking.name) · tap \(waiting.name) to switch"
         case .finishing: return isPaused ? "Pausing…" : "Finishing…"
         }
     }

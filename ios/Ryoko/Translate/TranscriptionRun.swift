@@ -10,6 +10,11 @@ nonisolated enum TranscriptionEvent: Sendable {
     case level(Float)
     /// A Soniox message.
     case response(SonioxResponse)
+    #if DEBUG
+    /// DEBUG: the canned script's next line is the other person's, as if
+    /// someone tapped their language.
+    case handOver(TurnSpeaker)
+    #endif
 }
 
 /// One listening session. `events` ends normally after `finish()` once Soniox
@@ -18,6 +23,9 @@ nonisolated protocol TranscriptionRun: Sendable {
     var events: AsyncThrowingStream<TranscriptionEvent, any Error> { get }
     /// Stops the audio and lets Soniox finalize what it heard.
     func finish()
+    /// Asks Soniox to finalize what it heard so far, and keeps listening.
+    /// `<fin>` arrives in `events` once it has.
+    func finalize()
     /// Stops at once.
     func cancel()
 }
@@ -36,7 +44,7 @@ nonisolated enum TranscriptionSourceKind: String, Sendable {
 
     /// - Parameter api: where a session gets its Soniox key (T2.6).
     @MainActor
-    func makeRun(pair: TranslatePair, api: any RyokoAPI) -> any TranscriptionRun {
+    func makeRun(pair: TranslatePair, api: any RyokoAPI, turnMode: TurnMode) -> any TranscriptionRun {
         let keys = SonioxKeyProvider(api: api)
         switch self {
         case .microphone:
@@ -49,7 +57,7 @@ nonisolated enum TranscriptionSourceKind: String, Sendable {
             #endif
         case .canned:
             #if DEBUG
-            return CannedRun(pair: pair, pace: TranslateDebug.cannedPace, failure: TranslateDebug.injectedProblem)
+            return CannedRun(pair: pair, pace: TranslateDebug.cannedPace, failure: TranslateDebug.injectedProblem, handsOver: turnMode == .manual)
             #else
             return SonioxRun(pair: pair, audio: MicrophoneCapture(), usesAudioSession: true, keys: keys)
             #endif
@@ -105,6 +113,11 @@ nonisolated final class SonioxRun: TranscriptionRun, @unchecked Sendable {
             try? await Task.sleep(for: .seconds(4))
             state.withLock { $0.session }?.close()
         }
+    }
+
+    func finalize() {
+        guard let session = state.withLock({ $0.session }) else { return } // still connecting
+        Task { await session.finalize() }
     }
 
     func cancel() {
@@ -177,7 +190,7 @@ nonisolated final class CannedRun: TranscriptionRun, @unchecked Sendable {
     private let continuation: AsyncThrowingStream<TranscriptionEvent, any Error>.Continuation
     private let driver = Mutex<Task<Void, Never>?>(nil)
 
-    init(pair: TranslatePair, pace: Double, failure: TranslateProblem?) {
+    init(pair: TranslatePair, pace: Double, failure: TranslateProblem?, handsOver: Bool) {
         (events, continuation) = AsyncThrowingStream.makeStream(of: TranscriptionEvent.self)
         let steps = CannedConversation.steps(for: pair, pace: pace)
         let task = Task { [continuation] in
@@ -190,6 +203,7 @@ nonisolated final class CannedRun: TranscriptionRun, @unchecked Sendable {
             for step in steps {
                 try? await Task.sleep(for: .seconds(step.delay))
                 if Task.isCancelled { return }
+                if handsOver, let speaker = step.speaker { continuation.yield(.handOver(speaker)) }
                 continuation.yield(.level(Float.random(in: 0.3...0.8)))
                 continuation.yield(.response(step.response))
             }
@@ -197,6 +211,10 @@ nonisolated final class CannedRun: TranscriptionRun, @unchecked Sendable {
             // Then stay "listening" until stopped, like a quiet room.
         }
         driver.withLock { $0 = task }
+    }
+
+    func finalize() {
+        continuation.yield(.response(SonioxResponse(tokens: [SonioxToken(text: SonioxToken.finalizeMarker, isFinal: true, language: nil)])))
     }
 
     func finish() {

@@ -66,7 +66,8 @@ nonisolated struct SonioxToken: Decodable, Hashable, Sendable {
 
     /// Soniox's endpoint marker: the speaker finished an utterance.
     static let endMarker = "<end>"
-    /// Marks the end of a manual finalize request. Translate never sends one.
+    /// Marks the end of a manual finalize request: everything said before the
+    /// request is final by now. Translate sends one when you hand over the turn.
     static let finalizeMarker = "<fin>"
 
     var isEndpoint: Bool { text == Self.endMarker }
@@ -133,6 +134,8 @@ nonisolated struct SonioxConfig: Hashable, Sendable {
             sample_rate: Self.sampleRate,
             num_channels: 1,
             language_hints: [languageA, languageB],
+            // Only ever the pair: no third language guessed from an accent.
+            language_hints_strict: true,
             enable_language_identification: true,
             enable_endpoint_detection: true,
             translation: .init(type: "two_way", language_a: languageA, language_b: languageB)
@@ -149,6 +152,7 @@ nonisolated struct SonioxConfig: Hashable, Sendable {
         var sample_rate: Int
         var num_channels: Int
         var language_hints: [String]
+        var language_hints_strict: Bool
         var enable_language_identification: Bool
         var enable_endpoint_detection: Bool
         var translation: Translation

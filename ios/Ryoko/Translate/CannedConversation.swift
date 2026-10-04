@@ -10,6 +10,8 @@ nonisolated enum CannedConversation {
     nonisolated struct Step: Sendable {
         var delay: TimeInterval
         var response: SonioxResponse
+        /// On a line's first step: who says it (manual turns hand over here).
+        var speaker: TurnSpeaker?
     }
 
     /// One utterance and its translation.
@@ -62,7 +64,7 @@ nonisolated enum CannedConversation {
             let first = Array(said[..<half]), second = Array(said[half...])
 
             // Words appear live, then become final; `<end>` closes the utterance.
-            steps.append(Step(delay: 1.0 * pace, response: SonioxResponse(tokens: first)))
+            steps.append(Step(delay: 1.0 * pace, response: SonioxResponse(tokens: first), speaker: line.speaker))
             // The previous line's late translation shows up once this line has text.
             let firstStep = finals(first) + lateTranslation + second
             lateTranslation = []

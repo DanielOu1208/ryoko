@@ -25,7 +25,7 @@ extension TranslateModel {
     static func forLaunch() -> TranslateModel {
         #if DEBUG
         let silence = TranslateDebug.silenceSeconds.map { Duration.seconds($0) } ?? .seconds(120)
-        return TranslateModel(source: TranslateDebug.source, silenceLimit: silence)
+        return TranslateModel(source: TranslateDebug.source, silenceLimit: silence, turnMode: TranslateDebug.turnMode)
         #else
         return TranslateModel()
         #endif
@@ -46,6 +46,8 @@ extension TranslateModel {
 ///   opens (so the Listening accessory shows on the others).
 /// - `-RyokoTranslateOther <tag>` / `-RyokoTranslateHome <tag>`: pick the pair by hand.
 /// - `-RyokoTranslateLayout upright|faceToFace`: force a layout.
+/// - `-RyokoTranslateTurns manual|automatic`: how turns change hands (manual by
+///   default). With the canned source, manual turns hand over at each line.
 /// - `-RyokoTranslateHistory <seconds>`: open History that long after appearing.
 /// - `-RyokoTranslateCannedPace <factor>`: speed of the canned script (1 = real time).
 /// - `-RyokoTranslateProblem <code>`: the canned run fails with this Soniox
@@ -74,6 +76,10 @@ enum TranslateDebug {
 
     static var forcedLayout: TranslateLayout? {
         defaults.string(forKey: "RyokoTranslateLayout").flatMap(TranslateLayout.init(rawValue:))
+    }
+
+    static var turnMode: TurnMode {
+        defaults.string(forKey: "RyokoTranslateTurns").flatMap(TurnMode.init(rawValue:)) ?? .manual
     }
 
     static var historyDelay: Double? {

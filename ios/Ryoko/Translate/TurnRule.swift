@@ -9,6 +9,15 @@ nonisolated enum TurnSpeaker: String, Hashable, Sendable {
     case them
 }
 
+/// How turns change hands (design §4.8, #68).
+nonisolated enum TurnMode: String, Hashable, Sendable {
+    /// You say who's speaking by tapping their language. Everything heard goes
+    /// into that person's turn until you tap the other language. The default.
+    case manual
+    /// The turn rule decides from the language Soniox hears.
+    case automatic
+}
+
 /// How a turn was entered. Typed turns are tier 2 (Type mode).
 nonisolated enum TurnSource: String, Hashable, Sendable {
     case voice
@@ -23,6 +32,8 @@ nonisolated struct Turn: Identifiable, Hashable, Sendable {
         case endpoint
         /// The other language took over (the turn rule).
         case languageSwitch
+        /// You tapped the other language (manual turns).
+        case handOver
         /// The session stopped.
         case sessionEnd
         /// Typed in Type mode and added with Done (tier 2).
@@ -184,7 +195,21 @@ nonisolated struct TurnRule: Hashable, Sendable {
     }
 }
 
-/// Builds turns from Soniox responses (design §4.8):
+/// Builds turns from Soniox responses (design §4.8).
+///
+/// **Manual turns** (the default, #68):
+///
+/// - Everything heard goes into the current speaker's turn, whatever language
+///   Soniox tags it with. `<end>` doesn't close it: a pause isn't a new turn.
+/// - `handOver(to:)` starts the other person's turn. When something heard may
+///   still belong to the current speaker, Soniox is asked to finalize first and
+///   the turn changes hands at its `<fin>` (or `completeHandOver(force:)`
+///   after a timeout), so the last words stay with the right person.
+/// - A translated token attaches to the turn that last heard words in its
+///   `source_language`.
+/// - The panes keep the previous turn until the new speaker's words arrive.
+///
+/// **Automatic turns:**
 ///
 /// - A new turn starts when at least 2 final tokens (or 2 CJK characters)
 ///   arrive in the other language. Fewer than that is a false flip: those
@@ -199,6 +224,7 @@ nonisolated struct TurnRule: Hashable, Sendable {
 nonisolated struct TurnBuilder: Sendable {
     let pair: TranslatePair
     let rule: TurnRule
+    let mode: TurnMode
 
     /// Every turn of this session, oldest first.
     private(set) var turns: [Turn] = []
@@ -211,15 +237,85 @@ nonisolated struct TurnBuilder: Sendable {
     private(set) var absorbedFlips = 0
     private(set) var orphanTranslations = 0
     private(set) var lateTranslationTokens = 0
+    /// Manual turns: translations of words Soniox heard as the other language.
+    private(set) var strayTranslationTokens = 0
+
+    /// Manual turns: who's speaking. Everything heard goes into their turn.
+    private(set) var speaker: TurnSpeaker
+    /// Manual turns: who takes over once Soniox has finalized what came before.
+    private(set) var handOverTo: TurnSpeaker?
+    /// Manual turns: finalize requests whose `<fin>` hasn't come back yet.
+    private var awaitedFins = 0
+    /// Manual turns: final words since the speaker's own language, in the other one.
+    private var otherLanguageRun: [SonioxToken] = []
+    /// Manual turns: the turn that last heard words in each language.
+    private var lastHeard: [String: Int] = [:]
 
     private var openIndex: Int?
     private var nextId: Int
 
-    /// - Parameter firstId: ids continue across sessions, so history rows stay unique.
-    init(pair: TranslatePair, rule: TurnRule = TurnRule(), firstId: Int = 1) {
+    /// - Parameters:
+    ///   - mode: manual (you say who's speaking) or automatic (the turn rule).
+    ///   - speaker: manual turns: who speaks first.
+    ///   - firstId: ids continue across sessions, so history rows stay unique.
+    init(pair: TranslatePair, rule: TurnRule = TurnRule(), mode: TurnMode = .automatic, speaker: TurnSpeaker = .me, firstId: Int = 1) {
         self.pair = pair
         self.rule = rule
+        self.mode = mode
+        self.speaker = speaker
         nextId = firstId
+    }
+
+    /// Manual turns: who the controls show as speaking (the one taking over, if
+    /// a hand-over is waiting for Soniox).
+    var activeSpeaker: TurnSpeaker { handOverTo ?? speaker }
+
+    /// Manual turns: Soniox keeps hearing the other language in the open turn
+    /// (4 words or 4 CJK characters in a row). Maybe the other person is
+    /// talking and nobody switched: the controls suggest it.
+    var hearsOtherSpeaker: Bool {
+        guard mode == .manual, handOverTo == nil, openIndex != nil else { return false }
+        return TurnRule(minTokens: 4, minCJK: 4).startsTurn(otherLanguageRun)
+    }
+
+    // MARK: Hand-over (manual turns)
+
+    /// Hands the turn to `next`. Returns true when Soniox should finalize
+    /// first (`{"type":"finalize"}`), because words heard so far may still
+    /// belong to the current speaker; the turn then changes hands at `<fin>`.
+    /// Tapping the current speaker again before that cancels the hand-over.
+    mutating func handOver(to next: TurnSpeaker) -> Bool {
+        guard mode == .manual, next != activeSpeaker else { return false }
+        if handOverTo != nil {
+            handOverTo = nil // back to the current speaker before `<fin>` came
+            return false
+        }
+        let hasLiveWords = tail.contains { $0.isOriginal && TurnRule.isWordy($0.text) }
+        guard openIndex != nil || hasLiveWords else {
+            speaker = next
+            otherLanguageRun = []
+            return false
+        }
+        handOverTo = next
+        awaitedFins += 1
+        return true
+    }
+
+    /// The turn changes hands: at `<fin>`, or with `force` when it didn't come in time.
+    mutating func completeHandOver(force: Bool = false) {
+        if force {
+            awaitedFins = 0
+        } else {
+            awaitedFins = max(0, awaitedFins - 1)
+            guard awaitedFins == 0 else { return }
+        }
+        guard let next = handOverTo else { return }
+        handOverTo = nil
+        // Without `<fin>`, live words could be either person's; they go to
+        // whoever speaks once Soniox finalizes them.
+        close(.handOver)
+        speaker = next
+        otherLanguageRun = []
     }
 
     /// The id the next turn will get.
@@ -255,15 +351,25 @@ nonisolated struct TurnBuilder: Sendable {
         }
         absorbPending()
         close(.sessionEnd)
+        if let next = handOverTo {
+            speaker = next
+            handOverTo = nil
+        }
+        awaitedFins = 0
     }
 
     private mutating func applyFinal(_ token: SonioxToken) {
         if token.isEndpoint {
+            // Manual turns: a pause isn't a new turn.
+            guard mode == .automatic else { return }
             absorbPending()
             close(.endpoint)
             return
         }
-        if token.text == SonioxToken.finalizeMarker { return }
+        if token.text == SonioxToken.finalizeMarker {
+            completeHandOver()
+            return
+        }
         if token.isTranslation {
             attachTranslation(token)
             return
@@ -272,6 +378,10 @@ nonisolated struct TurnBuilder: Sendable {
     }
 
     private mutating func applyOriginal(_ token: SonioxToken) {
+        if mode == .manual {
+            applyLocked(token)
+            return
+        }
         let wordy = TurnRule.isWordy(token.text)
         guard let open = openIndex else {
             if wordy {
@@ -309,7 +419,49 @@ nonisolated struct TurnBuilder: Sendable {
         }
     }
 
+    /// Manual turns: the word goes into the current speaker's turn.
+    private mutating func applyLocked(_ token: SonioxToken) {
+        let wordy = TurnRule.isWordy(token.text)
+        let ownLanguage = code(for: speaker)
+        if openIndex == nil {
+            // Spaces and punctuation don't open a turn.
+            guard wordy else { return }
+            startTurn(language: ownLanguage, tokens: [token])
+        } else if let open = openIndex {
+            turns[open].rawOriginal += token.text
+        }
+        guard let open = openIndex else { return }
+        let heard = language(of: token, fallback: ownLanguage)
+        lastHeard[heard] = open
+        if wordy {
+            if heard == ownLanguage {
+                otherLanguageRun = []
+            } else {
+                otherLanguageRun.append(token)
+            }
+        }
+    }
+
+    private func code(for speaker: TurnSpeaker) -> String {
+        speaker == .me ? pair.home.sonioxCode : pair.other.sonioxCode
+    }
+
+    /// Manual turns: where a translation from `source` goes.
+    private func lockedIndex(forSource source: String) -> Int? {
+        lastHeard[source] ?? turns.lastIndex { $0.language == source }
+    }
+
     private mutating func attachTranslation(_ token: SonioxToken) {
+        if mode == .manual {
+            guard let source = token.sourceLanguage, let index = lockedIndex(forSource: source) else {
+                orphanTranslations += 1
+                return
+            }
+            if turns[index].language != source { strayTranslationTokens += 1 }
+            if turns[index].isClosed || index != turns.indices.last { lateTranslationTokens += 1 }
+            turns[index].rawTranslation += token.text
+            return
+        }
         guard let source = token.sourceLanguage,
               let index = turns.lastIndex(where: { $0.language == source }) else {
             orphanTranslations += 1
@@ -371,6 +523,7 @@ nonisolated struct TurnBuilder: Sendable {
     /// words that continue it. Before the first final token, the live words
     /// alone. nil until anyone has said anything.
     var display: Turn? {
+        if mode == .manual { return lockedDisplay }
         let liveOriginals = tail.filter(\.isOriginal)
         guard var latest = turns.last else {
             guard let first = liveOriginals.first(where: { TurnRule.isWordy($0.text) }) else { return nil }
@@ -390,6 +543,35 @@ nonisolated struct TurnBuilder: Sendable {
         }
         latest.rawTranslation += liveTranslation(from: latest.language)
         return latest
+    }
+
+    /// Manual turns: the open turn with every live word; before it has a final
+    /// word, the live words alone as the speaker's; otherwise the latest turn.
+    private var lockedDisplay: Turn? {
+        let liveOriginals = tail.filter(\.isOriginal)
+        if let open = openIndex {
+            var turn = turns[open]
+            turn.rawOriginal += liveOriginals.map(\.text).joined()
+            turn.rawTranslation += lockedLiveTranslation(for: open)
+            return turn
+        }
+        if liveOriginals.contains(where: { TurnRule.isWordy($0.text) }) {
+            let language = code(for: speaker)
+            var provisional = makeTurn(id: nextId, language: language, original: liveOriginals.map(\.text).joined())
+            provisional.rawTranslation = liveTranslation(from: language)
+            return provisional
+        }
+        guard var latest = turns.last else { return nil }
+        latest.rawTranslation += lockedLiveTranslation(for: turns.count - 1)
+        return latest
+    }
+
+    private func lockedLiveTranslation(for index: Int) -> String {
+        tail.filter { token in
+            guard token.isTranslation, let source = token.sourceLanguage else { return false }
+            return (lastHeard[source] ?? index) == index
+        }
+        .map(\.text).joined()
     }
 
     /// Every turn for History, the latest with its live words.
