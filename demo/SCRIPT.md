@@ -1,9 +1,10 @@
 # Ryoko demo video: narration script
 
-3:00, 1920 × 1080, 30 fps. The video has no audio: record the narration over it.
-Each line starts at its timecode; the time in brackets is how long a
-read at a natural pace takes (the scratch voice in `out/guide.m4a`), so
-there's room to slow down. `narration.json` holds the same lines and times.
+3:00, 1920 × 1080, 30 fps, silent: the narration and music are added
+separately. Each line starts at its timecode; the time in brackets is how long
+a brisk read takes, so there's room to slow down. `make_guide.py` can build a
+scratch voice (`out/guide.m4a`) to rehearse the timing, and subtitles
+(`out/ryoko-demo.srt`). `narration.json` holds the same lines and times.
 
 All footage is the real app on an iPhone 18 Pro simulator, driven by real
 touches. The Nara picks, the two place cards and Mimo's plan are scripted for

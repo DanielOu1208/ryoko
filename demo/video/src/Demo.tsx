@@ -35,13 +35,13 @@ const zoom = (t: number, s: number, fx: number, fy: number, x = PX, y = PY): Cam
 /** The phone's screen, shot by shot. */
 const CLIPS: Clip[] = [
   // Intro and Map: locating → picks arrive → scroll the picks.
-  {take: 'map', at: 3.2, dur: 13.8, from: 6.6},
+  {take: 'map', at: 3.2, dur: 13.8, from: 4.0},
   // Search: typing "7-eleven" (the bridge taps keys slowly; sped up).
-  {take: 'map', at: 17.0, dur: 4.6, from: 20.4, rate: 2.5},
+  {take: 'map', at: 17.0, dur: 4.6, from: 17.8, rate: 2.5},
   // The 7-Eleven card: Look Around, phrases arriving, scrolled to them.
-  {take: 'map', at: 21.6, dur: 15.4, from: 31.9},
+  {take: 'map', at: 21.6, dur: 15.4, from: 29.9},
   // Show mode, then Flip.
-  {take: 'map', at: 37.0, dur: 7.5, from: 49.2, rate: 1.2},
+  {take: 'map', at: 37.0, dur: 7.5, from: 52.3, rate: 1.2},
   // Me.
   {take: 'map', at: 44.5, dur: 11.5, from: 63.2},
   // Nara Park: the picks, tap, its card…
@@ -50,25 +50,25 @@ const CLIPS: Clip[] = [
   {take: 'park', at: 64.5, dur: 4.6, from: 21.5, rate: 3},
   {take: 'park', at: 69.1, dur: 10.9, from: 35.3},
   // Translate, ready to listen (held while the section opens).
-  {take: 'translate', at: 80.0, dur: 15.5, from: 5.4, freeze: true},
+  {take: 'translate', at: 80.0, dur: 15.5, from: 3.2, freeze: true},
   // The coffee order: mic, English → Chinese, the barista's answer, flip, two more lines.
-  {take: 'translate', at: 95.5, dur: 39.5, from: 5.5},
+  {take: 'translate', at: 95.5, dur: 39.5, from: 3.5},
   // Mimo: a new chat…
   {take: 'mimo', at: 135.0, dur: 2.5, from: 1.5},
   {take: 'mimo', at: 137.5, dur: 1.2, from: 4.0, rate: 2},
   // …typing the question on the keyboard (sped up to a natural pace)…
-  {take: 'mimo', at: 138.7, dur: 6.2, from: 6.4, rate: 6},
+  {take: 'mimo', at: 138.7, dur: 6.2, from: 6.4, rate: 6.15},
   // …send, thinking, searching the web, the plan arrives…
-  {take: 'mimo', at: 144.9, dur: 10.6, from: 43.2},
+  {take: 'mimo', at: 144.9, dur: 10.6, from: 44.5},
   // …Show on map.
-  {take: 'mimo', at: 155.5, dur: 4.5, from: 67.9},
+  {take: 'mimo', at: 155.5, dur: 4.5, from: 68.2},
 ];
 
 /** The camera on the phone. */
 const CAMERA: Camera[] = [
   {t: 0, x: PX, y: PY + 900, s: 1, o: 0},
-  {t: 3.0, x: PX, y: PY + 900, s: 1, o: 0},
-  {t: 4.6, x: PX, y: PY, s: 1, o: 1},
+  {t: 3.3, x: PX, y: PY + 900, s: 1, o: 0},
+  {t: 4.9, x: PX, y: PY, s: 1, o: 1},
   rest(26.5),
   // Phrases: lean in on the cards and their "because" lines.
   zoom(28.5, 1.45, 0.5, 0.72, PX - 40, PY + 40),
@@ -87,12 +87,12 @@ const CAMERA: Camera[] = [
   zoom(94.0, 1.5, 0.5, 0.86, PX - 30, PY + 120),
   rest(96.0),
   // "Lay the phone flat": tip it back as the app flips.
-  rest(108.6),
-  {t: 110.0, x: PX, y: PY + 30, s: 0.98, rx: 38},
-  {t: 112.6, x: PX, y: PY + 30, s: 0.98, rx: 38},
-  rest(114.2),
+  rest(109.8),
+  {t: 111.2, x: PX, y: PY + 30, s: 0.98, rx: 38},
+  {t: 113.4, x: PX, y: PY + 30, s: 0.98, rx: 38},
+  rest(114.9),
   // The translation, expanded and large: theirs (top, turned to face them)…
-  zoom(115.4, 1.5, 0.5, 0.3, PX - 40, PY - 20),
+  zoom(116.3, 1.5, 0.5, 0.3, PX - 40, PY - 20),
   zoom(119.6, 1.5, 0.5, 0.3, PX - 40, PY - 20),
   rest(121.4),
   // …then the barista's answer, in English for you.
@@ -154,8 +154,8 @@ const TitleCard: React.FC = () => {
   const {fps} = useVideoConfig();
   const t = frame / fps;
   const p = spring({frame: frame - 6, fps, config: {damping: 200, mass: 1.2}});
-  const out = interpolate(t, [3.0, 4.2], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const lift = interpolate(t, [3.0, 4.2], [0, -60], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const out = interpolate(t, [2.7, 3.5], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const lift = interpolate(t, [2.7, 3.5], [0, -60], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const sub = spring({frame: frame - 22, fps, config: {damping: 200}});
   return (
     <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center', opacity: out, transform: `translateY(${lift}px)`}}>
@@ -184,7 +184,7 @@ const TitleCard: React.FC = () => {
 
 /** Four features, four phones (stills from the takes). */
 const FEATURES: {take: string; from: number; label: string; sub: string}[] = [
-  {take: 'map', from: 47.5, label: 'Personal phrases', sub: 'For the place you’re in'},
+  {take: 'map', from: 50.0, label: 'Personal phrases', sub: 'For the place you’re in'},
   {take: 'park', from: 40.0, label: 'Local customs', sub: 'Tips worth knowing'},
   {take: 'translate', from: 40.0, label: 'Split-screen translation', sub: 'Face to face, live'},
   {take: 'mimo', from: 72.5, label: 'Mimo', sub: 'Plans and places, on the map'},
