@@ -193,8 +193,8 @@ final class LivePlaceResolver: PlaceResolver {
     /// hit's own city and district.
     private func bestHit(in items: [MKMapItem], for query: PlaceQuery, centreArea: Set<String>) -> ResolvedPlace? {
         let center = query.near.mapKitLocation
-        return items
-            .compactMap { item -> (hit: ResolvedPlace, score: Int)? in
+        let best = items
+            .compactMap { item -> (hit: ResolvedPlace, score: Int, item: MKMapItem)? in
                 guard let itemName = item.name else { return nil }
                 let area = centreArea.union(Self.areaWords(of: item))
                 let score = max(
@@ -207,12 +207,14 @@ final class LivePlaceResolver: PlaceResolver {
                 guard score > 0, let place = NearbySearch.place(from: item) else { return nil }
                 let distance = item.location.distance(from: center)
                 guard distance <= Self.maxDistance else { return nil }
-                return (ResolvedPlace(query: query, place: place, distanceMeters: distance), score)
+                return (ResolvedPlace(query: query, place: place, distanceMeters: distance), score, item)
             }
             .min { lhs, rhs in
                 lhs.score != rhs.score ? lhs.score > rhs.score : lhs.hit.distanceMeters < rhs.hit.distanceMeters
-            }?
-            .hit
+            }
+        // So the place's thumbnail asks for its Look Around scene by item.
+        if let best { PlaceThumbnailLoader.shared.remember(best.item, for: best.hit.place) }
+        return best?.hit
     }
 
     // MARK: Country

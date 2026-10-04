@@ -7,7 +7,7 @@
 // - A tag that can't be parsed is passed through as text; one still open when
 //   the run ends is flushed as text then. Wrappers the model sometimes adds
 //   (`<phrases>…</phrases>`, a stray `</phrase>`) are dropped.
-// - Phrases that fail the allergen filter, or go past the per-reply cap, are dropped.
+// - Phrases past the per-reply cap are dropped.
 // - When text comes both before and after a tool call, a blank line separates them.
 // - Whitespace next to phrase blocks and at the very start and end is trimmed.
 // The agent's transcript keeps the raw tags, so Mimo sees its earlier phrases.
@@ -15,7 +15,6 @@
 import type { Phrase } from '@ryoko/contracts';
 import { hasLatinLetters, inLocalScript, type LanguageInfo } from '../context.ts';
 import { romanizationFor } from '../romanize.ts';
-import { unsafeMention, type Hazard } from '../safety.ts';
 
 const OPEN = '<phrase';
 const CLOSE_PAIR = '</phrase>';
@@ -28,7 +27,6 @@ export interface PhraseStreamOptions {
   language: LanguageInfo;
   /** Phrase ids are `${idPrefix}-1`, `-2`, … */
   idPrefix: string;
-  hazards?: readonly Hazard[];
   /** At most this many phrase events per reply (design §6.2: about 4). */
   maxPhrases?: number;
   /** A tag longer than this without its end is treated as text. */
@@ -41,9 +39,9 @@ export interface PhraseStreamStats {
   phrases: number;
   /** Tags passed through as text: unparseable, unterminated or in the wrong script. */
   malformed: number;
-  /** Phrases dropped by the allergen filter or the cap. */
+  /** Phrases dropped by the per-reply cap. */
   dropped: number;
-  /** Why each dropped phrase went, with its text, for the server log: `egg: 卵か乳製品… / Does this…`. */
+  /** Each dropped phrase, with its text, for the server log: `over the cap: 一杯… / One cup…`. */
   droppedPhrases: string[];
   /** Text pieces outside tags that contain local script (the prompt forbids it). */
   strayLocalScript: number;
@@ -80,10 +78,10 @@ export class PhraseStream {
   private pendingSpace = '';
   private boundary = false;
   readonly stats: PhraseStreamStats = { phrases: 0, malformed: 0, dropped: 0, droppedPhrases: [], strayLocalScript: 0 };
-  private readonly options: Required<Omit<PhraseStreamOptions, 'hazards'>> & { hazards: readonly Hazard[] };
+  private readonly options: Required<PhraseStreamOptions>;
 
   constructor(options: PhraseStreamOptions) {
-    this.options = { maxPhrases: 4, maxTagLength: 800, hazards: [], ...options };
+    this.options = { maxPhrases: 4, maxTagLength: 800, ...options };
   }
 
   /** Feeds one text delta from the model. */
@@ -194,10 +192,9 @@ export class PhraseStream {
       this.text(`${local} (${gloss})`);
       return;
     }
-    const hazard = unsafeMention([local, gloss], this.options.hazards);
-    if (hazard || this.count >= this.options.maxPhrases) {
+    if (this.count >= this.options.maxPhrases) {
       this.stats.dropped++;
-      this.stats.droppedPhrases.push(`${hazard ?? 'over the cap'}: ${local} / ${gloss}`);
+      this.stats.droppedPhrases.push(`over the cap: ${local} / ${gloss}`);
       return;
     }
     this.count++;

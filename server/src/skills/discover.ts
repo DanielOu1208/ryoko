@@ -17,11 +17,10 @@ import { Value } from 'typebox/value';
 import { CATEGORY_SLUGS, CategorySlug, DiscoverResponse, Strict, type DiscoverPlace, type DiscoverRequest, type NearbyPlace } from '@ryoko/contracts';
 import type { Finalized } from '../llm/typed.ts';
 import { describeErrors } from '../validate.ts';
-import { inLocalScript, languageInfo, mostlyInScript, PERSONA, promptProfile, promptSituation, type LanguageInfo } from './context.ts';
-import { hazardsFor, unsafeMention } from './safety.ts';
+import { ABOUT_ME_RULE, inLocalScript, languageInfo, mostlyInScript, PERSONA, promptProfile, promptSituation, type LanguageInfo } from './context.ts';
 
-/** Bump when the prompt or checks change, so cached picks regenerate. dc-4: grounded in `nearby`. */
-export const DISCOVER_PROMPT_VERSION = 'dc-4';
+/** Bump when the prompt or checks change, so cached picks regenerate. dc-4: grounded in `nearby`. dc-5: no allergen filter; the aboutMe rule. */
+export const DISCOVER_PROMPT_VERSION = 'dc-5';
 
 /** The contract's floor: fewer good picks than this means a retry. */
 export const MIN_DISCOVER_PLACES = 5;
@@ -150,6 +149,7 @@ export function discoverSystem(local: LanguageInfo, home: LanguageInfo, groundin
     `"category": one of ${CATEGORY_SLUGS.join(', ')}.`,
     `"bestTime": optional, a short label in ${home.name}, at most 24 characters, e.g. "Afternoons".`,
     'Mix categories, with at most 3 places to eat or drink.',
+    ABOUT_ME_RULE,
   ];
   return `${PERSONA}
 
@@ -175,7 +175,6 @@ export function discoverUser(request: DiscoverRequest): string {
 export function finalizeDiscover(request: DiscoverRequest, output: DiscoverModelOutput): Finalized<DiscoverResponse> {
   const local = languageInfo(request.situation.localLanguage);
   const home = languageInfo(request.profile.homeLanguage);
-  const hazards = hazardsFor(request.profile);
   const nearby = nearbyPlaces(request);
   const allowance = unlistedAllowance(nearby);
   const dropped: string[] = [];
@@ -191,8 +190,6 @@ export function finalizeDiscover(request: DiscoverRequest, output: DiscoverModel
     if (why.length > 60) problems.push(`"why" is ${why.length} characters (at most 60)`);
     if (!mostlyInScript(why, home)) problems.push(`"why" isn't in ${home.name}`);
     if (!inLocalScript(place.localName, local)) problems.push(`"localName" isn't in ${local.name}`);
-    const hazard = unsafeMention([place.name, why], hazards);
-    if (hazard) problems.push(`it's about ${hazard}, which the traveller must avoid`);
     const key = normalizeName(place.name);
     if (seen.has(key)) problems.push('it repeats another place');
     if (problems.length > 0) {

@@ -255,41 +255,57 @@ struct MimoView: View {
     // MARK: Header
 
     /// Mimo centred at the top, as a contact in Messages: the animated avatar
-    /// with its name and where you are under it. History on the left, New chat
-    /// on the right.
+    /// with where you are and the local time under it, in one line (only the
+    /// avatar before there's a place). History on the left and New chat on the
+    /// right, level with the avatar.
     private func header(at date: Date) -> some View {
-        HStack(alignment: .top) {
+        let here = whereAndWhen(at: date)
+        return HStack(alignment: .mimoAvatarMiddle) {
             MimoHeaderButton(title: "History", systemImage: "sidebar.leading", action: unlessSwiping { showsHistory = true })
             Spacer(minLength: Theme.grid)
             // The pill tucks up under the avatar, whose canvas has room around the body.
             VStack(spacing: -Theme.grid) {
-                MimoAvatarView(mood: avatarMood, size: 82)
-                    .accessibilityHidden(true)
+                MimoAvatarView(mood: avatarMood, size: 64)
+                    .alignmentGuide(.mimoAvatarMiddle) { $0[VerticalAlignment.center] }
                 // In a glass pill, like a contact's name in Messages, so it
-                // stays readable over the chat scrolling under it.
-                VStack(spacing: 0) {
-                    Text("Mimo")
-                        .font(.subheadline.weight(.semibold))
-                    if !dynamicTypeSize.isAccessibilitySize, let subtitle = subtitle(at: date) {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                // stays readable over the chat scrolling under it. The avatar
+                // and the tab already say Mimo, so the pill says only where and
+                // when, and there's none before there's a place (the Where are
+                // you card covers that); a long place name gives way before
+                // the time does.
+                if let here {
+                    HStack(spacing: 0) {
+                        Text(here.place)
                             .lineLimit(1)
+                        if let time = here.time {
+                            Text(" · \(time)")
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .fixedSize()
+                        }
                     }
+                    .font(.subheadline.weight(.medium))
+                    // Like a navigation bar's title, it stops growing at the
+                    // accessibility sizes, so the place still fits beside the time.
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .padding(.horizontal, Theme.grid * 1.75)
+                    .padding(.vertical, Theme.grid / 2)
+                    .glassEffect(.regular, in: .capsule)
                 }
-                .padding(.horizontal, Theme.grid * 1.75)
-                .padding(.vertical, Theme.grid / 2)
-                .glassEffect(.regular, in: .capsule)
             }
-            .accessibilityElement(children: .combine)
+            // One heading for VoiceOver, which still names Mimo.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(["Mimo", here?.place, here?.time].compactMap(\.self).joined(separator: ", "))
             .accessibilityAddTraits(.isHeader)
             Spacer(minLength: Theme.grid)
             MimoHeaderButton(title: "New chat", systemImage: "square.and.pencil", action: unlessSwiping(startNewChat))
                 .disabled(chat.isEmpty && router.mimoSubject == nil)
         }
         .pageMargins()
-        // Up into the status bar's band, clear of the Dynamic Island, to leave the chat more room.
-        .padding(.top, -Theme.grid * 1.5)
+        // Up into the status bar's band, to leave the chat more room: the
+        // avatar's canvas has room around the body, which sits just under the
+        // Dynamic Island, and the buttons stay below the status bar's icons.
+        .padding(.top, -Theme.grid * 2.5)
     }
 
     // MARK: Transcript
@@ -679,15 +695,16 @@ struct MimoView: View {
         router.mimoSubject?.category ?? situationStore.situation?.place?.category ?? .other
     }
 
-    /// "Menya Kaze · 8:00 PM", in the place's time zone.
-    private func subtitle(at date: Date) -> String? {
+    /// Where you are and the time there ("Menya Kaze", "8:00 PM"), in the
+    /// place's time zone: nil before there's a situation, no time without a zone.
+    private func whereAndWhen(at date: Date) -> (place: String, time: String?)? {
         guard let situation = situationStore.situation else { return nil }
         let clocked = situation.stamped(at: date)
         let name = situation.place?.name ?? situation.city
-        guard let instant = clocked.date, let zone = clocked.zone else { return name }
+        guard let instant = clocked.date, let zone = clocked.zone else { return (name, nil) }
         var style = Date.FormatStyle(date: .omitted, time: .shortened)
         style.timeZone = zone
-        return "\(name) · \(instant.formatted(style))"
+        return (name, instant.formatted(style))
     }
 }
 
@@ -728,6 +745,17 @@ private struct MimoIntro: View {
     }
 }
 
+private extension VerticalAlignment {
+    /// The middle of the header's avatar, which the header buttons line up with.
+    nonisolated enum MimoAvatarMiddle: AlignmentID {
+        static func defaultValue(in context: ViewDimensions) -> CGFloat {
+            context[VerticalAlignment.center]
+        }
+    }
+
+    static let mimoAvatarMiddle = VerticalAlignment(MimoAvatarMiddle.self)
+}
+
 /// A round glass button in the header, the size of a navigation bar button.
 private struct MimoHeaderButton: View {
     let title: String
@@ -740,6 +768,9 @@ private struct MimoHeaderButton: View {
         Button(title, systemImage: systemImage, action: action)
             .labelStyle(.iconOnly)
             .font(.body.weight(.medium))
+            // A bar button's symbol stops growing at the accessibility sizes,
+            // so it stays inside its 44 pt circle.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .frame(width: 44, height: 44)
             .contentShape(.circle)
             .buttonStyle(.plain)

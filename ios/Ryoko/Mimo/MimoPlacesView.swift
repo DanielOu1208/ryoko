@@ -23,10 +23,10 @@ struct MimoPlacesView: View {
                 card {
                     MimoPlacesMap(places: found, isPlan: places.isPlan, onShowOnMap: onShowOnMap)
                     ForEach(Array(found.enumerated()), id: \.element.id) { index, place in
-                        if index > 0 { Divider().padding(.leading, MimoPlaceRow.textInset) }
+                        if index > 0 { MimoPlaceDivider(isPlan: places.isPlan) }
                         MimoPlaceRow(
                             shown: place.shown,
-                            category: place.place.category,
+                            place: place.place,
                             number: places.isPlan ? place.shown.order ?? index + 1 : nil,
                             distanceMeters: place.distanceMeters,
                             language: places.language,
@@ -43,10 +43,10 @@ struct MimoPlacesView: View {
                     .fill(.quaternary)
                     .frame(height: MimoPlacesMap.height)
                 ForEach(Array(places.lookupOrder.enumerated()), id: \.offset) { index, shown in
-                    if index > 0 { Divider().padding(.leading, MimoPlaceRow.textInset) }
+                    if index > 0 { MimoPlaceDivider(isPlan: places.isPlan) }
                     MimoPlaceRow(
                         shown: shown,
-                        category: .other,
+                        place: Self.placeholderPlace,
                         number: places.isPlan ? shown.order ?? index + 1 : nil,
                         distanceMeters: nil,
                         language: places.language,
@@ -60,6 +60,17 @@ struct MimoPlacesView: View {
             .accessibilityLabel("Finding places on the map")
         }
     }
+
+    /// Shape-only, for the rows while the names are looked up (the
+    /// thumbnail loads nothing while redacted).
+    private static let placeholderPlace = Place(
+        id: nil,
+        name: "A place",
+        localName: nil,
+        category: .other,
+        address: nil,
+        coordinate: Coordinate(lat: 0, lon: 0)
+    )
 
     private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -129,28 +140,67 @@ private struct MimoPlacesMap: View {
     }
 }
 
-/// One place: its category (or, in a plan, its stop number), the name with its
-/// local-script name, Mimo's why (after the time, in a plan), and how far it is.
+/// A separator between the card's rows, inset to where their text starts.
+private struct MimoPlaceDivider: View {
+    let isPlan: Bool
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Divider()
+            .padding(.leading, MimoPlaceRow.textInset(isPlan: isPlan, isLarge: dynamicTypeSize.isAccessibilitySize))
+    }
+}
+
+/// One place: its thumbnail (Look Around, or satellite; in a plan, with the
+/// stop number on its corner), the name with its local-script name, Mimo's
+/// why (after the time, in a plan), and how far it is.
+///
+/// At accessibility text sizes the thumbnail goes, as on the Map's rows, so
+/// the text keeps the width: a plan's stop number stays as a small badge
+/// before the name, and the local name and the distance move under the name
+/// and the why.
 private struct MimoPlaceRow: View {
-    static let textInset: CGFloat = Theme.grid * 2 + 32 + Theme.grid * 1.5
+    /// The stop number's column at accessibility text sizes.
+    static let badgeColumn: CGFloat = 28
+
+    /// Where the text starts, from the card's leading edge.
+    static func textInset(isPlan: Bool, isLarge: Bool) -> CGFloat {
+        let leading: CGFloat? = if !isLarge { PlaceThumbnail.defaultSize } else if isPlan { badgeColumn } else { nil }
+        return Theme.grid * 2 + (leading.map { $0 + Theme.grid * 1.5 } ?? 0)
+    }
 
     let shown: ShownPlace
-    let category: CategorySlug
+    let place: Place
     /// The stop number, in a plan.
     let number: Int?
     let distanceMeters: Double?
     let language: String?
     var action: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
+        let isLarge = dynamicTypeSize.isAccessibilitySize
         Button(action: action) {
-            HStack(alignment: .center, spacing: Theme.grid * 1.5) {
-                badge
+            HStack(alignment: isLarge ? .firstTextBaseline : .center, spacing: Theme.grid * 1.5) {
+                if !isLarge {
+                    thumbnail
+                } else if let number {
+                    stopBadge(number)
+                        .frame(width: Self.badgeColumn)
+                }
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline, spacing: Theme.grid * 0.75) {
+                    // The local name follows the name, or goes under it at the
+                    // accessibility sizes, where beside it the name would
+                    // break mid-word.
+                    let nameLayout = isLarge
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+                        : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Theme.grid * 0.75))
+                    nameLayout {
                         Text(shown.name)
                             .font(.subheadline.weight(.semibold))
-                            .lineLimit(2)
+                            .lineLimit(isLarge ? nil : 2)
                         if let localName, let language {
                             LocalText(localName, languageTag: language)
                                 .font(.caption)
@@ -162,10 +212,15 @@ private struct MimoPlaceRow: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if isLarge, let distanceMeters {
+                        Text(MapDistanceText.text(distanceMeters))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .multilineTextAlignment(.leading)
-                if let distanceMeters {
+                if !isLarge, let distanceMeters {
                     Text(MapDistanceText.text(distanceMeters))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -194,23 +249,31 @@ private struct MimoPlaceRow: View {
         return "\(MimoPlanClock.clock(when)) · \(shown.why)"
     }
 
-    @ViewBuilder
-    private var badge: some View {
-        if let number {
-            Text(number, format: .number)
-                .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(Color(uiColor: .systemBackground))
-                .frame(width: 32, height: 32)
-                .background(Circle().fill(.primary))
-                .accessibilityLabel("Stop \(number)")
-        } else {
-            Image(systemName: category.sfSymbol)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(width: 32, height: 32)
-                .background(.quaternary, in: Circle())
-                .accessibilityHidden(true)
-        }
+    private var thumbnail: some View {
+        PlaceThumbnail(place: place)
+            .overlay(alignment: .topLeading) {
+                if let number {
+                    stopBadge(number)
+                        // Set apart from the picture by a ring of the card's colour.
+                        .padding(2)
+                        .background(Capsule().fill(Theme.cardFill))
+                        .offset(x: -7, y: -7)
+                }
+            }
+    }
+
+    /// A plan's stop number. Like a bar item it stops growing at the
+    /// accessibility sizes, so it stays a small badge beside the name.
+    private func stopBadge(_ number: Int) -> some View {
+        Text(number, format: .number)
+            .font(.caption.weight(.bold).monospacedDigit())
+            .foregroundStyle(Color(uiColor: .systemBackground))
+            .padding(.horizontal, 4)
+            .frame(minWidth: 22, minHeight: 22)
+            .background(Capsule().fill(.primary))
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            .fixedSize()
+            .accessibilityLabel("Stop \(number)")
     }
 }
 

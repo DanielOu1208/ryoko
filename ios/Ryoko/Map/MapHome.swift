@@ -139,6 +139,8 @@ extension MapPlace {
             )
         }
         guard let place else { return nil }
+        // So its thumbnail and Look Around preview can ask for the scene by item.
+        PlaceThumbnailLoader.shared.remember(item, for: place)
         self.init(
             place: place,
             source: source,

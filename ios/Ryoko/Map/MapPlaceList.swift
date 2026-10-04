@@ -347,27 +347,27 @@ struct MapListCard<Content: View>: View {
     }
 }
 
-/// A row separator, inset past the row's icon.
+/// A row separator, inset past the row's thumbnail.
 struct MapListDivider: View {
     var body: some View {
         Divider()
-            .padding(.leading, MapListLayout.inset + MapPlaceRow.iconColumn + Theme.grid * 1.5)
+            .padding(.leading, MapListLayout.inset + MapPlaceRow.thumbnailColumn + Theme.grid * 1.5)
     }
 }
 
 // MARK: - Row
 
-/// One place in two lines: the name with its local name, then Mimo's why
-/// (picks, with the distance at the side) or the category and distance.
-/// Tapping it opens the place's card.
+/// One place in two lines, after its thumbnail (Look Around, or satellite):
+/// the name with its local name, then Mimo's why (picks, with the distance at
+/// the side) or the category and distance. Tapping it opens the place's card.
+/// At accessibility text sizes the thumbnail goes, so the text keeps the width.
 struct MapPlaceRow: View {
-    static let iconColumn: CGFloat = 36
+    static let thumbnailColumn: CGFloat = PlaceThumbnail.defaultSize
 
     let place: MapPlace
     let languageTag: String?
     let onSelect: () -> Void
 
-    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = MapPlaceRow.iconColumn
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -375,12 +375,7 @@ struct MapPlaceRow: View {
         Button(action: onSelect) {
             HStack(alignment: .center, spacing: Theme.grid * 1.5) {
                 if !isLarge {
-                    Image(systemName: place.place.category.sfSymbol)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(width: iconSize, height: iconSize)
-                        .background(.quaternary, in: Circle())
-                        .accessibilityHidden(true)
+                    PlaceThumbnail(place: place.place, size: Self.thumbnailColumn)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     titleLine
