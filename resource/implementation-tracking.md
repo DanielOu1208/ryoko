@@ -49,7 +49,7 @@ Updated 2026-10-03 16:40. Update this section whenever a screen changes state.
 
 **Device Hub workaround** (Xcode 27 ships no Simulator.app): if computer use times out selecting Device Hub (`-10005`), launch `/Applications/Xcode.app/Contents/Applications/DeviceHub.app/Contents/MacOS/DeviceHub` directly. Coordinate clicks can still fail intermittently (`noWindowsAvailable`); accessibility actions and screenshots work. See openai/codex#44717.
 
-## Active branches and lanes (2026-10-03 19:35)
+## Active branches and lanes (2026-10-03 19:22)
 
 | Branch / worktree | Purpose | Owns |
 | --- | --- | --- |
