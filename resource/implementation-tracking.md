@@ -47,6 +47,15 @@ Updated 2026-10-03 16:40. Update this section whenever a screen changes state.
 
 **Device Hub workaround** (Xcode 27 ships no Simulator.app): if computer use times out selecting Device Hub (`-10005`), launch `/Applications/Xcode.app/Contents/Applications/DeviceHub.app/Contents/MacOS/DeviceHub` directly. Coordinate clicks can still fail intermittently (`noWindowsAvailable`); accessibility actions and screenshots work. See openai/codex#44717.
 
+## Active branches and lanes (2026-10-03 18:05)
+
+| Branch / worktree | Purpose | Owns |
+| --- | --- | --- |
+| `ui-refine` at `../stormhack26-ui` | The user's UI refinement pass | `ios/Ryoko/Map/`, `ios/Ryoko/Nearby/`, `ios/Ryoko/Mimo/`, `ios/Ryoko/App/Theme/Theme.swift` |
+| `main` | The T2.2–T2.6 workflow (builders in isolated worktrees, merged into main) | Everything else. **Doesn't touch the ui-refine lanes** until ui-refine merges back |
+
+The live server for the phone runs from `main` on `127.0.0.1:8792`, behind the Funnel on `:10000`. Don't stop it.
+
 ## 0. Setup before agents fan out (§12.2)
 
 | # | Task | Owner | Status | Branch/PR | Notes |
