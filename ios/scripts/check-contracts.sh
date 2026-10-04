@@ -4,7 +4,9 @@
 # - every contracts/examples file (and its bundled copy) decodes and encodes back
 #   to the same JSON,
 # - LangCode and CategorySlug match contracts/tables/,
-# - the SSE line reader, the situation clock and the API error mapping behave.
+# - the SSE line reader, the situation clock and the API error mapping behave,
+# - Translate's Soniox key provider falls back to the build's key only when the
+#   server can't hand one out (T2.6).
 #
 #   ios/scripts/check-contracts.sh          offline checks only
 #   ios/scripts/check-contracts.sh --live   also calls the server at
@@ -40,6 +42,9 @@ xcrun swiftc \
   "$CORE/Fixtures.swift" \
   "$CORE/FixtureRyokoAPI.swift" \
   "$CORE/FixtureSelfCheck.swift" \
+  "$ROOT/ios/Ryoko/Translate/SonioxProtocol.swift" \
+  "$ROOT/ios/Ryoko/Translate/SonioxSession.swift" \
+  "$ROOT/ios/Ryoko/Translate/SonioxKeys.swift" \
   "$ROOT/ios/scripts/ContractCheck/main.swift"
 
 if [ "${1:-}" = "--live" ]; then

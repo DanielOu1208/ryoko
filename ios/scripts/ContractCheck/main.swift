@@ -296,6 +296,73 @@ nonisolated struct ScriptOnlyAPI: RyokoAPI {
     }
 }
 
+// MARK: - Soniox key provider (T2.6)
+
+/// Answers sonioxKey() with a fixed result.
+nonisolated struct KeyStubAPI: RyokoAPI {
+    var result: Result<SonioxKeyResponse, RyokoAPIError>
+    func placeCard(_ request: PlaceCardRequest) async throws -> PlaceCardResponse { throw RyokoAPIError.http(status: 500) }
+    func discover(_ request: DiscoverRequest) async throws -> DiscoverResponse { throw RyokoAPIError.http(status: 500) }
+    func allergyCard(_ request: AllergyCardRequest) async throws -> AllergyCardResponse { throw RyokoAPIError.http(status: 500) }
+    func mimoMessages(sessionId: String, request: MimoMessageRequest) -> AsyncThrowingStream<MimoEvent, any Error> {
+        AsyncThrowingStream { $0.finish() }
+    }
+    func sonioxKey() async throws -> SonioxKeyResponse { try result.get() }
+}
+
+section("Soniox key provider: server first, the build's key only when the server can't hand one out")
+do {
+    func envelope(_ status: Int, _ code: ErrorCode, retryable: Bool = false) -> RyokoAPIError {
+        .server(status: status, ErrorBody(code: code, message: "Server says no.", retryable: retryable))
+    }
+    func provider(_ result: Result<SonioxKeyResponse, RyokoAPIError>, bundled: String? = "bundled-key") -> SonioxKeyProvider {
+        SonioxKeyProvider(api: KeyStubAPI(result: result), bundledKey: { bundled })
+    }
+    let minted = SonioxKeyResponse(apiKey: "temporary-key", expiresAt: "2026-10-05T07:01:00Z")
+    let fromServer = try await provider(.success(minted)).key()
+    expect(fromServer.value == "temporary-key" && fromServer.source == .server, "a minted key is used")
+
+    let fallbacks: [(RyokoAPIError, String)] = [
+        (.notConfigured("base"), "no server (fixtures, or no URL in the build)"),
+        (.transport(.cannotConnectToHost), "server unreachable"),
+        (.transport(.timedOut), "server too slow"),
+        (.http(status: 502), "a gateway error without our envelope (Funnel up, server down)"),
+        (envelope(404, .invalidRequest), "an older server without the route"),
+        (envelope(503, .modelError), "a server without SONIOX_API_KEY"),
+    ]
+    for (error, label) in fallbacks {
+        let key = try await provider(.failure(error)).key()
+        expect(key.value == "bundled-key" && key.source == .bundled, "falls back: \(label)")
+    }
+    let viaFixtures = try await SonioxKeyProvider(api: FixtureRyokoAPI(latency: .zero), bundledKey: { "bundled-key" }).key()
+    expect(viaFixtures.source == .bundled, "fixture mode uses the build's key")
+
+    let refusals: [(RyokoAPIError, String)] = [
+        (envelope(401, .unauthorized), "a refused app token"),
+        (envelope(429, .rateLimited, retryable: true), "the key rate limit"),
+        (envelope(502, .modelError, retryable: true), "Soniox refusing to mint"),
+    ]
+    for (error, label) in refusals {
+        do {
+            _ = try await provider(.failure(error)).key()
+            failures += 1
+            print("  FAIL no fallback for \(label)")
+        } catch let problem as TranslateProblem {
+            expect(problem == .keyServer("Server says no."), "stops with the server's message: \(label)")
+        }
+    }
+    do {
+        _ = try await provider(.failure(.transport(.notConnectedToInternet)), bundled: nil).key()
+        failures += 1
+        print("  FAIL no key at all should stop the session")
+    } catch let problem as TranslateProblem {
+        expect(problem == .missingKey, "no server key and no build key: missingKey")
+    }
+} catch {
+    failures += 1
+    print("  FAIL Soniox key provider: \(error)")
+}
+
 // MARK: - Fixture API
 
 section("FixtureRyokoAPI")
