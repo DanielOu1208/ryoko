@@ -81,7 +81,7 @@ Mimo names places and the phone finds them on Apple Maps, so every pin is a real
 ---
 
 <p align="center">
-  Built solo at StormHack 2026 ·
+  Built by our team at StormHack 2026 ·
   <a href="resource/design.md">Product and design</a> ·
   <a href="server/README.md">Server</a> ·
   <a href="THIRD_PARTY_NOTICES.md">Third-party notices</a>
