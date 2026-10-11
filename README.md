@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://youtu.be/pld5taLGz8E"><strong>Watch the demo</strong></a> ·
   <a href="#features">Features</a> ·
   <a href="#sponsor-tech">Sponsor tech</a> ·
   <a href="#how-it-works">How it works</a> ·
